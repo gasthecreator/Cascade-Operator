@@ -57,4 +57,6 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-28 — Review: five open-question proposals](2026-08-28-review-open-question-proposals.md)
+- [2026-08-28 — Planning pass on open questions](2026-08-28-planning-pass-open-questions.md)
 - [2026-08-28 — Repo init and PLAN.md](2026-08-28-repo-init-and-plan.md)

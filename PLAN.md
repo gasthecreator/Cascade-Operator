@@ -1,6 +1,8 @@
 # Cascade Operator — PLAN.md
 
-**Status as of 2026-08-28: repo initialized, zero code written.** This file is the
+**Status as of 2026-08-28: architecture locked (Go confirmed, CRD shape,
+mitigation matrix, demo topology, metrics approach, and CI all decided),
+zero code written yet.** This file is the
 single source of truth for goal, architecture, and progress. Read it before
 touching code in any session (Cursor or Claude). Keep it updated as work lands —
 this is a living document, not a one-time spec.
@@ -46,7 +48,7 @@ goal.
 
 ## 2. Architecture Decisions
 
-### 2.1 Language: **Go** (decided, pending your sign-off)
+### 2.1 Language: **Go** (confirmed 2026-08-28)
 
 `controller-runtime` + `kubebuilder` is the de facto standard for Kubernetes
 operators — CRD/deepcopy codegen, informer caching, leader election, and
@@ -63,17 +65,33 @@ Generate the base project (types, controller skeleton, RBAC manifests, CRD
 YAML) with `kubebuilder init` / `kubebuilder create api`. Standard tooling,
 predictable structure Cursor can pattern-match against.
 
-### 2.3 CRD: `CascadePolicy` (name open to change — see Open Questions)
+### 2.3 CRD: `CascadePolicy` (locked 2026-08-28)
 
-One CRD describing a service's dependency edges, detection thresholds, and
-which Istio objects (`VirtualService`/`DestinationRule`) are eligible targets
-for patching. Draft shape (not finalized):
+**Group:** `cascade.gideonsanni.dev`, **version:** `v1alpha1`, **kind:**
+`CascadePolicy`, **namespaced** (not cluster-scoped). This is final — do not
+rename without a new PROPOSALS.md entry, since renaming after codegen means
+regenerating deepcopy and CRD YAML.
+
+The CR describes a service's dependency edges and detection thresholds. It
+does **not** name a specific Istio object to patch. The controller resolves
+the `DestinationRule`/`VirtualService` to patch for each `dependsOn` entry by
+convention: object name = the dependency's Kubernetes Service name, same
+namespace as that Service. This replaced an earlier draft field,
+`spec.targetVirtualService`, which pointed at the *protected* service
+(e.g. `checkout-service`) — but outlier detection, retry budgets, connection
+pools, and timeouts all hang off the *dependency* host, not the caller. A
+policy about checkout failing because of payments patches payments' Istio
+objects, not checkout's. Encoding that as a resolution convention instead of
+a required field keeps the CRD from inviting that mistake. If a resolved
+object is missing, the controller sets a status condition and does not patch
+anything else for that edge — it does not error the whole reconcile.
 
 ```yaml
 apiVersion: cascade.gideonsanni.dev/v1alpha1
 kind: CascadePolicy
 metadata:
   name: checkout-service
+  namespace: default
 spec:
   service: checkout-service.default.svc.cluster.local
   dependsOn:
@@ -85,25 +103,40 @@ spec:
     windowSeconds: 30
     retryStormMultiplier: 3.0     # retries/sec vs baseline
     fanOutMultiplier: 5.0         # downstream calls vs baseline per inbound call
-  targetVirtualService:
-    name: checkout-service
-    namespace: default
+  mode: Mitigate                 # DetectOnly | Mitigate (default Mitigate) —
+                                  # DetectOnly logs/records signatures without
+                                  # patching the mesh; lets a demo show
+                                  # detection without mutating anything live.
 status:
   phase: Normal | Tripped | Restoring
   lastSignature: LatencyErrorCascade | RetryStorm | FanOutAmplification
   lastTrippedAt: ...
   restoreStep: 0-4
+  conditions:
+    - type: DependencyObjectMissing   # e.g. no DestinationRule found for an edge
+      status: "True" | "False"
 ```
 
-### 2.4 Metrics: poll Prometheus HTTP API
+### 2.4 Metrics: poll Prometheus HTTP API (closed 2026-08-28)
 
-Reconciler queries PromQL (`histogram_quantile`, `rate(...)`) on each
-reconcile tick rather than standing up a custom metrics adapter — much less
-infra for a portfolio-scope project, and the PromQL itself is a legible
-interview talking point. Relies on Istio's standard `istio_requests_total` /
-`istio_request_duration_milliseconds` metrics, broken out by
-`destination_service`, `response_code`, and `response_flags` (retries show up
-via `response_flags=UR` and related).
+Reconciler queries PromQL (`histogram_quantile`, `rate(...[30s])`) on each
+reconcile tick rather than standing up a custom metrics adapter (that API
+exists to feed HPA — it's another Deployment, an aggregation-layer
+APIService, and security surface, for no interview-visible gain). Prometheus
+already owns the 30-second window via the range-vector query, so detectors in
+`internal/signatures/` take a plain snapshot struct as input, not a local
+ring buffer — that's what keeps that package unit-testable without a
+cluster. Reconcile is driven by CR watch events **and** `RequeueAfter`
+(10s default), so polling happens without a separate timer controller.
+Prometheus URL is operator-level config (flag/env), not a per-policy CRD
+field. The Prometheus client sits behind a narrow interface
+(`Query(ctx, promql string) → Snapshot`) so the detector package has zero
+Kubernetes or Prometheus client dependency. Relies on Istio's standard
+`istio_requests_total` / `istio_request_duration_milliseconds` metrics,
+broken out by `destination_service`, `response_code`, and `response_flags`
+(retries show up via `response_flags=UR` and related — must be validated
+against a real Istio scrape before the retry-storm detector is written; this
+is a Kind-cluster validation item, not a scaffold item).
 
 ### 2.5 Detection engine: decoupled from the reconciler
 
@@ -114,31 +147,85 @@ this package — takes plain structs in, returns plain structs out. This is the
 part that must be unit-testable without a cluster, and it's the part most
 worth walking an interviewer through.
 
-### 2.6 Mitigation: Istio patching + gradual restoration
+### 2.6 Mitigation: per-signature Istio patch matrix + gradual restoration (locked 2026-08-28)
 
-- On a tripped signature, patch the target `DestinationRule` (outlier
-  detection / connection pool limits) or `VirtualService` (retry budget,
-  timeout) for the offending destination.
+Each signature has a different amplification mechanism, so each gets a
+specific primary patch (and where useful, a secondary one), rather than one
+generic "patch a DestinationRule or a VirtualService" rule:
+
+| Signature | Trip — primary | Trip — secondary | Restore |
+|---|---|---|---|
+| Latency/error cascade | `DestinationRule` `outlierDetection`: lower `consecutive5xxErrors`, shorter `interval`, longer `baseEjectionTime` | `VirtualService` `timeout` on the dependency host, capped at `thresholds.latencyP99Ms` | Stepwise loosen the same fields |
+| Retry storm | `VirtualService` `retries.attempts` → 0 or 1 | `DestinationRule` `connectionPool.http.maxRetries`, `http1MaxPendingRequests` | Stepwise raise attempts / pool limits |
+| Fan-out amplification | `DestinationRule` `connectionPool.http` (`http1MaxPendingRequests`, `http2MaxRequests`) on the downstream host — bulkhead in-flight calls | — (none for v1alpha1) | Stepwise raise pool limits |
+
+Reasoning: a latency/error cascade is service-level, so instance-scoped
+outlier detection (eject bad pods) is the primary — it's also the actual gap
+this project claims vs. hand-tuned Istio circuit breaking. The timeout is the
+fail-fast backstop if every pod is unhealthy and ejection saturates. A retry
+storm is a policy problem — outlier detection does nothing to stop Envoy from
+retrying, so cutting the retry budget directly is the primary, with
+connection-pool caps as the bulkhead. Fan-out is a concurrency problem —
+timeouts and ejection don't reduce call count, so a connection-pool bulkhead
+on the callee is the only lever that does.
+
+First mitigation slice implements only the **latency/error cascade primary**
+(outlier detection). The other cells are the contract for later slices, not
+built yet.
+
 - Every patch the operator makes is annotated
   (`cascade.gideonsanni.dev/managed-by: cascade-operator`) so reconciliation
   can distinguish operator-applied patches from user-authored config and never
   clobbers the latter.
-- Restoration is a step-function ramp, not an unpatch: e.g. 10% → 25% → 50% →
-  100% traffic weight (or loosened outlier-detection thresholds), with a
-  metrics re-check gate between each step. A regression during ramp re-trips
-  immediately and resets to step 0.
+- **Restoration always ramps the same fields that were tightened on trip** —
+  e.g. stepwise raise `consecutive5xxErrors` back up, shorten
+  `baseEjectionTime` back down — with a metrics re-check gate between each
+  step. It does **not** use a traffic-weight ramp (10%→25%→50%→100% via
+  `VirtualService` route weights). Weighted-route restoration is a different
+  pattern (load-shedding/canary): it needs a dummy destination or abort route,
+  a second state machine, and risks clobbering user-authored routing. One
+  ramp mechanism — loosen what was tightened — is simpler and the more
+  defensible interview story. A regression during ramp re-trips immediately
+  and resets to step 0.
 - State machine per policy: `Normal → Tripped → Restoring(step N) → Normal`,
   tracked in `CascadePolicy.status`.
 
 ### 2.7 Local dev/test environment
 
 - Kind cluster + Istio (demo profile) installed locally.
-- Demo microservice topology to induce failures against — likely Istio's
-  Bookinfo sample extended with a fault-injection sidecar endpoint, unless
-  that proves too limited (see Open Questions).
+- **Demo topology (locked 2026-08-28): a custom 3-service graph** —
+  `checkout → {payments, inventory}`, matching the CRD example, plus a thin
+  frontend/gateway as a single k6 entrypoint if needed. Three small Go
+  services, Dockerfiles, Kubernetes+Istio manifests, under `demo/`. Signatures
+  are induced with Istio fault injection + k6 against this graph, not extra
+  sidecars.
+  Rejected: extending Istio's Bookinfo sample. Bookinfo's graph
+  (productpage → details/reviews → ratings) is built to demo traffic
+  splitting, not these failure modes — reviews→ratings is 1:1 so it can't
+  show disproportionate fan-out, and it has no first-class controllable retry
+  client. A purpose-built graph makes "induce exactly this signature" a
+  script instead of a fight with sample-app defaults, at a bounded cost
+  (~50-line services).
+  **Sequencing:** build this after one signature's full detect→mitigate loop
+  is working end to end, not before — the interview demo is one signature
+  proven through the whole pipeline; the other two detectors are copies of
+  the same interface, and the demo topology should exercise a working loop,
+  not an empty one.
 - k6 (preferred over Locust — single static binary, easy to invoke from CI
   and from Go-based test harnesses without a Python dependency) to simulate
   latency spikes, retry storms, and fan-out load patterns.
+
+### 2.8 CI (locked 2026-08-28)
+
+GitHub Actions from the first scaffold PR, running on PRs and on `main`:
+`gofmt -l` (must be empty), `golangci-lint` (version pinned), `go test ./...`,
+and a `make manifests`/`make generate` drift check (generated CRD YAML and
+deepcopy match what's committed — the usual kubebuilder footgun is a hand-edit
+to a generated file). Go version pinned to whatever `kubebuilder init`
+defaults to (currently expected ~1.24.x — follow the tool, don't fight it).
+Kind/Istio/k6 stay **out** of CI until the integration-test checklist item is
+actually being built — installing Istio in Actions is the expensive, flaky
+part, and there's nothing to integration-test yet.
 
 ---
 
@@ -146,6 +233,14 @@ worth walking an interviewer through.
 
 Everything below is **not started**. Repo was an empty GitHub shell (0 commits)
 until this session.
+
+**Build order matters here — do not build all three detectors before wiring
+one through the reconciler, and do not stand up the Kind+Istio+demo topology
+before one detect→mitigate loop exists end to end.** One signature proven
+through the full pipeline (metrics → detector → patch → restore) is the
+interview demo; the other two detectors are then copies of the same
+interface. First slice is repo scaffold + CRD + a reconciler that does
+nothing but watch/log/requeue — no Prometheus or Istio client yet.
 
 - [ ] Repo scaffold (kubebuilder init, go.mod, Makefile, CI skeleton)
 - [ ] `CascadePolicy` CRD types + deepcopy + CRD YAML
@@ -169,23 +264,14 @@ until this session.
 
 ## 4. Open Questions
 
-1. **CRD name/group** — `CascadePolicy` under `cascade.gideonsanni.dev/v1alpha1`
-   is a placeholder. Confirm before generating kubebuilder scaffolding, since
-   renaming after codegen means regenerating deepcopy/CRD YAML.
-2. **Demo topology** — extend Istio's Bookinfo sample, or write a minimal
-   custom 3-service app? Bookinfo is faster to stand up; a custom app gives
-   cleaner control over inducing exactly the three signatures on demand.
-3. **Istio patch target** — for the latency/error cascade signature, is the
-   right mitigation an `outlier detection` change on `DestinationRule`, or a
-   timeout/retry-budget change on `VirtualService`, or both depending on
-   signature type? Needs a decision per signature before the mitigation layer
-   is built.
-4. **Custom-metrics API vs. direct Prometheus polling** — current plan is
-   direct polling (2.4). Revisit only if reconcile-loop latency against
-   Prometheus becomes a real bottleneck in testing — unlikely at demo scale.
-5. **CI** — GitHub Actions for lint/test: set up now (empty repo, cheap) or
-   defer until there's code to run against? Leaning toward now, since it's
-   nearly free and enforces the gofmt/golangci-lint standard from commit one.
+**All five original open questions were resolved 2026-08-28** via
+`PROPOSALS.md` (see its Resolved Proposals section for full reasoning) —
+CRD group/kind/shape (2.3), demo topology (2.7), Istio patch matrix (2.6),
+metrics approach (2.4), and CI (2.8) are now locked decisions above, not open.
+
+None currently open. Add new ones here as they come up — don't leave this
+section empty just because it looks tidy; an open question that's actually
+blocking belongs here, not silently assumed in code.
 
 ---
 
