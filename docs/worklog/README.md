@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-29 — Kind smoke test: manager + CRD + sample CR](2026-08-29-kind-smoke-test.md)
 - [2026-08-29 — Review: repo scaffold, CRD, reconciler slice](2026-08-29-review-scaffold-slice.md)
 - [2026-08-28 — Repo scaffold, CascadePolicy CRD, logging reconciler](2026-08-28-repo-scaffold-crd-reconciler.md)
 - [2026-08-28 — Review: five open-question proposals](2026-08-28-review-open-question-proposals.md)
