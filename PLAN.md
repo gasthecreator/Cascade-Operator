@@ -1,8 +1,8 @@
 # Cascade Operator — PLAN.md
 
-**Status as of 2026-08-28: architecture locked (Go confirmed, CRD shape,
-mitigation matrix, demo topology, metrics approach, and CI all decided),
-zero code written yet.** This file is the
+**Status as of 2026-08-28: first slice on `feat/repo-scaffold` — kubebuilder
+scaffold, `CascadePolicy` CRD, logging reconciler, lint/test CI. Kind smoke
+test not run: Docker is not installed on this machine.** This file is the
 single source of truth for goal, architecture, and progress. Read it before
 touching code in any session (Cursor or Claude). Keep it updated as work lands —
 this is a living document, not a one-time spec.
@@ -231,9 +231,6 @@ part, and there's nothing to integration-test yet.
 
 ## 3. Checklist — Built vs. Not Yet
 
-Everything below is **not started**. Repo was an empty GitHub shell (0 commits)
-until this session.
-
 **Build order matters here — do not build all three detectors before wiring
 one through the reconciler, and do not stand up the Kind+Istio+demo topology
 before one detect→mitigate loop exists end to end.** One signature proven
@@ -242,8 +239,8 @@ interview demo; the other two detectors are then copies of the same
 interface. First slice is repo scaffold + CRD + a reconciler that does
 nothing but watch/log/requeue — no Prometheus or Istio client yet.
 
-- [ ] Repo scaffold (kubebuilder init, go.mod, Makefile, CI skeleton)
-- [ ] `CascadePolicy` CRD types + deepcopy + CRD YAML
+- [x] Repo scaffold (kubebuilder init, go.mod, Makefile, CI skeleton)
+- [x] `CascadePolicy` CRD types + deepcopy + CRD YAML
 - [ ] Prometheus client + PromQL query layer
 - [ ] Signature detector: latency/error cascade
 - [ ] Signature detector: retry storm
@@ -257,7 +254,7 @@ nothing but watch/log/requeue — no Prometheus or Istio client yet.
 - [ ] k6 cascade-simulation test scripts (latency spike, retry storm, fan-out)
 - [ ] Unit test suite for detectors (no cluster required)
 - [ ] Integration test suite (Kind-based, exercises real reconcile loop)
-- [ ] golangci-lint + gofmt CI gate
+- [x] golangci-lint + gofmt CI gate
 - [ ] README (setup, architecture summary, demo instructions)
 
 ---

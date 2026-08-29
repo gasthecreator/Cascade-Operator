@@ -1,0 +1,20 @@
+apiVersion: cascade.gideonsanni.dev/v1alpha1
+kind: CascadePolicy
+metadata:
+  labels:
+    app.kubernetes.io/name: cascade-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: checkout-service
+  namespace: default
+spec:
+  service: checkout-service.default.svc.cluster.local
+  dependsOn:
+    - payments-service.default.svc.cluster.local
+    - inventory-service.default.svc.cluster.local
+  thresholds:
+    latencyP99Ms: 500
+    errorRateFraction: 0.05
+    windowSeconds: 30
+    retryStormMultiplier: 3.0
+    fanOutMultiplier: 5.0
+  mode: Mitigate

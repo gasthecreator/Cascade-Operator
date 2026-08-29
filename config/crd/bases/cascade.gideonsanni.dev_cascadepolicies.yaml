@@ -1,0 +1,229 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.21.0
+  name: cascadepolicies.cascade.gideonsanni.dev
+spec:
+  group: cascade.gideonsanni.dev
+  names:
+    kind: CascadePolicy
+    listKind: CascadePolicyList
+    plural: cascadepolicies
+    shortNames:
+    - cpol
+    singular: cascadepolicy
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .spec.mode
+      name: Mode
+      type: string
+    - jsonPath: .status.lastSignature
+      name: Last Signature
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          CascadePolicy describes a service's dependency edges and detection thresholds.
+          The controller resolves Istio objects to patch per dependsOn host; this CR
+          does not name DestinationRules or VirtualServices.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of CascadePolicy
+            properties:
+              dependsOn:
+                description: |-
+                  dependsOn is the list of dependency service FQDNs. Istio objects to
+                  patch are resolved from each host by convention (object name = Kubernetes
+                  Service name, same namespace as that Service) — not named on this CR.
+                items:
+                  minLength: 1
+                  type: string
+                minItems: 1
+                type: array
+                x-kubernetes-list-type: atomic
+              mode:
+                default: Mitigate
+                description: |-
+                  mode controls whether a tripped signature patches the mesh.
+                  DetectOnly logs/records without patching; Mitigate applies the patch matrix.
+                enum:
+                - DetectOnly
+                - Mitigate
+                type: string
+              service:
+                description: service is the protected service FQDN (the caller in
+                  the dependency graph).
+                minLength: 1
+                type: string
+              thresholds:
+                description: thresholds are detection cutoffs applied to every dependsOn
+                  edge.
+                properties:
+                  errorRateFraction:
+                    default: 0.05
+                    description: errorRateFraction is the downstream error-rate (0–1)
+                      that counts as a rise.
+                    maximum: 1
+                    minimum: 0
+                    type: number
+                  fanOutMultiplier:
+                    default: 5
+                    description: fanOutMultiplier is downstream calls versus baseline
+                      per inbound call.
+                    minimum: 1
+                    type: number
+                  latencyP99Ms:
+                    default: 500
+                    description: latencyP99Ms is the p99 latency in milliseconds that
+                      counts as a spike.
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  retryStormMultiplier:
+                    default: 3
+                    description: retryStormMultiplier is retries/sec versus baseline
+                      that counts as a storm.
+                    minimum: 1
+                    type: number
+                  windowSeconds:
+                    default: 30
+                    description: |-
+                      windowSeconds is the PromQL range-vector window. Prometheus owns this
+                      window; detectors consume a snapshot, not a local ring buffer.
+                    format: int32
+                    minimum: 1
+                    type: integer
+                type: object
+            required:
+            - dependsOn
+            - service
+            - thresholds
+            type: object
+          status:
+            description: status defines the observed state of CascadePolicy
+            properties:
+              conditions:
+                description: |-
+                  conditions represent the current state of the CascadePolicy resource.
+                  DependencyObjectMissing is True when a dependsOn edge has no resolvable
+                  DestinationRule or VirtualService; that edge is skipped, not the whole reconcile.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              lastSignature:
+                description: lastSignature is the signature that last tripped this
+                  policy, if any.
+                enum:
+                - LatencyErrorCascade
+                - RetryStorm
+                - FanOutAmplification
+                type: string
+              lastTrippedAt:
+                description: lastTrippedAt is when the policy last entered Tripped.
+                format: date-time
+                type: string
+              phase:
+                description: 'phase is the state-machine position: Normal, Tripped,
+                  or Restoring.'
+                enum:
+                - Normal
+                - Tripped
+                - Restoring
+                type: string
+              restoreStep:
+                description: restoreStep is the restoration ramp index (0–4) while
+                  phase is Restoring.
+                format: int32
+                maximum: 4
+                minimum: 0
+                type: integer
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

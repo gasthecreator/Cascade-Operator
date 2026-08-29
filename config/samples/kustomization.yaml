@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- cascade_v1alpha1_cascadepolicy.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples
