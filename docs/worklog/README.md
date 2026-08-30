@@ -57,6 +57,8 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-29 — Review: Kind + Istio dev environment, PromQL/response_flags proposals](2026-08-29-review-kind-istio-dev-env.md)
+- [2026-08-29 — Kind + Istio local mesh; PromQL and response_flags evidence](2026-08-29-kind-istio-dev-env.md)
 - [2026-08-29 — Review: restoration ramp slice](2026-08-29-review-restoration-ramp.md)
 - [2026-08-29 — Restoration ramp for the latency/error-cascade outlierDetection patch](2026-08-29-restoration-ramp.md)
 - [2026-08-29 — Review: Istio outlier-detection patch slice](2026-08-29-review-istio-outlier-patch.md)

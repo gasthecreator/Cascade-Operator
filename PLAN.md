@@ -1,9 +1,9 @@
 # Cascade Operator — PLAN.md
 
 **Status as of 2026-08-29: latency/error-cascade detect → mitigate → restore
-loop on `feat/restoration-ramp` (DestinationRule outlierDetection primary
-only). DetectOnly still records without patching. VirtualService secondary
-and the other two signatures are next.** This file is the
+loop is implemented; Kind cluster has Istio 1.30.4 (demo) + Prometheus and
+a sleep/httpbin validation workload. PromQL/`response_flags` findings are in
+PROPOSALS.md, not yet applied.** This file is the
 single source of truth for goal, architecture, and progress. Read it before
 touching code in any session (Cursor or Claude). Keep it updated as work lands —
 this is a living document, not a one-time spec.
@@ -134,10 +134,17 @@ field. The Prometheus client sits behind a narrow interface
 (`Query(ctx, promql string) → Snapshot`) so the detector package has zero
 Kubernetes or Prometheus client dependency. Relies on Istio's standard
 `istio_requests_total` / `istio_request_duration_milliseconds` metrics,
-broken out by `destination_service`, `response_code`, and `response_flags`
-(retries show up via `response_flags=UR` and related — must be validated
-against a real Istio scrape before the retry-storm detector is written; this
-is a Kind-cluster validation item, not a scaffold item).
+broken out by `destination_service`, `response_code`, and `response_flags`.
+The p99 query is `reporter="source"` (client-perceived latency) with
+`sum by (le)` before `histogram_quantile` — confirmed on a live Istio 1.30.4
+scrape that without this, Prometheus returns one series per
+reporter/response_code/etc., and summing both reporters together
+double-counts the same request (see PROPOSALS.md's resolved entries,
+2026-08-29). **Retries show up as `response_flags=URX`** (exhausted retry
+budget), not `UR` — also confirmed on a live scrape (35 `URX` on the source
+reporter × 4 = 140 total 503s at the destination, matching a
+`retries.attempts: 3` policy exactly). The retry-storm detector should key
+off `URX` and/or the destination:source request-count ratio, not `UR`.
 
 ### 2.5 Detection engine: decoupled from the reconciler
 
@@ -239,7 +246,8 @@ through the full pipeline (metrics → detector → patch → restore) is the
 interview demo; the other two detectors are then copies of the same
 interface. First slice (scaffold + CRD + logging reconciler), Prometheus HTTP
 client, latency/error-cascade detection, Istio primary patch, and the
-restoration ramp are done. One signature is through the full pipeline.
+restoration ramp are done. One signature is through the full pipeline in
+unit tests. Kind + Istio 1.30.4 is installed locally for scrape evidence.
 
 - [x] Repo scaffold (kubebuilder init, go.mod, Makefile, CI skeleton)
 - [x] `CascadePolicy` CRD types + deepcopy + CRD YAML
@@ -252,7 +260,7 @@ restoration ramp are done. One signature is through the full pipeline.
 - [ ] Istio patch layer — `VirtualService` secondary cells (timeout; retry-storm/fan-out primaries)
 - [x] Gradual restoration state machine
 - [ ] Operator's own Prometheus metrics (signatures detected, patches applied)
-- [ ] Kind + Istio local dev environment docs/scripts
+- [x] Kind + Istio local dev environment docs/scripts
 - [ ] Demo microservice topology for fault injection
 - [ ] k6 cascade-simulation test scripts (latency spike, retry storm, fan-out)
 - [x] Unit test suite for detectors (no cluster required)

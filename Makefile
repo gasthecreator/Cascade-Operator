@@ -120,6 +120,21 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 lint-config: golangci-lint ## Verify golangci-lint linter configuration
 	"$(GOLANGCI_LINT)" config verify
 
+##@ Local mesh
+
+.PHONY: istio-install
+istio-install: ## Install pinned Istio (demo profile) + Prometheus on the current kube context.
+	ISTIO_VERSION="$(ISTIO_VERSION)" ISTIOCTL="$(ISTIOCTL)" LOCALBIN="$(LOCALBIN)" hack/install-istio.sh
+
+.PHONY: istio-samples
+istio-samples: ## Deploy sleep + httpbin (sidecar-injected). Not the §2.7 demo topology.
+	ISTIO_VERSION="$(ISTIO_VERSION)" hack/deploy-istio-samples.sh
+
+.PHONY: query-prom
+query-prom: ## Instant-query in-cluster Prometheus. Usage: make query-prom QUERY='up'
+	@test -n "$(QUERY)" || { echo "QUERY is required"; exit 1; }
+	hack/query-prom.sh '$(QUERY)'
+
 ##@ Build
 
 .PHONY: build
@@ -203,10 +218,13 @@ KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
+ISTIOCTL ?= $(LOCALBIN)/istioctl
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.8.1
 CONTROLLER_TOOLS_VERSION ?= v0.21.0
+# Pin matches current stable (2026-08-29) and istio.io/client-go in go.mod.
+ISTIO_VERSION ?= 1.30.4
 
 #ENVTEST_VERSION is the controller-runtime version to use for setup-envtest, derived from go.mod
 ENVTEST_VERSION ?= $(shell v='$(call gomodver,sigs.k8s.io/controller-runtime)'; \

@@ -26,7 +26,7 @@ import (
 func TestLatencyP99Query(t *testing.T) {
 	t.Parallel()
 	got := latencyP99Query("payments-service.default.svc.cluster.local", 30)
-	want := `histogram_quantile(0.99, rate(istio_request_duration_milliseconds_bucket{destination_service="payments-service.default.svc.cluster.local"}[30s]))`
+	want := `histogram_quantile(0.99, sum by (le) (rate(istio_request_duration_milliseconds_bucket{destination_service="payments-service.default.svc.cluster.local",reporter="source"}[30s])))`
 	if got != want {
 		t.Fatalf("latencyP99Query =\n%s\nwant\n%s", got, want)
 	}

@@ -22,9 +22,15 @@ import (
 	"github.com/gasthecreator/Cascade-Operator/internal/metrics"
 )
 
+// latencyP99Query is the client-perceived (reporter=source) p99, aggregated
+// across all remaining labels via sum by (le) before histogram_quantile.
+// Without that, Prometheus returns one series per reporter/response_code/etc.
+// (confirmed on a live Istio 1.30.4 scrape — see PROPOSALS.md's resolved
+// "sum by (le)" entry), and taking source+destination together would double
+// count the same request instead of picking one consistent view of it.
 func latencyP99Query(host string, windowSeconds int32) string {
 	return fmt.Sprintf(
-		`histogram_quantile(0.99, rate(istio_request_duration_milliseconds_bucket{destination_service=%q}[%ds]))`,
+		`histogram_quantile(0.99, sum by (le) (rate(istio_request_duration_milliseconds_bucket{destination_service=%q,reporter="source"}[%ds])))`,
 		host, windowSeconds,
 	)
 }
