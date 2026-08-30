@@ -84,6 +84,7 @@ func (r *CascadePolicyReconciler) applyLatencyErrorMitigation(
 	if err := r.Update(ctx, dr); err != nil {
 		return fmt.Errorf("update DestinationRule %s/%s: %w", ns, name, err)
 	}
+	mitigationPatchesAppliedTotal.WithLabelValues(string(cascadev1alpha1.SignatureLatencyErrorCascade), kindDestinationRule).Inc()
 	log.Info("patched DestinationRule outlierDetection", "name", name, "namespace", ns)
 	return nil
 }

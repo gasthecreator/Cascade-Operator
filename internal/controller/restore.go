@@ -282,5 +282,6 @@ func (r *CascadePolicyReconciler) completeLatencyErrorRestore(
 			return fmt.Errorf("update DestinationRule completing restore %s: %w", e.host, err)
 		}
 	}
+	restorationsCompletedTotal.WithLabelValues(string(cascadev1alpha1.SignatureLatencyErrorCascade)).Inc()
 	return nil
 }

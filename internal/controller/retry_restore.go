@@ -156,5 +156,6 @@ func (r *CascadePolicyReconciler) completeRetryStormRestore(
 			return fmt.Errorf("update VirtualService completing restore %s: %w", e.host, err)
 		}
 	}
+	restorationsCompletedTotal.WithLabelValues(string(cascadev1alpha1.SignatureRetryStorm)).Inc()
 	return nil
 }

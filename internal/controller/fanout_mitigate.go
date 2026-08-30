@@ -77,6 +77,7 @@ func (r *CascadePolicyReconciler) applyFanOutMitigation(
 	if err := r.Update(ctx, dr); err != nil {
 		return fmt.Errorf("update DestinationRule %s/%s: %w", ns, name, err)
 	}
+	mitigationPatchesAppliedTotal.WithLabelValues(string(cascadev1alpha1.SignatureFanOutAmplification), kindDestinationRule).Inc()
 	log.Info("patched DestinationRule connectionPool.http", "name", name, "namespace", ns)
 	return nil
 }

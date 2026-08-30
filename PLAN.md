@@ -322,7 +322,7 @@ live Kind cluster (unreachable — see the worklog).
 - [ ] Istio patch layer — remaining secondaries (`VirtualService` timeout for latency/error cascade; `DestinationRule` connectionPool for retry storm)
 - [x] Gradual restoration state machine (signature-dispatched: `DestinationRule` for latency/error cascade and fan-out amplification, on disjoint field sets; `VirtualService` for retry storm)
 - [x] Force-complete outgoing signature's restore on a same-object signature handoff (§2.6)
-- [ ] Operator's own Prometheus metrics (signatures detected, patches applied)
+- [x] Operator's own Prometheus metrics (signatures detected, patches applied, restorations completed/regressed)
 - [x] Kind + Istio local dev environment docs/scripts
 - [x] Demo microservice topology for fault injection (`demo/` — checkout, payments, inventory)
 - [x] k6 cascade-simulation test scripts (latency spike, retry storm, fan-out) — live evidence for all three; retry-storm's *mitigation patch* found broken against a realistic fixture, see `PROPOSALS.md`

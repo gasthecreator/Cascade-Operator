@@ -79,6 +79,7 @@ func (r *CascadePolicyReconciler) applyRetryStormMitigation(
 	if err := r.Update(ctx, vs); err != nil {
 		return fmt.Errorf("update VirtualService %s/%s: %w", ns, name, err)
 	}
+	mitigationPatchesAppliedTotal.WithLabelValues(string(cascadev1alpha1.SignatureRetryStorm), kindVirtualService).Inc()
 	log.Info("patched VirtualService retries.attempts", "name", name, "namespace", ns)
 	return nil
 }

@@ -98,10 +98,20 @@ func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			// nothing left to complete".
 			outgoingSig := policy.Status.LastSignature
 			handoff := outgoingSig != "" && outgoingSig != sig && policy.Status.Phase != cascadev1alpha1.PolicyPhaseNormal
+			// A regression is the same signature re-tripping while its own
+			// restoration ramp is still in progress (PLAN.md §2.6: "a
+			// regression during ramp re-trips immediately and resets to
+			// step 0") — distinct from handoff, which is a *different*
+			// signature tripping. Read before Phase is overwritten below.
+			regression := !handoff && outgoingSig == sig && policy.Status.Phase == cascadev1alpha1.PolicyPhaseRestoring
 			if handoff {
 				mitErr = r.forceCompleteOutgoingRestore(ctx, policy, outgoingSig)
 			}
 			if mitErr == nil {
+				signaturesDetectedTotal.WithLabelValues(string(sig), host).Inc()
+				if regression {
+					restorationRegressionsTotal.WithLabelValues(string(sig)).Inc()
+				}
 				if policy.Status.Phase != cascadev1alpha1.PolicyPhaseTripped {
 					now := metav1.Now()
 					policy.Status.LastTrippedAt = &now
