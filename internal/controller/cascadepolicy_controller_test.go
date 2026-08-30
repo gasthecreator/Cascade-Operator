@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -160,6 +161,10 @@ var _ = Describe("CascadePolicy Controller", func() {
 			Expect(updated.Status.Phase).To(Equal(cascadev1alpha1.PolicyPhaseTripped))
 			Expect(updated.Status.LastSignature).To(Equal(cascadev1alpha1.SignatureLatencyErrorCascade))
 			Expect(updated.Status.LastTrippedAt).NotTo(BeNil())
+
+			cond := meta.FindStatusCondition(updated.Status.Conditions, cascadev1alpha1.ConditionTypeDependencyObjectMissing)
+			Expect(cond).NotTo(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionTrue))
 		})
 
 		It("should not fail reconcile when Query returns an error", func() {

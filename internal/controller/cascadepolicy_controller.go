@@ -20,6 +20,7 @@ import (
 	"context"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -46,9 +47,11 @@ type CascadePolicyReconciler struct {
 // +kubebuilder:rbac:groups=cascade.gideonsanni.dev,resources=cascadepolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cascade.gideonsanni.dev,resources=cascadepolicies/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=cascade.gideonsanni.dev,resources=cascadepolicies/finalizers,verbs=update
+// +kubebuilder:rbac:groups=networking.istio.io,resources=destinationrules,verbs=get;list;watch;update;patch
 
-// Reconcile observes the CR, optionally polls Prometheus per dependsOn host,
-// and records a LatencyErrorCascade trip. No Istio patches this slice.
+// Reconcile observes the CR, polls Prometheus per dependsOn host, records a
+// LatencyErrorCascade trip, and in Mitigate mode patches the dependency's
+// DestinationRule outlierDetection. Restoration is the next slice.
 func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
@@ -63,13 +66,13 @@ func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		"service", policy.Spec.Service,
 	)
 
-	origPhase := policy.Status.Phase
-	origSig := policy.Status.LastSignature
+	origStatus := policy.Status.DeepCopy()
 
 	if policy.Status.Phase == "" {
 		policy.Status.Phase = cascadev1alpha1.PolicyPhaseNormal
 	}
 
+	var mitErr error
 	if r.Metrics != nil {
 		if host, v, ok := r.detectLatencyErrorCascade(ctx, policy); ok && v.Tripped {
 			if policy.Status.Phase != cascadev1alpha1.PolicyPhaseTripped {
@@ -83,14 +86,18 @@ func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				"confidence", v.Confidence,
 				"evidence", v.Evidence,
 			)
+			mitErr = r.applyLatencyErrorMitigation(ctx, policy, host)
 		}
 		// Not tripped: leave Tripped/Restoring alone — restoration is the next slice.
 	}
 
-	if policy.Status.Phase != origPhase || policy.Status.LastSignature != origSig {
+	if !equality.Semantic.DeepEqual(origStatus, &policy.Status) {
 		if err := r.Status().Update(ctx, policy); err != nil {
 			return ctrl.Result{}, err
 		}
+	}
+	if mitErr != nil {
+		return ctrl.Result{}, mitErr
 	}
 
 	return ctrl.Result{RequeueAfter: DefaultRequeueAfter}, nil

@@ -30,3 +30,13 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - networking.istio.io
+  resources:
+  - destinationrules
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch

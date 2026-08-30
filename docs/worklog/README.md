@@ -57,6 +57,8 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-29 — Review: Istio outlier-detection patch slice](2026-08-29-review-istio-outlier-patch.md)
+- [2026-08-29 — Istio patch: latency/error-cascade primary (DestinationRule outlierDetection)](2026-08-29-istio-outlier-patch.md)
 - [2026-08-29 — Review: latency/error-cascade detector slice](2026-08-29-review-latency-error-detector.md)
 - [2026-08-29 — Latency/error-cascade detector wired through the reconcile loop](2026-08-29-latency-error-detector.md)
 - [2026-08-29 — Review: Prometheus HTTP client slice](2026-08-29-review-prometheus-client.md)

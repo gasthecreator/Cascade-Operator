@@ -35,6 +35,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	networkingv1 "istio.io/client-go/pkg/apis/networking/v1"
+
 	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
 	"github.com/gasthecreator/Cascade-Operator/internal/controller"
 	"github.com/gasthecreator/Cascade-Operator/internal/metrics"
@@ -50,6 +52,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(cascadev1alpha1.AddToScheme(scheme))
+	utilruntime.Must(networkingv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 

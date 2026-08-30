@@ -1,8 +1,9 @@
 # Cascade Operator — PLAN.md
 
-**Status as of 2026-08-29: latency/error-cascade detector wired on
-`feat/latency-error-detector` (detect-only: status trip, no Istio patch).
-Prometheus client is on `feat/prometheus-client`.** This file is the
+**Status as of 2026-08-29: latency/error-cascade primary Istio patch
+(`DestinationRule` outlierDetection) on `feat/istio-outlier-patch`.
+Detection still runs in DetectOnly; mesh mutation is Mitigate-only.
+Restoration ramp is the next slice.** This file is the
 single source of truth for goal, architecture, and progress. Read it before
 touching code in any session (Cursor or Claude). Keep it updated as work lands —
 this is a living document, not a one-time spec.
@@ -237,8 +238,8 @@ before one detect→mitigate loop exists end to end.** One signature proven
 through the full pipeline (metrics → detector → patch → restore) is the
 interview demo; the other two detectors are then copies of the same
 interface. First slice (scaffold + CRD + logging reconciler), Prometheus HTTP
-client, and latency/error-cascade detection (status only) are done. Next is
-the Istio patch layer for that signature. No restore ramp yet.
+client, and latency/error-cascade detection (status + Istio primary patch)
+are done. Next is the restoration ramp for that signature.
 
 - [x] Repo scaffold (kubebuilder init, go.mod, Makefile, CI skeleton)
 - [x] `CascadePolicy` CRD types + deepcopy + CRD YAML
@@ -247,7 +248,8 @@ the Istio patch layer for that signature. No restore ramp yet.
 - [ ] Signature detector: retry storm
 - [ ] Signature detector: fan-out amplification
 - [x] Reconciler wiring (metrics → detectors → decision)
-- [ ] Istio patch layer (DestinationRule / VirtualService client + annotations)
+- [x] Istio patch layer — `DestinationRule` outlierDetection primary (latency/error cascade), annotations
+- [ ] Istio patch layer — `VirtualService` secondary cells (timeout; retry-storm/fan-out primaries)
 - [ ] Gradual restoration state machine
 - [ ] Operator's own Prometheus metrics (signatures detected, patches applied)
 - [ ] Kind + Istio local dev environment docs/scripts

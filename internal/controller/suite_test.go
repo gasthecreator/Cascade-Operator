@@ -33,6 +33,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	networkingv1 "istio.io/client-go/pkg/apis/networking/v1"
+
 	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
@@ -61,6 +63,8 @@ var _ = BeforeSuite(func() {
 
 	var err error
 	err = cascadev1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+	err = networkingv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:scheme
