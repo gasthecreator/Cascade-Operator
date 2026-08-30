@@ -37,6 +37,7 @@ import (
 
 	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
 	"github.com/gasthecreator/Cascade-Operator/internal/controller"
+	"github.com/gasthecreator/Cascade-Operator/internal/metrics"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -61,6 +62,7 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var prometheusURL string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -79,6 +81,9 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.StringVar(&prometheusURL, "prometheus-url", os.Getenv("PROMETHEUS_URL"),
+		"Base URL of the Prometheus HTTP API (e.g. http://prometheus.istio-system.svc:9090). "+
+			"Also read from PROMETHEUS_URL. Empty disables metrics polling.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -178,10 +183,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := (&controller.CascadePolicyReconciler{
+	reconciler := &controller.CascadePolicyReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
+	}
+	if prometheusURL != "" {
+		promClient, err := metrics.NewClient(prometheusURL, nil)
+		if err != nil {
+			setupLog.Error(err, "Invalid prometheus-url")
+			os.Exit(1)
+		}
+		reconciler.Metrics = promClient
+		setupLog.Info("Prometheus metrics client configured", "url", prometheusURL)
+	} else {
+		setupLog.Info("Prometheus URL not set; metrics polling disabled")
+	}
+	if err := reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "cascadepolicy")
 		os.Exit(1)
 	}

@@ -26,25 +26,29 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
+	"github.com/gasthecreator/Cascade-Operator/internal/metrics"
 )
 
-// DefaultRequeueAfter is the reconcile tick used to poll Prometheus once that
-// client exists (PLAN.md §2.4). Watch events still trigger an immediate reconcile.
+// DefaultRequeueAfter is the reconcile tick used to poll Prometheus (PLAN.md §2.4).
+// Watch events still trigger an immediate reconcile.
 const DefaultRequeueAfter = 10 * time.Second
 
 // CascadePolicyReconciler reconciles a CascadePolicy object
 type CascadePolicyReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	// Metrics is optional. Nil disables polling (no --prometheus-url). Detectors
+	// are not wired this slice; Query will be issued from this tick later.
+	Metrics metrics.Querier
 }
 
 // +kubebuilder:rbac:groups=cascade.gideonsanni.dev,resources=cascadepolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cascade.gideonsanni.dev,resources=cascadepolicies/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=cascade.gideonsanni.dev,resources=cascadepolicies/finalizers,verbs=update
 
-// Reconcile is the CascadePolicy loop. This slice only observes the CR and
-// requeues: no Prometheus queries, no Istio patches. Later slices wire
-// metrics → detectors → the patch matrix on top of this tick.
+// Reconcile is the CascadePolicy loop. It observes the CR and requeues on
+// DefaultRequeueAfter. Prometheus Query is not issued yet — the next slice
+// wires metrics → detectors on this same tick. No Istio patches yet.
 func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 

@@ -1,8 +1,8 @@
 # Cascade Operator — PLAN.md
 
-**Status as of 2026-08-28: first slice on `feat/repo-scaffold` — kubebuilder
-scaffold, `CascadePolicy` CRD, logging reconciler, lint/test CI. Kind smoke
-test not run: Docker is not installed on this machine.** This file is the
+**Status as of 2026-08-29: Prometheus HTTP client on `feat/prometheus-client`
+(Query → Snapshot, flag/env URL, httptest coverage). Scaffold + Kind smoke
+test already landed on `feat/repo-scaffold`.** This file is the
 single source of truth for goal, architecture, and progress. Read it before
 touching code in any session (Cursor or Claude). Keep it updated as work lands —
 this is a living document, not a one-time spec.
@@ -236,12 +236,13 @@ one through the reconciler, and do not stand up the Kind+Istio+demo topology
 before one detect→mitigate loop exists end to end.** One signature proven
 through the full pipeline (metrics → detector → patch → restore) is the
 interview demo; the other two detectors are then copies of the same
-interface. First slice is repo scaffold + CRD + a reconciler that does
-nothing but watch/log/requeue — no Prometheus or Istio client yet.
+interface. First slice (scaffold + CRD + logging reconciler) and the
+Prometheus HTTP client are done. Next is one detector wired through the
+reconciler on the existing 10s tick. No Istio client yet.
 
 - [x] Repo scaffold (kubebuilder init, go.mod, Makefile, CI skeleton)
 - [x] `CascadePolicy` CRD types + deepcopy + CRD YAML
-- [ ] Prometheus client + PromQL query layer
+- [x] Prometheus client + PromQL query layer
 - [ ] Signature detector: latency/error cascade
 - [ ] Signature detector: retry storm
 - [ ] Signature detector: fan-out amplification

@@ -57,6 +57,8 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-29 — Review: Prometheus HTTP client slice](2026-08-29-review-prometheus-client.md)
+- [2026-08-29 — Prometheus HTTP client behind Query → Snapshot](2026-08-29-prometheus-http-client.md)
 - [2026-08-29 — Kind smoke test: manager + CRD + sample CR](2026-08-29-kind-smoke-test.md)
 - [2026-08-29 — Review: repo scaffold, CRD, reconciler slice](2026-08-29-review-scaffold-slice.md)
 - [2026-08-28 — Repo scaffold, CascadePolicy CRD, logging reconciler](2026-08-28-repo-scaffold-crd-reconciler.md)
