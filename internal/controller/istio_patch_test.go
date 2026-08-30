@@ -82,6 +82,11 @@ func patchTestDR() *networkingv1.DestinationRule {
 
 func patchReconcile(t *testing.T, objs ...client.Object) (*CascadePolicyReconciler, client.Client) {
 	t.Helper()
+	return patchReconcileWith(t, &fakeQuerier{p99: 900, errorRate: 0.2}, objs...)
+}
+
+func patchReconcileWith(t *testing.T, q *fakeQuerier, objs ...client.Object) (*CascadePolicyReconciler, client.Client) {
+	t.Helper()
 	s := patchTestScheme(t)
 	c := fake.NewClientBuilder().
 		WithScheme(s).
@@ -91,7 +96,7 @@ func patchReconcile(t *testing.T, objs ...client.Object) (*CascadePolicyReconcil
 	return &CascadePolicyReconciler{
 		Client:  c,
 		Scheme:  s,
-		Metrics: &fakeQuerier{p99: 900, errorRate: 0.2},
+		Metrics: q,
 	}, c
 }
 

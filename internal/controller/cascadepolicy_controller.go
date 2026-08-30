@@ -49,9 +49,9 @@ type CascadePolicyReconciler struct {
 // +kubebuilder:rbac:groups=cascade.gideonsanni.dev,resources=cascadepolicies/finalizers,verbs=update
 // +kubebuilder:rbac:groups=networking.istio.io,resources=destinationrules,verbs=get;list;watch;update;patch
 
-// Reconcile observes the CR, polls Prometheus per dependsOn host, records a
-// LatencyErrorCascade trip, and in Mitigate mode patches the dependency's
-// DestinationRule outlierDetection. Restoration is the next slice.
+// Reconcile observes the CR, polls Prometheus per dependsOn host, patches
+// DestinationRule outlierDetection on a latency/error trip, and ramps
+// those fields back when the detector reports healthy.
 func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
@@ -74,12 +74,14 @@ func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	var mitErr error
 	if r.Metrics != nil {
-		if host, v, ok := r.detectLatencyErrorCascade(ctx, policy); ok && v.Tripped {
+		host, v, tripped, evaluated := r.detectLatencyErrorCascade(ctx, policy)
+		if tripped {
 			if policy.Status.Phase != cascadev1alpha1.PolicyPhaseTripped {
 				now := metav1.Now()
 				policy.Status.LastTrippedAt = &now
 			}
 			policy.Status.Phase = cascadev1alpha1.PolicyPhaseTripped
+			policy.Status.RestoreStep = 0
 			policy.Status.LastSignature = cascadev1alpha1.SignatureLatencyErrorCascade
 			log.Info("latency/error cascade tripped",
 				"dependency", host,
@@ -87,8 +89,14 @@ func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				"evidence", v.Evidence,
 			)
 			mitErr = r.applyLatencyErrorMitigation(ctx, policy, host)
+		} else if evaluated > 0 {
+			switch policy.Status.Phase {
+			case cascadev1alpha1.PolicyPhaseTripped:
+				mitErr = r.beginRestore(ctx, policy)
+			case cascadev1alpha1.PolicyPhaseRestoring:
+				mitErr = r.advanceRestore(ctx, policy)
+			}
 		}
-		// Not tripped: leave Tripped/Restoring alone — restoration is the next slice.
 	}
 
 	if !equality.Semantic.DeepEqual(origStatus, &policy.Status) {
@@ -105,14 +113,17 @@ func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 // detectLatencyErrorCascade evaluates each dependsOn edge. The first tripped
 // host wins; query errors skip that edge rather than failing the reconcile.
+// evaluated is the number of hosts that produced a complete reading — restore
+// only advances when this is > 0, so a Prometheus outage does not look healthy.
 func (r *CascadePolicyReconciler) detectLatencyErrorCascade(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
-) (string, signatures.Verdict, bool) {
+) (string, signatures.Verdict, bool, int) {
 	log := logf.FromContext(ctx)
 	window := windowOrDefault(policy.Spec.Thresholds.WindowSeconds)
 	th := policy.Spec.Thresholds
 
+	evaluated := 0
 	for _, host := range policy.Spec.DependsOn {
 		latSnap, err := r.Metrics.Query(ctx, latencyP99Query(host, window))
 		if err != nil {
@@ -135,6 +146,7 @@ func (r *CascadePolicyReconciler) detectLatencyErrorCascade(
 			)
 			continue
 		}
+		evaluated++
 
 		v := signatures.DetectLatencyError(signatures.LatencyErrorInput{
 			Dependency:         host,
@@ -150,10 +162,10 @@ func (r *CascadePolicyReconciler) detectLatencyErrorCascade(
 			"evidence", v.Evidence,
 		)
 		if v.Tripped {
-			return host, v, true
+			return host, v, true, evaluated
 		}
 	}
-	return "", signatures.Verdict{}, false
+	return "", signatures.Verdict{}, false, evaluated
 }
 
 // SetupWithManager sets up the controller with the Manager.

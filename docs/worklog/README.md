@@ -57,6 +57,8 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-29 — Review: restoration ramp slice](2026-08-29-review-restoration-ramp.md)
+- [2026-08-29 — Restoration ramp for the latency/error-cascade outlierDetection patch](2026-08-29-restoration-ramp.md)
 - [2026-08-29 — Review: Istio outlier-detection patch slice](2026-08-29-review-istio-outlier-patch.md)
 - [2026-08-29 — Istio patch: latency/error-cascade primary (DestinationRule outlierDetection)](2026-08-29-istio-outlier-patch.md)
 - [2026-08-29 — Review: latency/error-cascade detector slice](2026-08-29-review-latency-error-detector.md)

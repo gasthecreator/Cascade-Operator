@@ -1,9 +1,9 @@
 # Cascade Operator — PLAN.md
 
-**Status as of 2026-08-29: latency/error-cascade primary Istio patch
-(`DestinationRule` outlierDetection) on `feat/istio-outlier-patch`.
-Detection still runs in DetectOnly; mesh mutation is Mitigate-only.
-Restoration ramp is the next slice.** This file is the
+**Status as of 2026-08-29: latency/error-cascade detect → mitigate → restore
+loop on `feat/restoration-ramp` (DestinationRule outlierDetection primary
+only). DetectOnly still records without patching. VirtualService secondary
+and the other two signatures are next.** This file is the
 single source of truth for goal, architecture, and progress. Read it before
 touching code in any session (Cursor or Claude). Keep it updated as work lands —
 this is a living document, not a one-time spec.
@@ -238,8 +238,8 @@ before one detect→mitigate loop exists end to end.** One signature proven
 through the full pipeline (metrics → detector → patch → restore) is the
 interview demo; the other two detectors are then copies of the same
 interface. First slice (scaffold + CRD + logging reconciler), Prometheus HTTP
-client, and latency/error-cascade detection (status + Istio primary patch)
-are done. Next is the restoration ramp for that signature.
+client, latency/error-cascade detection, Istio primary patch, and the
+restoration ramp are done. One signature is through the full pipeline.
 
 - [x] Repo scaffold (kubebuilder init, go.mod, Makefile, CI skeleton)
 - [x] `CascadePolicy` CRD types + deepcopy + CRD YAML
@@ -250,7 +250,7 @@ are done. Next is the restoration ramp for that signature.
 - [x] Reconciler wiring (metrics → detectors → decision)
 - [x] Istio patch layer — `DestinationRule` outlierDetection primary (latency/error cascade), annotations
 - [ ] Istio patch layer — `VirtualService` secondary cells (timeout; retry-storm/fan-out primaries)
-- [ ] Gradual restoration state machine
+- [x] Gradual restoration state machine
 - [ ] Operator's own Prometheus metrics (signatures detected, patches applied)
 - [ ] Kind + Istio local dev environment docs/scripts
 - [ ] Demo microservice topology for fault injection
