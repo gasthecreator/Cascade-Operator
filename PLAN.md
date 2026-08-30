@@ -203,6 +203,23 @@ detection), retry storm (`retries.attempts`), and fan-out amplification
 (latency/error's `VirtualService` timeout; retry storm's `connectionPool`
 cap) — those remain contract, not built.
 
+**Signature handoff on a shared object (locked 2026-08-30):** latency/error
+cascade and fan-out amplification both patch `DestinationRule` (disjoint
+field sets — `outlierDetection` vs. `connectionPool.http`), so a policy can
+have its detected signature change from one to the other on the same host
+without an intervening healthy tick. When that happens, `Reconcile` must
+**synchronously force-complete the outgoing signature's restore** (call its
+existing `complete*Restore` function — the same one its gradual ramp already
+calls at the final step) **before** applying the incoming signature's trip.
+This reuses existing, already-tested "restore to true original, strip both
+annotations" logic rather than adding a new status field or a multi-tick
+handoff state machine; it's safe to do eagerly because the outgoing
+signature's own detector just confirmed, this same tick, that its condition
+has cleared — there's no in-progress ramp needing a regression check, only a
+clean object state that needs to be reached before the next signature can
+safely claim it. See `PROPOSALS.md`'s resolved entry for the full reasoning
+and the two rejected alternatives.
+
 - Every patch the operator makes is annotated
   (`cascade.gideonsanni.dev/managed-by: cascade-operator`) so reconciliation
   can distinguish operator-applied patches from user-authored config and never
@@ -287,6 +304,7 @@ locally for scrape evidence.
 - [x] Istio patch layer — `DestinationRule` connectionPool.http primary (fan-out amplification), annotations
 - [ ] Istio patch layer — remaining secondaries (`VirtualService` timeout for latency/error cascade; `DestinationRule` connectionPool for retry storm)
 - [x] Gradual restoration state machine (signature-dispatched: `DestinationRule` for latency/error cascade and fan-out amplification, on disjoint field sets; `VirtualService` for retry storm)
+- [ ] Force-complete outgoing signature's restore on a same-object signature handoff (see §2.6 and PROPOSALS.md — a real gap, not yet implemented)
 - [ ] Operator's own Prometheus metrics (signatures detected, patches applied)
 - [x] Kind + Istio local dev environment docs/scripts
 - [x] Demo microservice topology for fault injection (`demo/` — checkout, payments, inventory)

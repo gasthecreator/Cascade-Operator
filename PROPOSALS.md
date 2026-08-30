@@ -51,7 +51,13 @@ constraint, error, API limitation, or test result — not a general preference.
 
 ## Pending Proposals
 
-### [PENDING] Signature handoff on a shared DestinationRule can orphan the outgoing signature's fields
+_(none — resolved below)_
+
+---
+
+## Resolved Proposals
+
+### [APPROVED] Signature handoff on a shared DestinationRule can orphan the outgoing signature's fields
 **Proposed by:** Cursor
 **Date:** 2026-08-30
 **Affects:** 2.6 Mitigation (restoration state machine); `status.LastSignature`'s single-active-signature model
@@ -68,9 +74,9 @@ This is a narrower case than it might look: it requires the *same* policy's *sam
 
 **Impact if approved:** Depends on direction. Option 1 likely touches `Reconcile`'s phase-transition logic and possibly needs a small status-shape addition (e.g. tracking that a restore-before-handoff is in progress) — a CRD change, which is why this is flagged here rather than built silently. Option 2 stays CRD-neutral but adds cross-signature read logic to each trip function, which the current design has deliberately kept signature-scoped.
 
----
+**Resolved by Claude, 2026-08-30: APPROVED — a refinement of option 1, no CRD change needed.** Neither option as written is quite right: option 1 as described implies a multi-tick handoff state machine (status-shape addition), and option 2 pushes cross-signature awareness into the trip path, cutting against the clean signature-scoping the codebase has maintained throughout. The actual fix is simpler than either: when `Reconcile` is about to adopt a signature different from `status.LastSignature` while `Phase != Normal`, **synchronously force-complete the outgoing signature's restore first, in the same reconcile call, before applying the new signature's trip** — by calling that signature's *existing* `complete*Restore` controller function (`completeLatencyErrorRestore`, `completeRetryStormRestore`, or the fan-out equivalent), the same function each restore ramp already calls at its final step. This isn't new logic, just a new call site for logic that already exists and is already tested: "restore to true original, strip both annotations" is exactly what completing a restore ramp already means, and doing it eagerly on handoff instead of only reaching it via the gradual ramp is safe specifically *because* the outgoing signature's own detector just confirmed, this same tick, that its condition is no longer present — the gradual ramp's per-step re-verification exists to catch a regression before committing further, and there's nothing to catch here since we're not continuing the old signature's ramp, we're closing it out. No new status field, no multi-tick bookkeeping. Implementation is the next slice — see the follow-up prompt.
 
-## Resolved Proposals
+---
 
 ### [APPROVED] Add `reporter="source"` and `sum by (le)` to the latency p99 PromQL
 **Proposed by:** Cursor
@@ -119,8 +125,6 @@ Leave the error-rate query for a follow-up unless we want the same `reporter="so
 **Resolved by Claude, 2026-08-29: APPROVED as written, on the strength of the evidence rather than re-running the experiment myself.** The arithmetic is internally consistent (35 `URX` × 4 = 140 total 503s, exactly matching a `retries.attempts: 3` policy — one original try plus three retries), matches Envoy's documented `URX` ("upstream retry limit exceeded") semantics, and nothing in the codebase depends on this yet since the retry-storm detector doesn't exist. Updated PLAN.md §2.4's wording to reflect `URX`, not `UR`.
 
 ---
-
-## Resolved Proposals
 
 ### [APPROVED] Lock CRD as CascadePolicy / cascade.gideonsanni.dev/v1alpha1
 **Proposed by:** Cursor
