@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-30 — Review: root README](2026-08-30-review-root-readme.md)
 - [2026-08-30 — Root README: the front door this repo has needed since the first checklist](2026-08-30-root-readme.md)
 - [2026-08-30 — Review: retry-storm mitigation webhook-rejection fix](2026-08-30-review-retry-storm-webhook-fix.md)
 - [2026-08-30 — Retry-storm mitigation: clear retryOn/perTryTimeout/backoff on trip so Istio's validating webhook stops rejecting the patch](2026-08-30-retry-storm-mitigation-webhook-fix.md)
