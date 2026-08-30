@@ -34,15 +34,23 @@ import (
 	"github.com/gasthecreator/Cascade-Operator/internal/metrics"
 )
 
-// fakeQuerier returns canned p99 / error-rate / dest:source-ratio samples. It
-// implements metrics.Querier without HTTP or Prometheus.
+// fakeQuerier returns canned p99 / error-rate / dest:source-ratio /
+// dependency:caller-ratio samples. It implements metrics.Querier without
+// HTTP or Prometheus.
 type fakeQuerier struct {
 	p99             float64
 	errorRate       float64
 	retryStormRatio float64
+	fanOutRatio     float64
 	err             error
 }
 
+// Query distinguishes the three ratio-shaped queries by their reporter
+// matcher: retryStormRatioQuery is the only one with reporter="source"
+// (dest:source, same host); fanOutRatioQuery uses reporter="destination" on
+// both sides (dependency:caller, cross-host) and never mentions "source" at
+// all, so checking "source" first routes each query to the right canned
+// value even though both contain reporter="destination" somewhere.
 func (f *fakeQuerier) Query(_ context.Context, promql string) (metrics.Snapshot, error) {
 	if f.err != nil {
 		return metrics.Snapshot{}, f.err
@@ -51,8 +59,10 @@ func (f *fakeQuerier) Query(_ context.Context, promql string) (metrics.Snapshot,
 	switch {
 	case strings.Contains(promql, "histogram_quantile"):
 		v = f.p99
-	case strings.Contains(promql, `reporter="destination"`):
+	case strings.Contains(promql, `reporter="source"`):
 		v = f.retryStormRatio
+	case strings.Contains(promql, `reporter="destination"`):
+		v = f.fanOutRatio
 	}
 	return metrics.Snapshot{Samples: []metrics.Sample{{Value: v}}}, nil
 }

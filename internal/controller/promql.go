@@ -54,6 +54,21 @@ func retryStormRatioQuery(host string, windowSeconds int32) string {
 	)
 }
 
+// fanOutRatioQuery is the dependency's request rate over the caller's own
+// (spec.Service) request rate — cross-host, unlike retryStormRatioQuery's
+// same-host reporter split. Both sides use reporter="destination" (what
+// actually arrived at each service), since that is exactly what the fan-out
+// demo topology's live scrape measured: a healthy checkout -> {payments,
+// inventory} run held exactly 1:1:1 using this reporter on both sides (see
+// the fan-out-demo-evidence worklog). Implicit baseline is 1, same pattern
+// as retryStormRatioQuery.
+func fanOutRatioQuery(dependencyHost, callerHost string, windowSeconds int32) string {
+	return fmt.Sprintf(
+		`sum(rate(istio_requests_total{destination_service=%q,reporter="destination"}[%ds])) / sum(rate(istio_requests_total{destination_service=%q,reporter="destination"}[%ds]))`,
+		dependencyHost, windowSeconds, callerHost, windowSeconds,
+	)
+}
+
 // snapshotMax returns the largest sample value. Multiple series (per reporter /
 // source) are collapsed conservatively: a cascade on any remaining label set
 // is enough to evaluate the detector. Empty snapshots are "no reading".

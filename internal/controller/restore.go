@@ -69,7 +69,10 @@ func (r *CascadePolicyReconciler) listManagedDestinationRuleEdges(
 // same field Reconcile's own detectSignatures/mitigation switch already
 // keys off — the CRD tracks exactly one active signature at a time, so this
 // mirrors that switch instead of building a generic "any Istio object"
-// restore abstraction for what is currently two cases. A signature with no
+// restore abstraction for what is currently three cases (two object kinds:
+// latency/error-cascade and fan-out both restore a DestinationRule, on
+// disjoint field sets — see fanout_restore.go's doc comment for the
+// shared-object-kind reasoning). A signature with no
 // restore path wired yet falls back to snapToNormalNoRestore rather than
 // getting stuck: that was retry storm's own situation between its
 // mitigation slice (mitigation built, not called from Reconcile) and this
@@ -83,6 +86,8 @@ func (r *CascadePolicyReconciler) beginRestore(ctx context.Context, policy *casc
 		return r.beginRestoreLatencyError(ctx, policy)
 	case cascadev1alpha1.SignatureRetryStorm:
 		return r.beginRestoreRetryStorm(ctx, policy)
+	case cascadev1alpha1.SignatureFanOutAmplification:
+		return r.beginRestoreFanOut(ctx, policy)
 	default:
 		return r.snapToNormalNoRestore(ctx, policy)
 	}
@@ -94,6 +99,8 @@ func (r *CascadePolicyReconciler) advanceRestore(ctx context.Context, policy *ca
 		return r.advanceRestoreLatencyError(ctx, policy)
 	case cascadev1alpha1.SignatureRetryStorm:
 		return r.advanceRestoreRetryStorm(ctx, policy)
+	case cascadev1alpha1.SignatureFanOutAmplification:
+		return r.advanceRestoreFanOut(ctx, policy)
 	default:
 		return r.snapToNormalNoRestore(ctx, policy)
 	}

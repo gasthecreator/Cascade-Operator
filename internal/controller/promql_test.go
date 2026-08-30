@@ -44,6 +44,18 @@ func TestRetryStormRatioQuery(t *testing.T) {
 	}
 }
 
+func TestFanOutRatioQuery(t *testing.T) {
+	t.Parallel()
+	got := fanOutRatioQuery("payments-service.default.svc.cluster.local", "checkout-service.default.svc.cluster.local", 30)
+	want := `sum(rate(istio_requests_total{destination_service="payments-service.default.svc.cluster.local",reporter="destination"}[30s])) / sum(rate(istio_requests_total{destination_service="checkout-service.default.svc.cluster.local",reporter="destination"}[30s]))`
+	if got != want {
+		t.Fatalf("fanOutRatioQuery =\n%s\nwant\n%s", got, want)
+	}
+	if strings.Contains(got, `reporter="source"`) {
+		t.Errorf("fan-out ratio must not use reporter=source (cross-host, not same-host reporter split): %s", got)
+	}
+}
+
 func TestErrorRateQuery(t *testing.T) {
 	t.Parallel()
 	got := errorRateQuery("payments-service.default.svc.cluster.local", 30)

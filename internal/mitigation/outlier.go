@@ -59,15 +59,22 @@ type originalOutlierJSON struct {
 // ApplyLatencyErrorOutlierTrip mutates only outlierDetection on dr (plus our
 // annotations). Host, TLS, connection pool, subsets, and other outlier
 // fields (maxEjectionPercent, …) are left as they were. The original
-// annotation is written only when managed-by is not already set.
+// annotation is captured only the first time *this* function touches dr —
+// checked via AnnotationOriginalOutlier's own presence, not managed-by:
+// fan-out can also manage this same DestinationRule (disjoint field set,
+// connectionPool.http), and if it trips first, managed-by is already
+// ManagedByValue before latency/error ever captures its own baseline. Keying
+// off managed-by alone would then skip the capture and lose the true
+// pre-trip outlierDetection state. See fanout_restore.go (controller
+// package) and PROPOSALS.md for the fuller shared-object-kind writeup.
 func ApplyLatencyErrorOutlierTrip(dr *networkingv1.DestinationRule) {
 	if dr.Annotations == nil {
 		dr.Annotations = map[string]string{}
 	}
-	if dr.Annotations[AnnotationManagedBy] != ManagedByValue {
+	if _, captured := dr.Annotations[AnnotationOriginalOutlier]; !captured {
 		dr.Annotations[AnnotationOriginalOutlier] = snapshotOutlierJSON(dr)
-		dr.Annotations[AnnotationManagedBy] = ManagedByValue
 	}
+	dr.Annotations[AnnotationManagedBy] = ManagedByValue
 
 	if dr.Spec.TrafficPolicy == nil {
 		dr.Spec.TrafficPolicy = &apinet.TrafficPolicy{}

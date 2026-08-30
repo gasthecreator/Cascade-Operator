@@ -49,11 +49,14 @@ type CascadePolicyReconciler struct {
 // +kubebuilder:rbac:groups=cascade.gideonsanni.dev,resources=cascadepolicies/finalizers,verbs=update
 // +kubebuilder:rbac:groups=networking.istio.io,resources=destinationrules,verbs=get;list;watch;update;patch
 
-// Reconcile observes the CR, polls Prometheus per dependsOn host, patches
-// DestinationRule outlierDetection on a latency/error trip or VirtualService
-// retries.attempts on a retry-storm trip, and ramps the matching patch back
-// when healthy — restoration dispatches by status.LastSignature (see
-// restore.go).
+// Reconcile observes the CR, polls Prometheus per dependsOn host, and patches
+// DestinationRule outlierDetection on a latency/error trip, VirtualService
+// retries.attempts on a retry-storm trip, or DestinationRule
+// connectionPool.http on a fan-out trip — then ramps the matching patch back
+// when healthy. Restoration dispatches by status.LastSignature (see
+// restore.go). Latency/error and fan-out both patch DestinationRule, but
+// disjoint field sets (outlierDetection vs. connectionPool.http); see
+// fanout_restore.go's doc comment for why sharing that object kind is safe.
 func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
@@ -96,6 +99,8 @@ func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				mitErr = r.applyLatencyErrorMitigation(ctx, policy, host)
 			case cascadev1alpha1.SignatureRetryStorm:
 				mitErr = r.applyRetryStormMitigation(ctx, policy, host)
+			case cascadev1alpha1.SignatureFanOutAmplification:
+				mitErr = r.applyFanOutMitigation(ctx, policy, host)
 			}
 		} else if evaluated > 0 {
 			switch policy.Status.Phase {
@@ -120,11 +125,12 @@ func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 }
 
 // detectSignatures evaluates each dependsOn edge. Per host, latency/error
-// cascade runs first, then retry storm; the first trip wins (status tracks
-// one lastSignature). Query errors skip that detector rather than failing the
-// reconcile. evaluated is the number of hosts that produced a complete
-// reading on at least one detector — restore only advances when this is > 0,
-// so a Prometheus outage does not look healthy.
+// cascade runs first, then retry storm, then fan-out amplification; the
+// first trip wins (status tracks one lastSignature). Query errors skip that
+// detector rather than failing the reconcile. evaluated is the number of
+// hosts that produced a complete reading on at least one detector — restore
+// only advances when this is > 0, so a Prometheus outage does not look
+// healthy.
 func (r *CascadePolicyReconciler) detectSignatures(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
@@ -148,6 +154,16 @@ func (r *CascadePolicyReconciler) detectSignatures(
 			}
 			if rsV.Tripped {
 				return host, rsV, cascadev1alpha1.SignatureRetryStorm, true, evaluated
+			}
+		}
+
+		foV, foOK := r.evalFanOut(ctx, policy, host, window)
+		if foOK {
+			if !latOK && !rsOK {
+				evaluated++
+			}
+			if foV.Tripped {
+				return host, foV, cascadev1alpha1.SignatureFanOutAmplification, true, evaluated
 			}
 		}
 	}
@@ -228,6 +244,41 @@ func (r *CascadePolicyReconciler) evalRetryStorm(
 		Multiplier:      policy.Spec.Thresholds.RetryStormMultiplier,
 	})
 	log.Info("retry storm evaluation",
+		"dependency", host,
+		"tripped", v.Tripped,
+		"confidence", v.Confidence,
+		"evidence", v.Evidence,
+	)
+	return v, true
+}
+
+func (r *CascadePolicyReconciler) evalFanOut(
+	ctx context.Context,
+	policy *cascadev1alpha1.CascadePolicy,
+	host string,
+	window int32,
+) (signatures.Verdict, bool) {
+	log := logf.FromContext(ctx)
+
+	snap, err := r.Metrics.Query(ctx, fanOutRatioQuery(host, policy.Spec.Service, window))
+	if err != nil {
+		log.Error(err, "fan-out ratio query failed", "dependency", host)
+		return signatures.Verdict{}, false
+	}
+	ratio, ok := snapshotMax(snap)
+	if !ok {
+		log.Info("incomplete metrics for dependency; skipping fan-out detector",
+			"dependency", host,
+		)
+		return signatures.Verdict{}, false
+	}
+
+	v := signatures.DetectFanOut(signatures.FanOutInput{
+		Dependency:            host,
+		DependencyCallerRatio: ratio,
+		Multiplier:            policy.Spec.Thresholds.FanOutMultiplier,
+	})
+	log.Info("fan-out evaluation",
 		"dependency", host,
 		"tripped", v.Tripped,
 		"confidence", v.Confidence,

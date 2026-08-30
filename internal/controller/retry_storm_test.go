@@ -156,6 +156,48 @@ func TestLatencyErrorCascadeWinsWhenBothSignaturesCouldTrip(t *testing.T) {
 	}
 }
 
+// retryStormAndFanOutQuerier trips both retry storm (dest:source=4 >= the
+// default multiplier 3) and fan-out (dependency:caller=6 >= the default
+// multiplier 5) on the same host, to prove retry storm's earlier position
+// in detectSignatures' per-host check order wins.
+func retryStormAndFanOutQuerier() *fakeQuerier {
+	return &fakeQuerier{p99: 80, errorRate: 0.001, retryStormRatio: 4.0, fanOutRatio: 6.0}
+}
+
+// TestRetryStormWinsWhenRetryStormAndFanOutCouldTrip confirms fan-out sits
+// last in detectSignatures' per-host priority order (latency/error, then
+// retry storm, then fan-out) — the fan-out twin of
+// TestLatencyErrorCascadeWinsWhenBothSignaturesCouldTrip above.
+func TestRetryStormWinsWhenRetryStormAndFanOutCouldTrip(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	r, c := patchReconcileWith(t, retryStormAndFanOutQuerier(),
+		patchTestPolicy(cascadev1alpha1.PolicyModeMitigate), patchTestDR())
+
+	if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {
+		t.Fatal(err)
+	}
+
+	got := &cascadev1alpha1.CascadePolicy{}
+	if err := c.Get(ctx, types.NamespacedName{Name: patchPolicyName, Namespace: patchPolicyNS}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Status.LastSignature != cascadev1alpha1.SignatureRetryStorm {
+		t.Errorf("lastSignature = %s, want RetryStorm (priority over FanOutAmplification)", got.Status.LastSignature)
+	}
+	if got.Status.Phase != cascadev1alpha1.PolicyPhaseTripped {
+		t.Errorf("phase = %s, want Tripped", got.Status.Phase)
+	}
+
+	gotDR := &networkingv1.DestinationRule{}
+	if err := c.Get(ctx, types.NamespacedName{Name: patchDepName, Namespace: patchPolicyNS}, gotDR); err != nil {
+		t.Fatal(err)
+	}
+	if gotDR.Annotations[mitigation.AnnotationManagedBy] != "" {
+		t.Errorf("retry storm win should not touch DestinationRule (fan-out lost the race): %v", gotDR.Annotations)
+	}
+}
+
 func TestRetryStormDoesNotCreateDestinationRule(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

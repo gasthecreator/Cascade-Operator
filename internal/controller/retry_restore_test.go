@@ -338,16 +338,22 @@ func TestRestoreDispatchTouchesOnlyVirtualServiceForRetryStorm(t *testing.T) {
 	}
 }
 
-// TestRestoreFallsBackToNormalForUnwiredSignature is defensive coverage,
-// not a currently-reachable production path: nothing trips
-// FanOutAmplification today (it has no mitigation yet). It exercises
-// beginRestore/advanceRestore's default case directly — the same fail-safe
-// that made this slice necessary for retry storm between its mitigation and
-// restoration slices, generalized so it still holds for the next signature.
-func TestRestoreFallsBackToNormalForUnwiredSignature(t *testing.T) {
+// TestRestoreFallsBackToNormalForUnrecognizedSignature is defensive
+// coverage, not a currently-reachable production path now that all three
+// SignatureType enum values (LatencyErrorCascade, RetryStorm,
+// FanOutAmplification) have a wired restore path — this slice's own
+// FanOutAmplification wiring is what retired the previous version of this
+// test, which used FanOutAmplification as its stand-in "unwired" value.
+// It exercises beginRestore/advanceRestore's default case directly with a
+// value outside the CRD's own enum, so the fail-safe (snap to Normal rather
+// than get stuck at Restoring) still holds for whatever signature is wired
+// next, or for any status corruption that produces a value the switch
+// does not recognize.
+func TestRestoreFallsBackToNormalForUnrecognizedSignature(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	policy := seededPolicyWithSignature(cascadev1alpha1.PolicyPhaseTripped, 0, cascadev1alpha1.SignatureFanOutAmplification)
+	const bogusSignature = cascadev1alpha1.SignatureType("Bogus")
+	policy := seededPolicyWithSignature(cascadev1alpha1.PolicyPhaseTripped, 0, bogusSignature)
 	r, c := patchReconcileWith(t, healthyQuerier(), policy, trippedManagedDR())
 
 	if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {

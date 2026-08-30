@@ -22,7 +22,14 @@ import (
 	"testing"
 )
 
-const evidenceIncompleteReadings = "incomplete readings"
+const (
+	evidenceIncompleteReadings = "incomplete readings"
+	evidenceBelowThreshold     = "below threshold"
+	// depInventory is the "well above"/control dependency name shared by
+	// all three detectors' table tests (goconst: same literal across
+	// latency_error_test.go, retry_storm_test.go, fanout_test.go).
+	depInventory = "inventory"
+)
 
 func TestDetectLatencyError(t *testing.T) {
 	t.Parallel()
@@ -84,7 +91,7 @@ func TestDetectLatencyError(t *testing.T) {
 		{
 			name: "both well above",
 			in: LatencyErrorInput{
-				Dependency: "inventory", LatencyP99Ms: 1500, ErrorRateFraction: 0.2,
+				Dependency: depInventory, LatencyP99Ms: 1500, ErrorRateFraction: 0.2,
 				LatencyThresholdMs: latTh, ErrorRateThreshold: errTh,
 			},
 			wantTrip:  true,

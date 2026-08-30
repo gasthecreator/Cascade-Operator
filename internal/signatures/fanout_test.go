@@ -22,7 +22,7 @@ import (
 	"testing"
 )
 
-func TestDetectRetryStorm(t *testing.T) {
+func TestDetectFanOut(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -32,71 +32,71 @@ func TestDetectRetryStorm(t *testing.T) {
 
 	cases := []struct {
 		name        string
-		in          RetryStormInput
+		in          FanOutInput
 		wantTrip    bool
 		wantConf    float64
 		confDelta   float64
 		evidenceHas []string
 	}{
 		{
-			name: "well below (no retries)",
-			in: RetryStormInput{
-				Dependency: dep, DestSourceRatio: 1.0, Multiplier: th,
+			name: "well below (healthy 1:1:1 baseline)",
+			in: FanOutInput{
+				Dependency: dep, DependencyCallerRatio: 1.0, Multiplier: th,
 			},
 			evidenceHas: []string{evidenceBelowThreshold},
 		},
 		{
 			name: "just below threshold",
-			in: RetryStormInput{
-				Dependency: dep, DestSourceRatio: 2.99, Multiplier: th,
+			in: FanOutInput{
+				Dependency: dep, DependencyCallerRatio: 2.99, Multiplier: th,
 			},
 			evidenceHas: []string{evidenceBelowThreshold},
 		},
 		{
-			name: "exactly at threshold",
-			in: RetryStormInput{
-				Dependency: dep, DestSourceRatio: 3.0, Multiplier: th,
+			name: "exactly at threshold (matches the live payments:checkout ratio observed during the fan-out evidence slice)",
+			in: FanOutInput{
+				Dependency: dep, DependencyCallerRatio: 3.0, Multiplier: th,
 			},
 			wantTrip:    true,
 			wantConf:    0.5,
 			confDelta:   1e-9,
-			evidenceHas: []string{"retry_storm=true"},
+			evidenceHas: []string{"fan_out=true"},
 		},
 		{
-			name: "well above (attempts:3 exhausted, 4x)",
-			in: RetryStormInput{
-				Dependency: depInventory, DestSourceRatio: 8.0, Multiplier: th,
+			name: "well above (8x)",
+			in: FanOutInput{
+				Dependency: depInventory, DependencyCallerRatio: 8.0, Multiplier: th,
 			},
 			wantTrip:    true,
 			wantConf:    1.0,
 			confDelta:   1e-9,
-			evidenceHas: []string{"retry_storm=true"},
+			evidenceHas: []string{"fan_out=true"},
 		},
 		{
 			name: "NaN ratio does not trip",
-			in: RetryStormInput{
-				Dependency: dep, DestSourceRatio: math.NaN(), Multiplier: th,
+			in: FanOutInput{
+				Dependency: dep, DependencyCallerRatio: math.NaN(), Multiplier: th,
 			},
 			evidenceHas: []string{evidenceIncompleteReadings},
 		},
 		{
 			name: "+Inf ratio does not trip",
-			in: RetryStormInput{
-				Dependency: dep, DestSourceRatio: math.Inf(1), Multiplier: th,
+			in: FanOutInput{
+				Dependency: dep, DependencyCallerRatio: math.Inf(1), Multiplier: th,
 			},
 			evidenceHas: []string{evidenceIncompleteReadings},
 		},
 		{
 			name: "-Inf ratio does not trip",
-			in: RetryStormInput{
-				Dependency: dep, DestSourceRatio: math.Inf(-1), Multiplier: th,
+			in: FanOutInput{
+				Dependency: dep, DependencyCallerRatio: math.Inf(-1), Multiplier: th,
 			},
 			evidenceHas: []string{evidenceIncompleteReadings},
 		},
 		{
 			name: "invalid multiplier does not trip",
-			in: RetryStormInput{
-				Dependency: dep, DestSourceRatio: 4.0, Multiplier: 0,
+			in: FanOutInput{
+				Dependency: dep, DependencyCallerRatio: 4.0, Multiplier: 0,
 			},
 			evidenceHas: []string{"invalid threshold"},
 		},
@@ -105,7 +105,7 @@ func TestDetectRetryStorm(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := DetectRetryStorm(tc.in)
+			got := DetectFanOut(tc.in)
 			if got.Tripped != tc.wantTrip {
 				t.Errorf("Tripped = %v, want %v; evidence=%q", got.Tripped, tc.wantTrip, got.Evidence)
 			}

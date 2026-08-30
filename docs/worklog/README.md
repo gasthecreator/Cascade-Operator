@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-30 — Fan-out amplification: detector, cross-host PromQL, connectionPool bulkhead, restoration — built together](2026-08-30-fanout-signature.md)
 - [2026-08-30 — Review: fan-out demo topology + live-scrape evidence](2026-08-30-review-fanout-demo-evidence.md)
 - [2026-08-30 — Fan-out demo topology + live-scrape evidence for the fan-out signal](2026-08-30-fanout-demo-evidence.md)
 - [2026-08-30 — Review: retry-storm restoration, signature-dispatched restore machinery](2026-08-30-review-retry-storm-restoration.md)

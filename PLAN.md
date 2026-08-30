@@ -1,22 +1,26 @@
 # Cascade Operator — PLAN.md
 
-**Status as of 2026-08-30: both latency/error-cascade and retry-storm now
-have a full detect → mitigate → restore loop. Restoration dispatches by
+**Status as of 2026-08-30: all three signatures now have a full
+detect → mitigate → restore loop.** Restoration dispatches by
 `status.LastSignature`: `DestinationRule` outlierDetection for
 latency/error-cascade, `VirtualService` retries.attempts for retry storm,
-and a fail-safe snap-to-Normal fallback for any signature without a wired
-restore path (there is currently none). Fan-out amplification still has no
-detector or mitigation, but the §2.7 demo topology
-(`checkout → {payments, inventory}`, under `demo/`) is now built and
-deployed, and live-scrape evidence for the fan-out signal exists (see the
-fan-out-demo-evidence worklog): a healthy run holds a clean 1:1:1 ratio
-across checkout/payments/inventory request counts, and toggling `payments`
-into failure drives its outbound-call count to exactly 3× checkout's inbound
-count — but only because checkout's own application code has a deliberate
-retry-on-failure loop; nothing amplifies from Envoy/Istio defaults alone.
-Kind cluster has Istio 1.30.4 (demo) + Prometheus, the sleep/httpbin
-validation workload, and the demo topology. PromQL `sum by (le)` /
-`response_flags=URX` findings are in PLAN.md §2.4.**
+`DestinationRule` connectionPool.http for fan-out amplification, and a
+fail-safe snap-to-Normal fallback for any signature without a wired restore
+path (there is currently none — kept for whatever signature is wired next).
+Latency/error-cascade and fan-out amplification both patch the same object
+kind (`DestinationRule`) on disjoint field sets — see the fan-out
+detect/mitigate/restore worklog for the full reasoning on why that sharing
+is safe under the current one-active-signature status model, and
+`PROPOSALS.md`'s pending entry for the one real gap it surfaced (a
+same-host signature handoff mid-Tripped/Restoring can orphan the outgoing
+signature's fields). The §2.7 demo topology
+(`checkout → {payments, inventory}`, under `demo/`) is built and deployed,
+and its live-scrape evidence (a clean 1:1:1 healthy ratio; a 3× ratio when
+`payments` fails and `checkout`'s own retry loop kicks in) is what the
+fan-out detector and its cross-host PromQL are built against. Kind cluster
+has Istio 1.30.4 (demo) + Prometheus, the sleep/httpbin validation workload,
+and the demo topology. PromQL `sum by (le)` / `response_flags=URX` findings
+are in PLAN.md §2.4.
 This file is the
 single source of truth for goal, architecture, and progress. Read it before
 touching code in any session (Cursor or Claude). Keep it updated as work lands —
@@ -193,9 +197,11 @@ connection-pool caps as the bulkhead. Fan-out is a concurrency problem —
 timeouts and ejection don't reduce call count, so a connection-pool bulkhead
 on the callee is the only lever that does.
 
-First mitigation slice implements only the **latency/error cascade primary**
-(outlier detection). The other cells are the contract for later slices, not
-built yet.
+All three primaries are now built: latency/error cascade (outlier
+detection), retry storm (`retries.attempts`), and fan-out amplification
+(`connectionPool.http`). No secondaries are built for any signature yet
+(latency/error's `VirtualService` timeout; retry storm's `connectionPool`
+cap) — those remain contract, not built.
 
 - Every patch the operator makes is annotated
   (`cascade.gideonsanni.dev/managed-by: cascade-operator`) so reconciliation
@@ -262,12 +268,11 @@ through the full pipeline (metrics → detector → patch → restore) is the
 interview demo; the other two detectors are then copies of the same
 interface. First slice (scaffold + CRD + logging reconciler), Prometheus HTTP
 client, latency/error-cascade detection, Istio primary patch, and the
-restoration ramp are done. **Two signatures are now through the full
-pipeline**: latency/error-cascade (`DestinationRule` outlierDetection) and
-retry storm (`VirtualService` retries.attempts), both detect → mitigate →
-restore, dispatched by `status.LastSignature`. Fan-out amplification still
-has no detector or mitigation, but its demo topology and live-scrape
-evidence now exist (see checklist below). Kind + Istio 1.30.4 is installed
+restoration ramp are done. **All three signatures are now through the full
+pipeline**: latency/error-cascade (`DestinationRule` outlierDetection),
+retry storm (`VirtualService` retries.attempts), and fan-out amplification
+(`DestinationRule` connectionPool.http) — each detect → mitigate → restore,
+dispatched by `status.LastSignature`. Kind + Istio 1.30.4 is installed
 locally for scrape evidence.
 
 - [x] Repo scaffold (kubebuilder init, go.mod, Makefile, CI skeleton)
@@ -275,12 +280,13 @@ locally for scrape evidence.
 - [x] Prometheus client + PromQL query layer
 - [x] Signature detector: latency/error cascade
 - [x] Signature detector: retry storm
-- [ ] Signature detector: fan-out amplification
+- [x] Signature detector: fan-out amplification
 - [x] Reconciler wiring (metrics → detectors → decision)
 - [x] Istio patch layer — `DestinationRule` outlierDetection primary (latency/error cascade), annotations
 - [x] Istio patch layer — `VirtualService` retries.attempts primary (retry storm), annotations
-- [ ] Istio patch layer — remaining secondaries (`VirtualService` timeout for latency/error cascade; `DestinationRule` connectionPool for retry storm) and fan-out's primary (`DestinationRule` connectionPool)
-- [x] Gradual restoration state machine (signature-dispatched: `DestinationRule` and `VirtualService`)
+- [x] Istio patch layer — `DestinationRule` connectionPool.http primary (fan-out amplification), annotations
+- [ ] Istio patch layer — remaining secondaries (`VirtualService` timeout for latency/error cascade; `DestinationRule` connectionPool for retry storm)
+- [x] Gradual restoration state machine (signature-dispatched: `DestinationRule` for latency/error cascade and fan-out amplification, on disjoint field sets; `VirtualService` for retry storm)
 - [ ] Operator's own Prometheus metrics (signatures detected, patches applied)
 - [x] Kind + Istio local dev environment docs/scripts
 - [x] Demo microservice topology for fault injection (`demo/` — checkout, payments, inventory)
