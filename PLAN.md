@@ -103,7 +103,9 @@ spec:
     latencyP99Ms: 500
     errorRateFraction: 0.05
     windowSeconds: 30
-    retryStormMultiplier: 3.0     # retries/sec vs baseline
+    retryStormMultiplier: 3.0     # destination:source request-count ratio;
+                                  # implicit baseline is 1 (no retries) —
+                                  # confirmed on a live scrape (§2.4)
     fanOutMultiplier: 5.0         # downstream calls vs baseline per inbound call
   mode: Mitigate                 # DetectOnly | Mitigate (default Mitigate) —
                                   # DetectOnly logs/records signatures without
