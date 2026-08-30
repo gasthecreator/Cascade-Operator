@@ -78,7 +78,9 @@ type Thresholds struct {
 	// +kubebuilder:validation:Minimum=1
 	WindowSeconds int32 `json:"windowSeconds,omitempty"`
 
-	// retryStormMultiplier is retries/sec versus baseline that counts as a storm.
+	// retryStormMultiplier is the destination:source request-count ratio that
+	// counts as a storm. Implicit baseline is 1 (one destination attempt per
+	// source request).
 	// +optional
 	// +kubebuilder:default=3
 	// +kubebuilder:validation:Minimum=1

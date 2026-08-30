@@ -32,6 +32,18 @@ func TestLatencyP99Query(t *testing.T) {
 	}
 }
 
+func TestRetryStormRatioQuery(t *testing.T) {
+	t.Parallel()
+	got := retryStormRatioQuery("payments-service.default.svc.cluster.local", 30)
+	want := `sum(rate(istio_requests_total{destination_service="payments-service.default.svc.cluster.local",reporter="destination"}[30s])) / sum(rate(istio_requests_total{destination_service="payments-service.default.svc.cluster.local",reporter="source"}[30s]))`
+	if got != want {
+		t.Fatalf("retryStormRatioQuery =\n%s\nwant\n%s", got, want)
+	}
+	if strings.Contains(got, "URX") || strings.Contains(got, "response_flags") {
+		t.Errorf("retry-storm ratio must not filter URX/response_flags: %s", got)
+	}
+}
+
 func TestErrorRateQuery(t *testing.T) {
 	t.Parallel()
 	got := errorRateQuery("payments-service.default.svc.cluster.local", 30)

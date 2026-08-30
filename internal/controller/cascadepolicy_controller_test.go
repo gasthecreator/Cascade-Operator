@@ -34,12 +34,13 @@ import (
 	"github.com/gasthecreator/Cascade-Operator/internal/metrics"
 )
 
-// fakeQuerier returns canned p99 / error-rate samples. It implements
-// metrics.Querier without HTTP or Prometheus.
+// fakeQuerier returns canned p99 / error-rate / dest:source-ratio samples. It
+// implements metrics.Querier without HTTP or Prometheus.
 type fakeQuerier struct {
-	p99       float64
-	errorRate float64
-	err       error
+	p99             float64
+	errorRate       float64
+	retryStormRatio float64
+	err             error
 }
 
 func (f *fakeQuerier) Query(_ context.Context, promql string) (metrics.Snapshot, error) {
@@ -47,8 +48,11 @@ func (f *fakeQuerier) Query(_ context.Context, promql string) (metrics.Snapshot,
 		return metrics.Snapshot{}, f.err
 	}
 	v := f.errorRate
-	if strings.Contains(promql, "histogram_quantile") {
+	switch {
+	case strings.Contains(promql, "histogram_quantile"):
 		v = f.p99
+	case strings.Contains(promql, `reporter="destination"`):
+		v = f.retryStormRatio
 	}
 	return metrics.Snapshot{Samples: []metrics.Sample{{Value: v}}}, nil
 }
@@ -128,7 +132,7 @@ var _ = Describe("CascadePolicy Controller", func() {
 			controllerReconciler := &CascadePolicyReconciler{
 				Client:  k8sClient,
 				Scheme:  k8sClient.Scheme(),
-				Metrics: &fakeQuerier{p99: 80, errorRate: 0.001},
+				Metrics: &fakeQuerier{p99: 80, errorRate: 0.001, retryStormRatio: 1.0},
 			}
 
 			result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{

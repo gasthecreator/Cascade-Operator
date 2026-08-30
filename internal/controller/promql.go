@@ -42,6 +42,18 @@ func errorRateQuery(host string, windowSeconds int32) string {
 	)
 }
 
+// retryStormRatioQuery is dest-reporter request rate over source-reporter
+// request rate. Implicit baseline is 1 (no retries). A live Istio 1.30.4
+// scrape with retries.attempts:3 produced dest:source = 4 (140 dest 503s /
+// 35 source URX) — URX only fires when every retry fails, so the ratio is
+// the storm signal, not a URX rate (see PLAN.md §2.4).
+func retryStormRatioQuery(host string, windowSeconds int32) string {
+	return fmt.Sprintf(
+		`sum(rate(istio_requests_total{destination_service=%q,reporter="destination"}[%ds])) / sum(rate(istio_requests_total{destination_service=%q,reporter="source"}[%ds]))`,
+		host, windowSeconds, host, windowSeconds,
+	)
+}
+
 // snapshotMax returns the largest sample value. Multiple series (per reporter /
 // source) are collapsed conservatively: a cascade on any remaining label set
 // is enough to evaluate the detector. Empty snapshots are "no reading".

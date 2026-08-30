@@ -1,9 +1,10 @@
 # Cascade Operator — PLAN.md
 
-**Status as of 2026-08-29: latency/error-cascade detect → mitigate → restore
-loop is implemented; Kind cluster has Istio 1.30.4 (demo) + Prometheus and
-a sleep/httpbin validation workload. PromQL/`response_flags` findings are in
-PROPOSALS.md, not yet applied.** This file is the
+**Status as of 2026-08-30: latency/error-cascade detect → mitigate → restore
+loop is implemented; retry-storm detector is wired to status only (no
+VirtualService patch yet). Kind cluster has Istio 1.30.4 (demo) + Prometheus
+and a sleep/httpbin validation workload. PromQL `sum by (le)` /
+`response_flags=URX` findings are in PLAN.md §2.4.** This file is the
 single source of truth for goal, architecture, and progress. Read it before
 touching code in any session (Cursor or Claude). Keep it updated as work lands —
 this is a living document, not a one-time spec.
@@ -247,13 +248,14 @@ interview demo; the other two detectors are then copies of the same
 interface. First slice (scaffold + CRD + logging reconciler), Prometheus HTTP
 client, latency/error-cascade detection, Istio primary patch, and the
 restoration ramp are done. One signature is through the full pipeline in
-unit tests. Kind + Istio 1.30.4 is installed locally for scrape evidence.
+unit tests. Retry-storm detection is status-only. Kind + Istio 1.30.4 is
+installed locally for scrape evidence.
 
 - [x] Repo scaffold (kubebuilder init, go.mod, Makefile, CI skeleton)
 - [x] `CascadePolicy` CRD types + deepcopy + CRD YAML
 - [x] Prometheus client + PromQL query layer
 - [x] Signature detector: latency/error cascade
-- [ ] Signature detector: retry storm
+- [x] Signature detector: retry storm
 - [ ] Signature detector: fan-out amplification
 - [x] Reconciler wiring (metrics → detectors → decision)
 - [x] Istio patch layer — `DestinationRule` outlierDetection primary (latency/error cascade), annotations

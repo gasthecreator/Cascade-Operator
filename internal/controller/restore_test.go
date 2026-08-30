@@ -34,7 +34,7 @@ import (
 )
 
 func healthyQuerier() *fakeQuerier {
-	return &fakeQuerier{p99: 80, errorRate: 0.001}
+	return &fakeQuerier{p99: 80, errorRate: 0.001, retryStormRatio: 1.0}
 }
 
 func trippedManagedDR() *networkingv1.DestinationRule {

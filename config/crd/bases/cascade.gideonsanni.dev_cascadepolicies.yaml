@@ -108,8 +108,10 @@ spec:
                     type: integer
                   retryStormMultiplier:
                     default: 3
-                    description: retryStormMultiplier is retries/sec versus baseline
-                      that counts as a storm.
+                    description: |-
+                      retryStormMultiplier is the destination:source request-count ratio that
+                      counts as a storm. Implicit baseline is 1 (one destination attempt per
+                      source request).
                     minimum: 1
                     type: number
                   windowSeconds:

@@ -22,6 +22,8 @@ import (
 	"testing"
 )
 
+const evidenceIncompleteReadings = "incomplete readings"
+
 func TestDetectLatencyError(t *testing.T) {
 	t.Parallel()
 
@@ -95,7 +97,7 @@ func TestDetectLatencyError(t *testing.T) {
 				Dependency: dep, LatencyP99Ms: math.NaN(), ErrorRateFraction: 0.9,
 				LatencyThresholdMs: latTh, ErrorRateThreshold: errTh,
 			},
-			evidenceHas: []string{"incomplete readings"},
+			evidenceHas: []string{evidenceIncompleteReadings},
 		},
 		{
 			name: "NaN error rate does not trip",
@@ -103,7 +105,7 @@ func TestDetectLatencyError(t *testing.T) {
 				Dependency: dep, LatencyP99Ms: 900, ErrorRateFraction: math.NaN(),
 				LatencyThresholdMs: latTh, ErrorRateThreshold: errTh,
 			},
-			evidenceHas: []string{"incomplete readings"},
+			evidenceHas: []string{evidenceIncompleteReadings},
 		},
 	}
 
