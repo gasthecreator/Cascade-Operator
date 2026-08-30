@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-30 — Fan-out demo topology + live-scrape evidence for the fan-out signal](2026-08-30-fanout-demo-evidence.md)
 - [2026-08-30 — Review: retry-storm restoration, signature-dispatched restore machinery](2026-08-30-review-retry-storm-restoration.md)
 - [2026-08-30 — Retry-storm restoration: wire the VirtualService patch into Reconcile, dispatch restore by signature](2026-08-30-retry-storm-restoration.md)
 - [2026-08-30 — Review: retry-storm mitigation (VirtualService patch, not yet wired live)](2026-08-30-review-retry-storm-mitigation.md)

@@ -135,6 +135,14 @@ query-prom: ## Instant-query in-cluster Prometheus. Usage: make query-prom QUERY
 	@test -n "$(QUERY)" || { echo "QUERY is required"; exit 1; }
 	hack/query-prom.sh '$(QUERY)'
 
+.PHONY: demo-deploy
+demo-deploy: ## Build, load, and deploy the §2.7 demo topology (checkout -> {payments,inventory}).
+	hack/deploy-demo.sh
+
+.PHONY: demo-undeploy
+demo-undeploy: ## Remove the demo topology from the cluster.
+	kubectl delete -n default -f demo/k8s/ --ignore-not-found
+
 ##@ Build
 
 .PHONY: build

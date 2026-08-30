@@ -5,10 +5,18 @@ have a full detect → mitigate → restore loop. Restoration dispatches by
 `status.LastSignature`: `DestinationRule` outlierDetection for
 latency/error-cascade, `VirtualService` retries.attempts for retry storm,
 and a fail-safe snap-to-Normal fallback for any signature without a wired
-restore path (there is currently none). Fan-out amplification is the only
-signature with neither a detector nor a mitigation yet. Kind cluster has
-Istio 1.30.4 (demo) + Prometheus and a sleep/httpbin validation workload.
-PromQL `sum by (le)` / `response_flags=URX` findings are in PLAN.md §2.4.**
+restore path (there is currently none). Fan-out amplification still has no
+detector or mitigation, but the §2.7 demo topology
+(`checkout → {payments, inventory}`, under `demo/`) is now built and
+deployed, and live-scrape evidence for the fan-out signal exists (see the
+fan-out-demo-evidence worklog): a healthy run holds a clean 1:1:1 ratio
+across checkout/payments/inventory request counts, and toggling `payments`
+into failure drives its outbound-call count to exactly 3× checkout's inbound
+count — but only because checkout's own application code has a deliberate
+retry-on-failure loop; nothing amplifies from Envoy/Istio defaults alone.
+Kind cluster has Istio 1.30.4 (demo) + Prometheus, the sleep/httpbin
+validation workload, and the demo topology. PromQL `sum by (le)` /
+`response_flags=URX` findings are in PLAN.md §2.4.**
 This file is the
 single source of truth for goal, architecture, and progress. Read it before
 touching code in any session (Cursor or Claude). Keep it updated as work lands —
@@ -257,8 +265,9 @@ client, latency/error-cascade detection, Istio primary patch, and the
 restoration ramp are done. **Two signatures are now through the full
 pipeline**: latency/error-cascade (`DestinationRule` outlierDetection) and
 retry storm (`VirtualService` retries.attempts), both detect → mitigate →
-restore, dispatched by `status.LastSignature`. Only fan-out amplification
-remains — no detector, no mitigation. Kind + Istio 1.30.4 is installed
+restore, dispatched by `status.LastSignature`. Fan-out amplification still
+has no detector or mitigation, but its demo topology and live-scrape
+evidence now exist (see checklist below). Kind + Istio 1.30.4 is installed
 locally for scrape evidence.
 
 - [x] Repo scaffold (kubebuilder init, go.mod, Makefile, CI skeleton)
@@ -274,7 +283,7 @@ locally for scrape evidence.
 - [x] Gradual restoration state machine (signature-dispatched: `DestinationRule` and `VirtualService`)
 - [ ] Operator's own Prometheus metrics (signatures detected, patches applied)
 - [x] Kind + Istio local dev environment docs/scripts
-- [ ] Demo microservice topology for fault injection
+- [x] Demo microservice topology for fault injection (`demo/` — checkout, payments, inventory)
 - [ ] k6 cascade-simulation test scripts (latency spike, retry storm, fan-out)
 - [x] Unit test suite for detectors (no cluster required)
 - [ ] Integration test suite (Kind-based, exercises real reconcile loop)
