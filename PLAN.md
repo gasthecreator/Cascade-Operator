@@ -10,10 +10,13 @@ path (there is currently none — kept for whatever signature is wired next).
 Latency/error-cascade and fan-out amplification both patch the same object
 kind (`DestinationRule`) on disjoint field sets — see the fan-out
 detect/mitigate/restore worklog for the full reasoning on why that sharing
-is safe under the current one-active-signature status model, and
-`PROPOSALS.md`'s pending entry for the one real gap it surfaced (a
-same-host signature handoff mid-Tripped/Restoring can orphan the outgoing
-signature's fields). The §2.7 demo topology
+is safe under the current one-active-signature status model. The one real
+gap that reasoning surfaced (a same-host signature handoff mid-Tripped/
+Restoring could orphan the outgoing signature's fields) is resolved: see
+§2.6's "Signature handoff on a shared object" and `PROPOSALS.md`'s approved
+entry — `Reconcile` now synchronously force-completes the outgoing
+signature's restore before adopting a handoff on the same tick. The §2.7
+demo topology
 (`checkout → {payments, inventory}`, under `demo/`) is built and deployed,
 and its live-scrape evidence (a clean 1:1:1 healthy ratio; a 3× ratio when
 `payments` fails and `checkout`'s own retry loop kicks in) is what the
@@ -304,7 +307,7 @@ locally for scrape evidence.
 - [x] Istio patch layer — `DestinationRule` connectionPool.http primary (fan-out amplification), annotations
 - [ ] Istio patch layer — remaining secondaries (`VirtualService` timeout for latency/error cascade; `DestinationRule` connectionPool for retry storm)
 - [x] Gradual restoration state machine (signature-dispatched: `DestinationRule` for latency/error cascade and fan-out amplification, on disjoint field sets; `VirtualService` for retry storm)
-- [ ] Force-complete outgoing signature's restore on a same-object signature handoff (see §2.6 and PROPOSALS.md — a real gap, not yet implemented)
+- [x] Force-complete outgoing signature's restore on a same-object signature handoff (§2.6)
 - [ ] Operator's own Prometheus metrics (signatures detected, patches applied)
 - [x] Kind + Istio local dev environment docs/scripts
 - [x] Demo microservice topology for fault injection (`demo/` — checkout, payments, inventory)

@@ -57,6 +57,11 @@ type CascadePolicyReconciler struct {
 // restore.go). Latency/error and fan-out both patch DestinationRule, but
 // disjoint field sets (outlierDetection vs. connectionPool.http); see
 // fanout_restore.go's doc comment for why sharing that object kind is safe.
+// If a same-host signature handoff happens mid-Tripped/Restoring — the
+// outgoing signature's condition clears the same tick the incoming one
+// trips, no healthy tick in between — the outgoing signature's restore is
+// force-completed synchronously before the incoming trip is applied (see
+// forceCompleteOutgoingRestore, restore.go).
 func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
@@ -81,26 +86,43 @@ func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if r.Metrics != nil {
 		host, v, sig, tripped, evaluated := r.detectSignatures(ctx, policy)
 		if tripped {
-			if policy.Status.Phase != cascadev1alpha1.PolicyPhaseTripped {
-				now := metav1.Now()
-				policy.Status.LastTrippedAt = &now
+			// Same-object signature handoff (PROPOSALS.md, approved
+			// 2026-08-30): if a different signature was already
+			// Tripped/Restoring on this policy, force its restore to true
+			// completion *before* adopting the new one, so its fields and
+			// its own original-* annotation are never left orphaned. Read
+			// the outgoing signature before it gets overwritten below. A
+			// fresh CR (outgoingSig == "") or a same-signature re-trip
+			// (outgoingSig == sig) needs none of this; Phase == Normal
+			// covers both "first trip ever" and "already fully restored,
+			// nothing left to complete".
+			outgoingSig := policy.Status.LastSignature
+			handoff := outgoingSig != "" && outgoingSig != sig && policy.Status.Phase != cascadev1alpha1.PolicyPhaseNormal
+			if handoff {
+				mitErr = r.forceCompleteOutgoingRestore(ctx, policy, outgoingSig)
 			}
-			policy.Status.Phase = cascadev1alpha1.PolicyPhaseTripped
-			policy.Status.RestoreStep = 0
-			policy.Status.LastSignature = sig
-			log.Info("cascade signature tripped",
-				"signature", sig,
-				"dependency", host,
-				"confidence", v.Confidence,
-				"evidence", v.Evidence,
-			)
-			switch sig {
-			case cascadev1alpha1.SignatureLatencyErrorCascade:
-				mitErr = r.applyLatencyErrorMitigation(ctx, policy, host)
-			case cascadev1alpha1.SignatureRetryStorm:
-				mitErr = r.applyRetryStormMitigation(ctx, policy, host)
-			case cascadev1alpha1.SignatureFanOutAmplification:
-				mitErr = r.applyFanOutMitigation(ctx, policy, host)
+			if mitErr == nil {
+				if policy.Status.Phase != cascadev1alpha1.PolicyPhaseTripped {
+					now := metav1.Now()
+					policy.Status.LastTrippedAt = &now
+				}
+				policy.Status.Phase = cascadev1alpha1.PolicyPhaseTripped
+				policy.Status.RestoreStep = 0
+				policy.Status.LastSignature = sig
+				log.Info("cascade signature tripped",
+					"signature", sig,
+					"dependency", host,
+					"confidence", v.Confidence,
+					"evidence", v.Evidence,
+				)
+				switch sig {
+				case cascadev1alpha1.SignatureLatencyErrorCascade:
+					mitErr = r.applyLatencyErrorMitigation(ctx, policy, host)
+				case cascadev1alpha1.SignatureRetryStorm:
+					mitErr = r.applyRetryStormMitigation(ctx, policy, host)
+				case cascadev1alpha1.SignatureFanOutAmplification:
+					mitErr = r.applyFanOutMitigation(ctx, policy, host)
+				}
 			}
 		} else if evaluated > 0 {
 			switch policy.Status.Phase {

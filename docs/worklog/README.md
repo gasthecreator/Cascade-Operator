@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-30 — Signature handoff on a shared object: force-complete the outgoing signature's restore before adopting the incoming one](2026-08-30-signature-handoff-restore-fix.md)
 - [2026-08-30 — Review: fan-out signature + signature-handoff proposal resolved](2026-08-30-review-fanout-signature.md)
 - [2026-08-30 — Fan-out amplification: detector, cross-host PromQL, connectionPool bulkhead, restoration — built together](2026-08-30-fanout-signature.md)
 - [2026-08-30 — Review: fan-out demo topology + live-scrape evidence](2026-08-30-review-fanout-demo-evidence.md)

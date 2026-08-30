@@ -106,6 +106,76 @@ func (r *CascadePolicyReconciler) advanceRestore(ctx context.Context, policy *ca
 	}
 }
 
+// forceCompleteOutgoingRestore is called from Reconcile's trip branch when
+// the signature that just tripped (sig) differs from status.LastSignature
+// as it stood *before* this tick (outgoing), and Phase != Normal — i.e. a
+// same-object signature handoff mid-Tripped/Restoring, with no intervening
+// healthy tick. See PROPOSALS.md's "Signature handoff on a shared
+// DestinationRule can orphan the outgoing signature's fields" (approved
+// 2026-08-30) and PLAN.md §2.6's "Signature handoff on a shared object"
+// note for the full reasoning; this is that resolved direction, not a new
+// one.
+//
+// It synchronously drives the *outgoing* signature's restore straight to
+// true completion — the same complete*Restore function its own gradual
+// ramp already calls at its final step — before Reconcile applies the
+// incoming signature's trip. This is a new call site for existing, already
+// -tested logic ("restore to true original, strip both annotations"), not
+// new mitigation-package code. It is safe to skip the gradual ramp's
+// per-step regression check here specifically because the caller
+// (Reconcile) just confirmed, this same tick, that the outgoing signature's
+// own detector no longer trips on this policy: there is no in-progress
+// ramp to protect from a regression, only a stale object state that must
+// be cleared before the incoming signature's trip touches the same object.
+//
+// Mirrors beginRestore/advanceRestore's dispatch shape, keyed on the
+// outgoing signature rather than the current one, but calls straight
+// through to each path's complete function instead of its step-by-step
+// one. A signature with no restore path (including the empty string, which
+// covers "no prior trip" — Reconcile's caller already guards on that) is a
+// no-op, same spirit as snapToNormalNoRestore.
+func (r *CascadePolicyReconciler) forceCompleteOutgoingRestore(
+	ctx context.Context,
+	policy *cascadev1alpha1.CascadePolicy,
+	outgoing cascadev1alpha1.SignatureType,
+) error {
+	log := logf.FromContext(ctx)
+	switch outgoing {
+	case cascadev1alpha1.SignatureLatencyErrorCascade:
+		edges, err := r.listManagedDestinationRuleEdges(ctx, policy)
+		if err != nil {
+			return err
+		}
+		if len(edges) == 0 {
+			return nil
+		}
+		log.Info("Signature handoff: force-completing outgoing restore", "outgoing", outgoing, "edges", len(edges))
+		return r.completeLatencyErrorRestore(ctx, policy, edges)
+	case cascadev1alpha1.SignatureRetryStorm:
+		edges, err := r.listManagedVirtualServiceEdges(ctx, policy)
+		if err != nil {
+			return err
+		}
+		if len(edges) == 0 {
+			return nil
+		}
+		log.Info("Signature handoff: force-completing outgoing restore", "outgoing", outgoing, "edges", len(edges))
+		return r.completeRetryStormRestore(ctx, policy, edges)
+	case cascadev1alpha1.SignatureFanOutAmplification:
+		edges, err := r.listManagedDestinationRuleEdges(ctx, policy)
+		if err != nil {
+			return err
+		}
+		if len(edges) == 0 {
+			return nil
+		}
+		log.Info("Signature handoff: force-completing outgoing restore", "outgoing", outgoing, "edges", len(edges))
+		return r.completeFanOutRestore(ctx, policy, edges)
+	default:
+		return nil
+	}
+}
+
 // snapToNormalNoRestore is the fail-safe fallback for a signature with no
 // restore path — same shape as each path's own "zero managed edges" branch,
 // generalized so an unwired or unrecognized signature never gets stuck at
