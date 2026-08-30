@@ -1,10 +1,13 @@
 # Cascade Operator — PLAN.md
 
 **Status as of 2026-08-30: latency/error-cascade detect → mitigate → restore
-loop is implemented; retry-storm detector is wired to status only (no
-VirtualService patch yet). Kind cluster has Istio 1.30.4 (demo) + Prometheus
-and a sleep/httpbin validation workload. PromQL `sum by (le)` /
-`response_flags=URX` findings are in PLAN.md §2.4.** This file is the
+loop is implemented; retry-storm detector is wired to status, and its
+`VirtualService` `retries.attempts` primary patch is built and tested but
+not yet called from `Reconcile` — wiring it live needs VirtualService-aware
+restoration first, landing together in the next slice. Kind cluster has
+Istio 1.30.4 (demo) + Prometheus and a sleep/httpbin validation workload.
+PromQL `sum by (le)` / `response_flags=URX` findings are in PLAN.md §2.4.**
+This file is the
 single source of truth for goal, architecture, and progress. Read it before
 touching code in any session (Cursor or Claude). Keep it updated as work lands —
 this is a living document, not a one-time spec.
@@ -250,8 +253,11 @@ interview demo; the other two detectors are then copies of the same
 interface. First slice (scaffold + CRD + logging reconciler), Prometheus HTTP
 client, latency/error-cascade detection, Istio primary patch, and the
 restoration ramp are done. One signature is through the full pipeline in
-unit tests. Retry-storm detection is status-only. Kind + Istio 1.30.4 is
-installed locally for scrape evidence.
+unit tests. Retry-storm's detector and its `VirtualService` retry-budget
+primary are both built and unit-tested; the patch is not yet reachable from
+`Reconcile` (see status line above — it lands live with its own restoration
+in the next slice, not before). Kind + Istio 1.30.4 is installed locally
+for scrape evidence.
 
 - [x] Repo scaffold (kubebuilder init, go.mod, Makefile, CI skeleton)
 - [x] `CascadePolicy` CRD types + deepcopy + CRD YAML

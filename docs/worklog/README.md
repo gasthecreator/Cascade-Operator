@@ -57,6 +57,8 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-30 — Review: retry-storm mitigation (VirtualService patch, not yet wired live)](2026-08-30-review-retry-storm-mitigation.md)
+- [2026-08-30 — Retry-storm mitigation: VirtualService retries.attempts primary, built but not yet wired live](2026-08-30-retry-storm-mitigation.md)
 - [2026-08-30 — Review: retry-storm detector slice](2026-08-30-review-retry-storm-detector.md)
 - [2026-08-30 — Retry-storm detector, status only](2026-08-30-retry-storm-detector.md)
 - [2026-08-29 — Review: Kind + Istio dev environment, PromQL/response_flags proposals](2026-08-29-review-kind-istio-dev-env.md)

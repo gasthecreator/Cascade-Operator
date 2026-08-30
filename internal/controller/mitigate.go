@@ -32,9 +32,12 @@ import (
 	"github.com/gasthecreator/Cascade-Operator/internal/mitigation"
 )
 
+// Shared across every dependsOn object-kind lookup (DestinationRule,
+// VirtualService, ...) — the DependencyObjectMissing condition is generic,
+// not tied to one Istio kind.
 const (
-	reasonDestinationRuleNotFound = "DestinationRuleNotFound"
-	reasonDestinationRuleFound    = "DestinationRuleFound"
+	reasonDependencyObjectNotFound = "DependencyObjectNotFound"
+	reasonDependencyObjectFound    = "DependencyObjectFound"
 )
 
 // applyLatencyErrorMitigation resolves the DestinationRule for host by
@@ -93,7 +96,7 @@ func setDependencyMissing(policy *cascadev1alpha1.CascadePolicy, message string)
 	meta.SetStatusCondition(&policy.Status.Conditions, metav1.Condition{
 		Type:    cascadev1alpha1.ConditionTypeDependencyObjectMissing,
 		Status:  metav1.ConditionTrue,
-		Reason:  reasonDestinationRuleNotFound,
+		Reason:  reasonDependencyObjectNotFound,
 		Message: message,
 	})
 }
@@ -106,7 +109,7 @@ func clearDependencyMissing(policy *cascadev1alpha1.CascadePolicy) {
 	meta.SetStatusCondition(&policy.Status.Conditions, metav1.Condition{
 		Type:    cascadev1alpha1.ConditionTypeDependencyObjectMissing,
 		Status:  metav1.ConditionFalse,
-		Reason:  reasonDestinationRuleFound,
-		Message: "DestinationRule resolved for the tripped dependency",
+		Reason:  reasonDependencyObjectFound,
+		Message: "Dependency object resolved for the tripped dependency",
 	})
 }
