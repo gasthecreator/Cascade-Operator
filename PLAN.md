@@ -293,7 +293,12 @@ pipeline**: latency/error-cascade (`DestinationRule` outlierDetection),
 retry storm (`VirtualService` retries.attempts), and fan-out amplification
 (`DestinationRule` connectionPool.http) — each detect → mitigate → restore,
 dispatched by `status.LastSignature`. Kind + Istio 1.30.4 is installed
-locally for scrape evidence.
+locally for scrape evidence. **Caveat found 2026-08-30 via live k6 evidence:
+retry storm's detect → trip is confirmed live-working, but its mitigate
+patch is not — Istio's validating webhook rejects the trip-time
+`attempts: 0` write whenever the route already has `retryOn`/
+`perTryTimeout` set, which a real retry storm's pre-existing policy always
+would. See `PROPOSALS.md`'s open entry.**
 
 - [x] Repo scaffold (kubebuilder init, go.mod, Makefile, CI skeleton)
 - [x] `CascadePolicy` CRD types + deepcopy + CRD YAML
@@ -311,7 +316,7 @@ locally for scrape evidence.
 - [ ] Operator's own Prometheus metrics (signatures detected, patches applied)
 - [x] Kind + Istio local dev environment docs/scripts
 - [x] Demo microservice topology for fault injection (`demo/` — checkout, payments, inventory)
-- [ ] k6 cascade-simulation test scripts (latency spike, retry storm, fan-out)
+- [x] k6 cascade-simulation test scripts (latency spike, retry storm, fan-out) — live evidence for all three; retry-storm's *mitigation patch* found broken against a realistic fixture, see `PROPOSALS.md`
 - [x] Unit test suite for detectors (no cluster required)
 - [ ] Integration test suite (Kind-based, exercises real reconcile loop)
 - [x] golangci-lint + gofmt CI gate

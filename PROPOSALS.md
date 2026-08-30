@@ -51,7 +51,30 @@ constraint, error, API limitation, or test result — not a general preference.
 
 ## Pending Proposals
 
-_(none — resolved below)_
+### [PENDING] Retry-storm mitigation's `attempts: 0` trip is rejected by Istio's validating webhook whenever the route already has `retryOn`/`perTryTimeout` set
+**Proposed by:** Cursor
+**Date:** 2026-08-30
+**Affects:** 2.6 Mitigation (retry-storm primary); `internal/mitigation/retries.go`'s `ApplyRetryStormTrip`
+
+**Current state:** `ApplyRetryStormTrip` sets `route.Retries.Attempts = 0` on trip and, by design (per its own doc comment), leaves a route's pre-existing `retryOn`/`perTryTimeout`/`backoff` untouched — "if a route already had an explicit retries block, its retryOn/perTryTimeout/backoff are preserved and only attempts changes." This was written and unit-tested (fake client, no admission webhook) while the Kind cluster was unreachable (`2026-08-30-retry-storm-mitigation.md`'s own "Follow-ups" explicitly flagged this as unverified: "Worth a live check once the cluster is healthy again").
+
+**Proposed change:** Not proposing a specific fix yet — flagging the gap for a decision, same as the signature-handoff proposal was. Two directions:
+1. When tripping (`attempts → 0`), also clear `retryOn`/`perTryTimeout`/`backoff` on that route. They're already captured in `AnnotationOriginalRetries` for restoration, so clearing them on trip loses nothing — the restore path already restores the *whole* original block, not just `attempts`, per `originalRouteRetriesJSON`'s existing shape.
+2. Use `attempts: 1` instead of `attempts: 0` as the trip value. The existing doc comment explicitly rejected this ("1 would still let a request through a second time — under the dest:source ratio detector, a 2x amplification can itself sit at or above a low `retryStormMultiplier`, so it would not reliably stop the storm") — that reasoning was sound at the time but never checked against whether Istio's webhook has the same objection to `attempts: 1` with `retryOn` set (it likely does not — the rejection message is specific to `attempts: 0`, i.e. "disabled," not to "attempts is low"). If `attempts: 1` is webhook-clean, it might be the smaller change, at the cost of the amplification-headroom concern already on record.
+
+**Why:** Found live, during this slice's `retry-storm.js` k6 run against `demo/k8s/inventory-retry-vs.yaml` (`attempts: 3, retryOn: 5xx,reset,connect-failure,refused-stream, perTryTimeout: 2s` — a realistic policy, not a contrived edge case). `RetryStorm` tripped correctly (`dest_source_ratio≈4` against threshold `3`, confidence 1.0 — detector and status transition both confirmed working), but every reconcile's mitigation call failed:
+
+```
+update VirtualService default/inventory-service: admission webhook "validation.istio.io" denied
+the request: configuration is invalid: http retry policy configured when attempts are set to 0
+(disabled)
+```
+
+The `VirtualService` was never actually patched — `kubectl get virtualservice inventory-service` after the run still shows `attempts: 3`, no `cascade.gideonsanni.dev/managed-by` annotation. Once the induced failure cleared, restoration's "no managed object" fallback correctly snapped the policy back to `Normal` without erroring further, so this doesn't hang the demo or corrupt state — but the mitigation itself has never worked against a route that already has `retryOn` set, which is realistically the *only* shape a real retry storm's pre-existing policy would ever have (a retry storm requires some retry policy already lenient enough to amplify traffic — that's what `retryOn` being set *is*). Full evidence: `docs/worklog/2026-08-30-k6-cascade-simulation.md`.
+
+**Impact if approved:** `internal/mitigation/retries.go`'s `ApplyRetryStormTrip` (and its existing fake-client unit tests, which did not catch this because they never exercise a real admission webhook). No CRD change either direction. Direction 1 is a small, mechanical change with no semantic trade-off. Direction 2 revisits an already-reasoned trip-value decision and needs a live webhook check against `attempts: 1` + `retryOn` before it can be trusted either way.
+
+---
 
 ---
 

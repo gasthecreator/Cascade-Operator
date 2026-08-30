@@ -1,0 +1,34 @@
+# Retry-storm demo fixture (PLAN.md checklist: "k6 cascade-simulation test
+# scripts"). Gives inventory-service a real Envoy retries.attempts policy —
+# mirroring config/dev/httpbin-retry-vs.yaml's shape, but committed here as
+# a permanent part of the demo topology rather than a throwaway dev-only
+# file, since the retry-storm k6 script needs it every run, not just once
+# for a scrape.
+#
+# On inventory specifically, not payments: payments already carries the
+# fan-out amplification demo's own signal (checkout's *application-level*
+# retry loop, 3 real HTTP requests per failure). Adding an Envoy-level
+# retry policy on top of that would compound the two (each of checkout's 3
+# app-level attempts could itself retry up to 3 times at the Envoy layer),
+# corrupting the already-proven clean 3x fan-out ratio. inventory has no
+# app-level retry loop from checkout, so it stays a clean single signal:
+# whatever amplification appears on inventory's destination:source ratio
+# is exactly the retry-storm signature this fixture exists to demonstrate,
+# and it never fires unless inventory itself is failing (retryOn only
+# matches error responses/connection failures — a healthy inventory is
+# never retried).
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: inventory-service
+spec:
+  hosts:
+    - inventory-service.default.svc.cluster.local
+  http:
+    - route:
+        - destination:
+            host: inventory-service.default.svc.cluster.local
+      retries:
+        attempts: 3
+        perTryTimeout: 2s
+        retryOn: 5xx,reset,connect-failure,refused-stream
