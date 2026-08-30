@@ -304,7 +304,10 @@ alongside `attempts: 0`** — the full original block is already captured in
 `AnnotationOriginalRetries` and restored exactly at completion, so nothing
 is lost, and a route with retries disabled shouldn't carry retry-behavior
 fields describing retries that will never run. See `PROPOSALS.md`'s
-resolved entry. Implementation is the next slice.
+resolved entry. **Implemented 2026-08-30** in `ApplyRetryStormTrip`
+(`internal/mitigation/retries.go`); fake-client and unit tests confirm the
+new behavior, but this particular pass could not re-confirm against the
+live Kind cluster (unreachable — see the worklog).
 
 - [x] Repo scaffold (kubebuilder init, go.mod, Makefile, CI skeleton)
 - [x] `CascadePolicy` CRD types + deepcopy + CRD YAML

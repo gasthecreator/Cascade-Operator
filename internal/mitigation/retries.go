@@ -58,11 +58,22 @@ type originalRouteRetriesJSON struct {
 	Backoff       string `json:"backoff,omitempty"`
 }
 
-// ApplyRetryStormTrip mutates only retries.attempts on every forwarding
-// route in vs (plus our annotations). Match, route destinations, timeout,
-// fault injection, and any other per-route field are left as they were; if
-// a route already had an explicit retries block, its retryOn/perTryTimeout/
-// backoff are preserved and only attempts changes. Every http[] route gets
+// ApplyRetryStormTrip sets retries.attempts to 0 on every forwarding route
+// in vs (plus our annotations) and clears that route's retryOn/
+// perTryTimeout/backoff (PROPOSALS.md, approved 2026-08-30). Match, route
+// destinations, timeout, fault injection, and any other per-route field are
+// left as they were. Clearing the other retry-policy fields alongside
+// attempts:0 is not optional: Istio's validating webhook rejects
+// attempts:0 combined with a non-empty retryOn/perTryTimeout/backoff
+// outright ("http retry policy configured when attempts are set to 0
+// (disabled)"), confirmed live against a route that already had them —
+// exactly the case a real retry storm's pre-existing policy always is,
+// since retryOn being set lenient is what let the storm amplify in the
+// first place. Nothing is lost by clearing them here: the full pre-trip
+// block (including these three fields) is captured in
+// AnnotationOriginalRetries before this loop runs, and
+// applyOriginalRetries/CompleteRetryStormRestore restore that whole
+// captured block, not just attempts, at completion. Every http[] route gets
 // an explicit retries block — including routes that had none — because
 // Istio's implicit default (attempts=2) would otherwise keep retrying
 // unmitigated on exactly the routes this patch is meant to stop. The
@@ -84,6 +95,9 @@ func ApplyRetryStormTrip(vs *networkingv1.VirtualService) {
 			route.Retries = &apinet.HTTPRetry{}
 		}
 		route.Retries.Attempts = TripRetryAttempts
+		route.Retries.RetryOn = ""
+		route.Retries.PerTryTimeout = nil
+		route.Retries.Backoff = nil
 	}
 }
 

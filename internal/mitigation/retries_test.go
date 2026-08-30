@@ -51,13 +51,18 @@ func TestApplyRetryStormTripMultiRoute(t *testing.T) {
 					Route: destRoute(),
 				},
 				{
-					// Explicit retries with other fields that must survive.
+					// Explicit retries with other fields that must be
+					// cleared on trip (still captured in the original
+					// snapshot below) — Istio's validating webhook rejects
+					// attempts:0 alongside a non-empty retryOn/
+					// perTryTimeout/backoff, so trip must not leave them set.
 					Name:  "explicit-retries",
 					Route: destRoute(),
 					Retries: &apinet.HTTPRetry{
 						Attempts:      5,
 						RetryOn:       testRetryOn5xx,
 						PerTryTimeout: durationpb.New(2 * time.Second),
+						Backoff:       durationpb.New(500 * time.Millisecond),
 					},
 				},
 				{
@@ -82,11 +87,18 @@ func TestApplyRetryStormTripMultiRoute(t *testing.T) {
 	if routes[1].Retries.Attempts != TripRetryAttempts {
 		t.Errorf("route[1] attempts = %d, want %d", routes[1].Retries.Attempts, TripRetryAttempts)
 	}
-	if routes[1].Retries.RetryOn != testRetryOn5xx {
-		t.Errorf("route[1] retryOn clobbered: %q", routes[1].Retries.RetryOn)
+	// retryOn/perTryTimeout/backoff must be cleared, not preserved: Istio's
+	// validating webhook rejects attempts:0 combined with any of these set
+	// ("http retry policy configured when attempts are set to 0
+	// (disabled)"), confirmed live against this exact shape.
+	if routes[1].Retries.RetryOn != "" {
+		t.Errorf("route[1] retryOn not cleared: %q", routes[1].Retries.RetryOn)
 	}
-	if routes[1].Retries.GetPerTryTimeout().AsDuration() != 2*time.Second {
-		t.Errorf("route[1] perTryTimeout clobbered: %s", routes[1].Retries.GetPerTryTimeout().AsDuration())
+	if routes[1].Retries.PerTryTimeout != nil {
+		t.Errorf("route[1] perTryTimeout not cleared: %s", routes[1].Retries.GetPerTryTimeout().AsDuration())
+	}
+	if routes[1].Retries.Backoff != nil {
+		t.Errorf("route[1] backoff not cleared: %s", routes[1].Retries.GetBackoff().AsDuration())
 	}
 	if routes[2].Retries != nil {
 		t.Error("redirect-only route should never get a retries block")
@@ -102,8 +114,9 @@ func TestApplyRetryStormTripMultiRoute(t *testing.T) {
 	if !snaps[0].Unset {
 		t.Errorf("route[0] original = %+v, want Unset", snaps[0])
 	}
-	if snaps[1].Unset || snaps[1].Attempts != 5 || snaps[1].RetryOn != testRetryOn5xx || snaps[1].PerTryTimeout != "2s" {
-		t.Errorf("route[1] original = %+v, want attempts=5 retryOn=%s perTryTimeout=2s", snaps[1], testRetryOn5xx)
+	if snaps[1].Unset || snaps[1].Attempts != 5 || snaps[1].RetryOn != testRetryOn5xx ||
+		snaps[1].PerTryTimeout != "2s" || snaps[1].Backoff != "500ms" {
+		t.Errorf("route[1] original = %+v, want attempts=5 retryOn=%s perTryTimeout=2s backoff=500ms", snaps[1], testRetryOn5xx)
 	}
 	if !snaps[2].Skipped {
 		t.Errorf("route[2] original = %+v, want Skipped", snaps[2])

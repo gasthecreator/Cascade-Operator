@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-30 — Retry-storm mitigation: clear retryOn/perTryTimeout/backoff on trip so Istio's validating webhook stops rejecting the patch](2026-08-30-retry-storm-mitigation-webhook-fix.md)
 - [2026-08-30 — Review: k6 cascade-simulation scripts + webhook-rejection proposal resolved](2026-08-30-review-k6-cascade-simulation.md)
 - [2026-08-30 — k6 cascade-simulation scripts: load generation for all three signatures, live evidence, one real mitigation bug found](2026-08-30-k6-cascade-simulation.md)
 - [2026-08-30 — Review: signature-handoff restore fix](2026-08-30-review-signature-handoff-fix.md)

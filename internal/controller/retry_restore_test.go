@@ -156,8 +156,19 @@ func TestRetryStormRestoreAdvancesEachStepThenCompletes(t *testing.T) {
 		if routes[1].Retries.GetAttempts() != wantRoute1Attempts[i] {
 			t.Errorf("tick %d route[1] attempts = %d, want %d", i, routes[1].Retries.GetAttempts(), wantRoute1Attempts[i])
 		}
-		if routes[1].Retries.GetRetryOn() != testRetryOn5xx {
-			t.Errorf("tick %d route[1] retryOn = %q, want 5xx (ramp only touches attempts)", i, routes[1].Retries.GetRetryOn())
+		// retryOn stays cleared through every mid-ramp tick — trip already
+		// cleared it (Istio's webhook rejects attempts:0 alongside a set
+		// retryOn, so trip must clear it; see mitigation.ApplyRetryStormTrip)
+		// and steps 0-3 only ever touch attempts. It comes back, alongside
+		// the rest of the original block, at step RestoreFinalStep (tick 4,
+		// still Phase Restoring — the phase transition to Normal happens on
+		// the following tick) and stays back once Normal (tick 5).
+		wantRetryOn := ""
+		if wantStep[i] >= mitigation.RestoreFinalStep || wantPhase[i] == cascadev1alpha1.PolicyPhaseNormal {
+			wantRetryOn = testRetryOn5xx
+		}
+		if routes[1].Retries.GetRetryOn() != wantRetryOn {
+			t.Errorf("tick %d route[1] retryOn = %q, want %q", i, routes[1].Retries.GetRetryOn(), wantRetryOn)
 		}
 		if i >= 4 {
 			if routes[0].Retries != nil {
