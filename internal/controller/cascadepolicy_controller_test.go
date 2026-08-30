@@ -18,6 +18,8 @@ package controller
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -28,7 +30,27 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
+	"github.com/gasthecreator/Cascade-Operator/internal/metrics"
 )
+
+// fakeQuerier returns canned p99 / error-rate samples. It implements
+// metrics.Querier without HTTP or Prometheus.
+type fakeQuerier struct {
+	p99       float64
+	errorRate float64
+	err       error
+}
+
+func (f *fakeQuerier) Query(_ context.Context, promql string) (metrics.Snapshot, error) {
+	if f.err != nil {
+		return metrics.Snapshot{}, f.err
+	}
+	v := f.errorRate
+	if strings.Contains(promql, "histogram_quantile") {
+		v = f.p99
+	}
+	return metrics.Snapshot{Samples: []metrics.Sample{{Value: v}}}, nil
+}
 
 var _ = Describe("CascadePolicy Controller", func() {
 	Context("When reconciling a resource", func() {
@@ -83,11 +105,68 @@ var _ = Describe("CascadePolicy Controller", func() {
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 
-		It("should requeue after the polling interval and set phase Normal", func() {
-			By("Reconciling the created resource")
+		It("should requeue and set phase Normal when Metrics is nil", func() {
 			controllerReconciler := &CascadePolicyReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
+			}
+
+			result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(Equal(DefaultRequeueAfter))
+
+			updated := &cascadev1alpha1.CascadePolicy{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updated)).To(Succeed())
+			Expect(updated.Status.Phase).To(Equal(cascadev1alpha1.PolicyPhaseNormal))
+			Expect(updated.Status.LastSignature).To(BeEmpty())
+		})
+
+		It("should stay Normal when readings are under threshold", func() {
+			controllerReconciler := &CascadePolicyReconciler{
+				Client:  k8sClient,
+				Scheme:  k8sClient.Scheme(),
+				Metrics: &fakeQuerier{p99: 80, errorRate: 0.001},
+			}
+
+			result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(Equal(DefaultRequeueAfter))
+
+			updated := &cascadev1alpha1.CascadePolicy{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updated)).To(Succeed())
+			Expect(updated.Status.Phase).To(Equal(cascadev1alpha1.PolicyPhaseNormal))
+			Expect(updated.Status.LastSignature).To(BeEmpty())
+		})
+
+		It("should trip LatencyErrorCascade when both signals exceed threshold", func() {
+			controllerReconciler := &CascadePolicyReconciler{
+				Client:  k8sClient,
+				Scheme:  k8sClient.Scheme(),
+				Metrics: &fakeQuerier{p99: 900, errorRate: 0.2},
+			}
+
+			result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(Equal(DefaultRequeueAfter))
+
+			updated := &cascadev1alpha1.CascadePolicy{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, updated)).To(Succeed())
+			Expect(updated.Status.Phase).To(Equal(cascadev1alpha1.PolicyPhaseTripped))
+			Expect(updated.Status.LastSignature).To(Equal(cascadev1alpha1.SignatureLatencyErrorCascade))
+			Expect(updated.Status.LastTrippedAt).NotTo(BeNil())
+		})
+
+		It("should not fail reconcile when Query returns an error", func() {
+			controllerReconciler := &CascadePolicyReconciler{
+				Client:  k8sClient,
+				Scheme:  k8sClient.Scheme(),
+				Metrics: &fakeQuerier{err: fmt.Errorf("prometheus unavailable")},
 			}
 
 			result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{

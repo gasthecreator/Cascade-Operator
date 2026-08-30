@@ -1,8 +1,8 @@
 # Cascade Operator — PLAN.md
 
-**Status as of 2026-08-29: Prometheus HTTP client on `feat/prometheus-client`
-(Query → Snapshot, flag/env URL, httptest coverage). Scaffold + Kind smoke
-test already landed on `feat/repo-scaffold`.** This file is the
+**Status as of 2026-08-29: latency/error-cascade detector wired on
+`feat/latency-error-detector` (detect-only: status trip, no Istio patch).
+Prometheus client is on `feat/prometheus-client`.** This file is the
 single source of truth for goal, architecture, and progress. Read it before
 touching code in any session (Cursor or Claude). Keep it updated as work lands —
 this is a living document, not a one-time spec.
@@ -236,24 +236,24 @@ one through the reconciler, and do not stand up the Kind+Istio+demo topology
 before one detect→mitigate loop exists end to end.** One signature proven
 through the full pipeline (metrics → detector → patch → restore) is the
 interview demo; the other two detectors are then copies of the same
-interface. First slice (scaffold + CRD + logging reconciler) and the
-Prometheus HTTP client are done. Next is one detector wired through the
-reconciler on the existing 10s tick. No Istio client yet.
+interface. First slice (scaffold + CRD + logging reconciler), Prometheus HTTP
+client, and latency/error-cascade detection (status only) are done. Next is
+the Istio patch layer for that signature. No restore ramp yet.
 
 - [x] Repo scaffold (kubebuilder init, go.mod, Makefile, CI skeleton)
 - [x] `CascadePolicy` CRD types + deepcopy + CRD YAML
 - [x] Prometheus client + PromQL query layer
-- [ ] Signature detector: latency/error cascade
+- [x] Signature detector: latency/error cascade
 - [ ] Signature detector: retry storm
 - [ ] Signature detector: fan-out amplification
-- [ ] Reconciler wiring (metrics → detectors → decision)
+- [x] Reconciler wiring (metrics → detectors → decision)
 - [ ] Istio patch layer (DestinationRule / VirtualService client + annotations)
 - [ ] Gradual restoration state machine
 - [ ] Operator's own Prometheus metrics (signatures detected, patches applied)
 - [ ] Kind + Istio local dev environment docs/scripts
 - [ ] Demo microservice topology for fault injection
 - [ ] k6 cascade-simulation test scripts (latency spike, retry storm, fan-out)
-- [ ] Unit test suite for detectors (no cluster required)
+- [x] Unit test suite for detectors (no cluster required)
 - [ ] Integration test suite (Kind-based, exercises real reconcile loop)
 - [x] golangci-lint + gofmt CI gate
 - [ ] README (setup, architecture summary, demo instructions)

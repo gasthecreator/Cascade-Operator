@@ -57,6 +57,8 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-29 — Review: latency/error-cascade detector slice](2026-08-29-review-latency-error-detector.md)
+- [2026-08-29 — Latency/error-cascade detector wired through the reconcile loop](2026-08-29-latency-error-detector.md)
 - [2026-08-29 — Review: Prometheus HTTP client slice](2026-08-29-review-prometheus-client.md)
 - [2026-08-29 — Prometheus HTTP client behind Query → Snapshot](2026-08-29-prometheus-http-client.md)
 - [2026-08-29 — Kind smoke test: manager + CRD + sample CR](2026-08-29-kind-smoke-test.md)

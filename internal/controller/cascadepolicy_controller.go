@@ -20,6 +20,7 @@ import (
 	"context"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -27,6 +28,7 @@ import (
 
 	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
 	"github.com/gasthecreator/Cascade-Operator/internal/metrics"
+	"github.com/gasthecreator/Cascade-Operator/internal/signatures"
 )
 
 // DefaultRequeueAfter is the reconcile tick used to poll Prometheus (PLAN.md §2.4).
@@ -37,8 +39,7 @@ const DefaultRequeueAfter = 10 * time.Second
 type CascadePolicyReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	// Metrics is optional. Nil disables polling (no --prometheus-url). Detectors
-	// are not wired this slice; Query will be issued from this tick later.
+	// Metrics is optional. Nil disables polling (no --prometheus-url).
 	Metrics metrics.Querier
 }
 
@@ -46,9 +47,8 @@ type CascadePolicyReconciler struct {
 // +kubebuilder:rbac:groups=cascade.gideonsanni.dev,resources=cascadepolicies/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=cascade.gideonsanni.dev,resources=cascadepolicies/finalizers,verbs=update
 
-// Reconcile is the CascadePolicy loop. It observes the CR and requeues on
-// DefaultRequeueAfter. Prometheus Query is not issued yet — the next slice
-// wires metrics → detectors on this same tick. No Istio patches yet.
+// Reconcile observes the CR, optionally polls Prometheus per dependsOn host,
+// and records a LatencyErrorCascade trip. No Istio patches this slice.
 func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
@@ -63,14 +63,90 @@ func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		"service", policy.Spec.Service,
 	)
 
+	origPhase := policy.Status.Phase
+	origSig := policy.Status.LastSignature
+
 	if policy.Status.Phase == "" {
 		policy.Status.Phase = cascadev1alpha1.PolicyPhaseNormal
+	}
+
+	if r.Metrics != nil {
+		if host, v, ok := r.detectLatencyErrorCascade(ctx, policy); ok && v.Tripped {
+			if policy.Status.Phase != cascadev1alpha1.PolicyPhaseTripped {
+				now := metav1.Now()
+				policy.Status.LastTrippedAt = &now
+			}
+			policy.Status.Phase = cascadev1alpha1.PolicyPhaseTripped
+			policy.Status.LastSignature = cascadev1alpha1.SignatureLatencyErrorCascade
+			log.Info("latency/error cascade tripped",
+				"dependency", host,
+				"confidence", v.Confidence,
+				"evidence", v.Evidence,
+			)
+		}
+		// Not tripped: leave Tripped/Restoring alone — restoration is the next slice.
+	}
+
+	if policy.Status.Phase != origPhase || policy.Status.LastSignature != origSig {
 		if err := r.Status().Update(ctx, policy); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
 
 	return ctrl.Result{RequeueAfter: DefaultRequeueAfter}, nil
+}
+
+// detectLatencyErrorCascade evaluates each dependsOn edge. The first tripped
+// host wins; query errors skip that edge rather than failing the reconcile.
+func (r *CascadePolicyReconciler) detectLatencyErrorCascade(
+	ctx context.Context,
+	policy *cascadev1alpha1.CascadePolicy,
+) (string, signatures.Verdict, bool) {
+	log := logf.FromContext(ctx)
+	window := windowOrDefault(policy.Spec.Thresholds.WindowSeconds)
+	th := policy.Spec.Thresholds
+
+	for _, host := range policy.Spec.DependsOn {
+		latSnap, err := r.Metrics.Query(ctx, latencyP99Query(host, window))
+		if err != nil {
+			log.Error(err, "p99 latency query failed", "dependency", host)
+			continue
+		}
+		errSnap, err := r.Metrics.Query(ctx, errorRateQuery(host, window))
+		if err != nil {
+			log.Error(err, "error-rate query failed", "dependency", host)
+			continue
+		}
+
+		latency, latOK := snapshotMax(latSnap)
+		errRate, errOK := snapshotMax(errSnap)
+		if !latOK || !errOK {
+			log.Info("incomplete metrics for dependency; skipping detector",
+				"dependency", host,
+				"haveP99", latOK,
+				"haveErrorRate", errOK,
+			)
+			continue
+		}
+
+		v := signatures.DetectLatencyError(signatures.LatencyErrorInput{
+			Dependency:         host,
+			LatencyP99Ms:       latency,
+			ErrorRateFraction:  errRate,
+			LatencyThresholdMs: float64(th.LatencyP99Ms),
+			ErrorRateThreshold: th.ErrorRateFraction,
+		})
+		log.Info("latency/error cascade evaluation",
+			"dependency", host,
+			"tripped", v.Tripped,
+			"confidence", v.Confidence,
+			"evidence", v.Evidence,
+		)
+		if v.Tripped {
+			return host, v, true
+		}
+	}
+	return "", signatures.Verdict{}, false
 }
 
 // SetupWithManager sets up the controller with the Manager.
