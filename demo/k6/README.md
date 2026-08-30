@@ -136,23 +136,24 @@ down (k6's VUs ramping to zero over the last few seconds skews the
 self-corrects within one reconcile tick back to `Normal` and is not a bug —
 see the worklog for the live evidence.
 
-## Known gap: retry-storm's mitigation patch fails against this exact fixture
+## Resolved: retry-storm's mitigation patch used to fail against this exact fixture
 
-`retry-storm.js` correctly drives `RetryStorm` to `Tripped` (confirmed live,
-see the worklog) — the detector and the `Tripped` status transition both
-work. The mitigation *patch* does not: `ApplyRetryStormTrip`
-(`internal/mitigation/retries.go`) sets `retries.attempts: 0` while leaving
-`retryOn`/`perTryTimeout` on the route untouched, and Istio's validating
-webhook rejects that combination outright (`configuration is invalid: http
-retry policy configured when attempts are set to 0 (disabled)`). Every
-reconcile during an active retry storm on this fixture errors and retries;
-the `VirtualService` is never actually patched, and once the induced
-failure clears, restoration's own "no managed object" fallback correctly
-snaps the (never-mitigated) policy back to `Normal` — so the demo doesn't
-hang, but the mitigation itself has never worked against a `retries` block
-with `retryOn` set, which is realistically the *only* kind of pre-existing
-retry policy a real retry storm would ever be occurring against. See
-`PROPOSALS.md` for the open proposal and the worklog for full evidence.
+`retry-storm.js` drives `RetryStorm` to `Tripped` (confirmed live) and, as of
+2026-08-30, the mitigation *patch* now actually applies: `ApplyRetryStormTrip`
+(`internal/mitigation/retries.go`) clears `retryOn`/`perTryTimeout`/`backoff`
+on the route alongside setting `retries.attempts: 0`, rather than leaving
+them set. Previously, leaving them set alongside `attempts: 0` is a
+combination Istio's validating webhook rejects outright (`configuration is
+invalid: http retry policy configured when attempts are set to 0
+(disabled)`) — every reconcile during an active retry storm on this fixture
+errored and retried, and the `VirtualService` was never actually patched.
+See `PROPOSALS.md`'s resolved entry and
+`docs/worklog/2026-08-30-retry-storm-mitigation-webhook-fix.md` for the fix
+and its fake-client test coverage. **Not yet re-confirmed live against this
+exact fixture after the fix** — the fix session hit an unrelated Kind
+cluster resource-pressure issue (see that worklog's Testing section) — so
+if you run `retry-storm.js` and still see an admission rejection in the
+operator's logs, that's worth flagging, not assuming already covered.
 
 ## Custom ports/URLs
 

@@ -329,7 +329,7 @@ live Kind cluster (unreachable — see the worklog).
 - [x] Unit test suite for detectors (no cluster required)
 - [ ] Integration test suite (Kind-based, exercises real reconcile loop)
 - [x] golangci-lint + gofmt CI gate
-- [ ] README (setup, architecture summary, demo instructions)
+- [x] README (setup, architecture summary, demo instructions)
 
 ---
 
