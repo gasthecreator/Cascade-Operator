@@ -144,12 +144,15 @@ func TestRetryMitigateRetriggerDoesNotOverwriteOriginal(t *testing.T) {
 	}
 }
 
-// TestReconcileDoesNotWireRetryStormMitigationYet locks in the deliberate
-// choice not to call applyRetryStormMitigation from Reconcile in this
-// slice (see retry_mitigate.go's doc comment): a live retry-storm trip must
-// leave an existing VirtualService completely untouched, same as it leaves
-// DestinationRule untouched (TestRetryStormTripsStatusOnlyWithoutPatchingDestinationRule).
-func TestReconcileDoesNotWireRetryStormMitigationYet(t *testing.T) {
+// TestReconcileWiresRetryStormMitigationLive replaces
+// TestReconcileDoesNotWireRetryStormMitigationYet: that test locked in the
+// deliberate placeholder from the mitigation-only slice (mitigation built,
+// not called from Reconcile, because restoration didn't yet know how to
+// find a managed VirtualService). This slice wires the call and adds
+// VirtualService-aware restoration in the same change, so the regression to
+// guard now is the opposite — a live retry-storm trip must actually patch
+// the VirtualService, not leave it untouched.
+func TestReconcileWiresRetryStormMitigationLive(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	vs := patchTestVS()
@@ -163,10 +166,10 @@ func TestReconcileDoesNotWireRetryStormMitigationYet(t *testing.T) {
 	if err := c.Get(ctx, types.NamespacedName{Name: patchDepName, Namespace: patchPolicyNS}, got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Annotations[mitigation.AnnotationManagedBy] != "" {
-		t.Errorf("live Reconcile patched VirtualService: %v", got.Annotations)
+	if got.Annotations[mitigation.AnnotationManagedBy] != mitigation.ManagedByValue {
+		t.Errorf("live Reconcile did not patch VirtualService: %v", got.Annotations)
 	}
-	if got.Spec.Http[0].Retries != nil {
-		t.Error("live Reconcile mutated VirtualService retries")
+	if got.Spec.Http[0].Retries.GetAttempts() != mitigation.TripRetryAttempts {
+		t.Errorf("live Reconcile did not cut retries.attempts: %+v", got.Spec.Http[0].Retries)
 	}
 }

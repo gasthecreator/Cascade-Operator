@@ -50,8 +50,10 @@ type CascadePolicyReconciler struct {
 // +kubebuilder:rbac:groups=networking.istio.io,resources=destinationrules,verbs=get;list;watch;update;patch
 
 // Reconcile observes the CR, polls Prometheus per dependsOn host, patches
-// DestinationRule outlierDetection on a latency/error trip, records retry
-// storm as status-only, and ramps outlierDetection back when healthy.
+// DestinationRule outlierDetection on a latency/error trip or VirtualService
+// retries.attempts on a retry-storm trip, and ramps the matching patch back
+// when healthy — restoration dispatches by status.LastSignature (see
+// restore.go).
 func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
@@ -89,9 +91,11 @@ func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				"confidence", v.Confidence,
 				"evidence", v.Evidence,
 			)
-			// Retry storm is status-only this slice — no VirtualService patch yet.
-			if sig == cascadev1alpha1.SignatureLatencyErrorCascade {
+			switch sig {
+			case cascadev1alpha1.SignatureLatencyErrorCascade:
 				mitErr = r.applyLatencyErrorMitigation(ctx, policy, host)
+			case cascadev1alpha1.SignatureRetryStorm:
+				mitErr = r.applyRetryStormMitigation(ctx, policy, host)
 			}
 		} else if evaluated > 0 {
 			switch policy.Status.Phase {

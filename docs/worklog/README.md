@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-30 — Retry-storm restoration: wire the VirtualService patch into Reconcile, dispatch restore by signature](2026-08-30-retry-storm-restoration.md)
 - [2026-08-30 — Review: retry-storm mitigation (VirtualService patch, not yet wired live)](2026-08-30-review-retry-storm-mitigation.md)
 - [2026-08-30 — Retry-storm mitigation: VirtualService retries.attempts primary, built but not yet wired live](2026-08-30-retry-storm-mitigation.md)
 - [2026-08-30 — Review: retry-storm detector slice](2026-08-30-review-retry-storm-detector.md)

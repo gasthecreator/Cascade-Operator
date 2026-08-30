@@ -29,20 +29,21 @@ import (
 	"github.com/gasthecreator/Cascade-Operator/internal/mitigation"
 )
 
-type managedEdge struct {
+type managedDREdge struct {
 	host string
 	dr   *networkingv1.DestinationRule
 }
 
-// listManagedEdges resolves each dependsOn FQDN and returns DestinationRules
-// this operator has already annotated. Missing objects are skipped; they
-// do not fail the reconcile (same spirit as a missing trip target).
-func (r *CascadePolicyReconciler) listManagedEdges(
+// listManagedDestinationRuleEdges resolves each dependsOn FQDN and returns
+// DestinationRules this operator has already annotated. Missing objects are
+// skipped; they do not fail the reconcile (same spirit as a missing trip
+// target).
+func (r *CascadePolicyReconciler) listManagedDestinationRuleEdges(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
-) ([]managedEdge, error) {
+) ([]managedDREdge, error) {
 	log := logf.FromContext(ctx)
-	var out []managedEdge
+	var out []managedDREdge
 	for _, host := range policy.Spec.DependsOn {
 		name, ns, err := mitigation.ParseServiceFQDN(host)
 		if err != nil {
@@ -58,15 +59,63 @@ func (r *CascadePolicyReconciler) listManagedEdges(
 			return nil, fmt.Errorf("get DestinationRule %s/%s: %w", ns, name, err)
 		}
 		if mitigation.IsOperatorManaged(dr) {
-			out = append(out, managedEdge{host: host, dr: dr})
+			out = append(out, managedDREdge{host: host, dr: dr})
 		}
 	}
 	return out, nil
 }
 
+// beginRestore and advanceRestore dispatch by status.LastSignature, the
+// same field Reconcile's own detectSignatures/mitigation switch already
+// keys off — the CRD tracks exactly one active signature at a time, so this
+// mirrors that switch instead of building a generic "any Istio object"
+// restore abstraction for what is currently two cases. A signature with no
+// restore path wired yet falls back to snapToNormalNoRestore rather than
+// getting stuck: that was retry storm's own situation between its
+// mitigation slice (mitigation built, not called from Reconcile) and this
+// one (mitigation called, restoration wired in the same change) — applying
+// the same fail-safe going forward means a future signature can be wired
+// into Reconcile's mitigation dispatch ahead of its restore logic without
+// ever leaving a live patch stuck.
 func (r *CascadePolicyReconciler) beginRestore(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
+	switch policy.Status.LastSignature {
+	case cascadev1alpha1.SignatureLatencyErrorCascade:
+		return r.beginRestoreLatencyError(ctx, policy)
+	case cascadev1alpha1.SignatureRetryStorm:
+		return r.beginRestoreRetryStorm(ctx, policy)
+	default:
+		return r.snapToNormalNoRestore(ctx, policy)
+	}
+}
+
+func (r *CascadePolicyReconciler) advanceRestore(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
+	switch policy.Status.LastSignature {
+	case cascadev1alpha1.SignatureLatencyErrorCascade:
+		return r.advanceRestoreLatencyError(ctx, policy)
+	case cascadev1alpha1.SignatureRetryStorm:
+		return r.advanceRestoreRetryStorm(ctx, policy)
+	default:
+		return r.snapToNormalNoRestore(ctx, policy)
+	}
+}
+
+// snapToNormalNoRestore is the fail-safe fallback for a signature with no
+// restore path — same shape as each path's own "zero managed edges" branch,
+// generalized so an unwired or unrecognized signature never gets stuck at
+// Restoring.
+func (r *CascadePolicyReconciler) snapToNormalNoRestore(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
 	log := logf.FromContext(ctx)
-	edges, err := r.listManagedEdges(ctx, policy)
+	log.Info("No restoration path for signature; returning to Normal",
+		"lastSignature", policy.Status.LastSignature,
+	)
+	policy.Status.Phase = cascadev1alpha1.PolicyPhaseNormal
+	policy.Status.RestoreStep = 0
+	return nil
+}
+
+func (r *CascadePolicyReconciler) beginRestoreLatencyError(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
+	log := logf.FromContext(ctx)
+	edges, err := r.listManagedDestinationRuleEdges(ctx, policy)
 	if err != nil {
 		return err
 	}
@@ -79,12 +128,12 @@ func (r *CascadePolicyReconciler) beginRestore(ctx context.Context, policy *casc
 	policy.Status.Phase = cascadev1alpha1.PolicyPhaseRestoring
 	policy.Status.RestoreStep = 0
 	log.Info("Entered restoration ramp", "restoreStep", policy.Status.RestoreStep, "edges", len(edges))
-	return r.applyRestoreStep(ctx, policy, edges, 0)
+	return r.applyLatencyErrorRestoreStep(ctx, policy, edges, 0)
 }
 
-func (r *CascadePolicyReconciler) advanceRestore(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
+func (r *CascadePolicyReconciler) advanceRestoreLatencyError(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
 	log := logf.FromContext(ctx)
-	edges, err := r.listManagedEdges(ctx, policy)
+	edges, err := r.listManagedDestinationRuleEdges(ctx, policy)
 	if err != nil {
 		return err
 	}
@@ -96,7 +145,7 @@ func (r *CascadePolicyReconciler) advanceRestore(ctx context.Context, policy *ca
 	}
 
 	if policy.Status.RestoreStep >= mitigation.RestoreFinalStep {
-		if err := r.completeRestore(ctx, policy, edges); err != nil {
+		if err := r.completeLatencyErrorRestore(ctx, policy, edges); err != nil {
 			return err
 		}
 		policy.Status.Phase = cascadev1alpha1.PolicyPhaseNormal
@@ -108,13 +157,13 @@ func (r *CascadePolicyReconciler) advanceRestore(ctx context.Context, policy *ca
 	next := policy.Status.RestoreStep + 1
 	policy.Status.RestoreStep = next
 	log.Info("Advanced restoration step", "restoreStep", next)
-	return r.applyRestoreStep(ctx, policy, edges, next)
+	return r.applyLatencyErrorRestoreStep(ctx, policy, edges, next)
 }
 
-func (r *CascadePolicyReconciler) applyRestoreStep(
+func (r *CascadePolicyReconciler) applyLatencyErrorRestoreStep(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
-	edges []managedEdge,
+	edges []managedDREdge,
 	step int32,
 ) error {
 	log := logf.FromContext(ctx)
@@ -136,10 +185,10 @@ func (r *CascadePolicyReconciler) applyRestoreStep(
 	return nil
 }
 
-func (r *CascadePolicyReconciler) completeRestore(
+func (r *CascadePolicyReconciler) completeLatencyErrorRestore(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
-	edges []managedEdge,
+	edges []managedDREdge,
 ) error {
 	log := logf.FromContext(ctx)
 	if policy.Spec.Mode == cascadev1alpha1.PolicyModeDetectOnly {

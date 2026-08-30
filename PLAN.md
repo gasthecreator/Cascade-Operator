@@ -1,10 +1,12 @@
 # Cascade Operator — PLAN.md
 
-**Status as of 2026-08-30: latency/error-cascade detect → mitigate → restore
-loop is implemented; retry-storm detector is wired to status, and its
-`VirtualService` `retries.attempts` primary patch is built and tested but
-not yet called from `Reconcile` — wiring it live needs VirtualService-aware
-restoration first, landing together in the next slice. Kind cluster has
+**Status as of 2026-08-30: both latency/error-cascade and retry-storm now
+have a full detect → mitigate → restore loop. Restoration dispatches by
+`status.LastSignature`: `DestinationRule` outlierDetection for
+latency/error-cascade, `VirtualService` retries.attempts for retry storm,
+and a fail-safe snap-to-Normal fallback for any signature without a wired
+restore path (there is currently none). Fan-out amplification is the only
+signature with neither a detector nor a mitigation yet. Kind cluster has
 Istio 1.30.4 (demo) + Prometheus and a sleep/httpbin validation workload.
 PromQL `sum by (le)` / `response_flags=URX` findings are in PLAN.md §2.4.**
 This file is the
@@ -252,12 +254,12 @@ through the full pipeline (metrics → detector → patch → restore) is the
 interview demo; the other two detectors are then copies of the same
 interface. First slice (scaffold + CRD + logging reconciler), Prometheus HTTP
 client, latency/error-cascade detection, Istio primary patch, and the
-restoration ramp are done. One signature is through the full pipeline in
-unit tests. Retry-storm's detector and its `VirtualService` retry-budget
-primary are both built and unit-tested; the patch is not yet reachable from
-`Reconcile` (see status line above — it lands live with its own restoration
-in the next slice, not before). Kind + Istio 1.30.4 is installed locally
-for scrape evidence.
+restoration ramp are done. **Two signatures are now through the full
+pipeline**: latency/error-cascade (`DestinationRule` outlierDetection) and
+retry storm (`VirtualService` retries.attempts), both detect → mitigate →
+restore, dispatched by `status.LastSignature`. Only fan-out amplification
+remains — no detector, no mitigation. Kind + Istio 1.30.4 is installed
+locally for scrape evidence.
 
 - [x] Repo scaffold (kubebuilder init, go.mod, Makefile, CI skeleton)
 - [x] `CascadePolicy` CRD types + deepcopy + CRD YAML
@@ -267,8 +269,9 @@ for scrape evidence.
 - [ ] Signature detector: fan-out amplification
 - [x] Reconciler wiring (metrics → detectors → decision)
 - [x] Istio patch layer — `DestinationRule` outlierDetection primary (latency/error cascade), annotations
-- [ ] Istio patch layer — `VirtualService` secondary cells (timeout; retry-storm/fan-out primaries)
-- [x] Gradual restoration state machine
+- [x] Istio patch layer — `VirtualService` retries.attempts primary (retry storm), annotations
+- [ ] Istio patch layer — remaining secondaries (`VirtualService` timeout for latency/error cascade; `DestinationRule` connectionPool for retry storm) and fan-out's primary (`DestinationRule` connectionPool)
+- [x] Gradual restoration state machine (signature-dispatched: `DestinationRule` and `VirtualService`)
 - [ ] Operator's own Prometheus metrics (signatures detected, patches applied)
 - [x] Kind + Istio local dev environment docs/scripts
 - [ ] Demo microservice topology for fault injection

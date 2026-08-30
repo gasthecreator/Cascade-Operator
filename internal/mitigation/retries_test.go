@@ -34,8 +34,8 @@ const (
 	testRetryOn5xx = "5xx"
 )
 
-func destRoute(host string) []*apinet.HTTPRouteDestination {
-	return []*apinet.HTTPRouteDestination{{Destination: &apinet.Destination{Host: host}}}
+func destRoute() []*apinet.HTTPRouteDestination {
+	return []*apinet.HTTPRouteDestination{{Destination: &apinet.Destination{Host: testVSHost}}}
 }
 
 func TestApplyRetryStormTripMultiRoute(t *testing.T) {
@@ -48,12 +48,12 @@ func TestApplyRetryStormTripMultiRoute(t *testing.T) {
 				{
 					// No explicit retries: relies on Istio's implicit default.
 					Name:  "no-explicit-retries",
-					Route: destRoute(testVSHost),
+					Route: destRoute(),
 				},
 				{
 					// Explicit retries with other fields that must survive.
 					Name:  "explicit-retries",
-					Route: destRoute(testVSHost),
+					Route: destRoute(),
 					Retries: &apinet.HTTPRetry{
 						Attempts:      5,
 						RetryOn:       testRetryOn5xx,
@@ -82,7 +82,7 @@ func TestApplyRetryStormTripMultiRoute(t *testing.T) {
 	if routes[1].Retries.Attempts != TripRetryAttempts {
 		t.Errorf("route[1] attempts = %d, want %d", routes[1].Retries.Attempts, TripRetryAttempts)
 	}
-	if routes[1].Retries.RetryOn != "5xx" {
+	if routes[1].Retries.RetryOn != testRetryOn5xx {
 		t.Errorf("route[1] retryOn clobbered: %q", routes[1].Retries.RetryOn)
 	}
 	if routes[1].Retries.GetPerTryTimeout().AsDuration() != 2*time.Second {
@@ -125,7 +125,7 @@ func TestApplyRetryStormTripDoesNotOverwriteOriginal(t *testing.T) {
 		Spec: apinet.VirtualService{
 			Hosts: []string{testVSHost},
 			Http: []*apinet.HTTPRoute{
-				{Route: destRoute(testVSHost), Retries: &apinet.HTTPRetry{Attempts: TripRetryAttempts}},
+				{Route: destRoute(), Retries: &apinet.HTTPRetry{Attempts: TripRetryAttempts}},
 			},
 		},
 	}

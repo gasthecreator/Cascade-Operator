@@ -41,7 +41,12 @@ func bothSignaturesQuerier() *fakeQuerier {
 	return &fakeQuerier{p99: 900, errorRate: 0.2, retryStormRatio: 4.0}
 }
 
-func TestRetryStormTripsStatusOnlyWithoutPatchingDestinationRule(t *testing.T) {
+// TestRetryStormTripDoesNotPatchDestinationRule confirms a retry-storm trip
+// touches only the VirtualService (tested separately in
+// retry_mitigate_test.go) and never the DestinationRule — that stays the
+// latency/error-cascade primary's exclusive object kind even now that both
+// signatures have a live mitigation.
+func TestRetryStormTripDoesNotPatchDestinationRule(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	dr := patchTestDR()
@@ -90,7 +95,9 @@ func TestRetryStormHealthySnapsToNormalWithoutRestoring(t *testing.T) {
 	trippedAt := metav1.NewTime(time.Now().Add(-time.Hour))
 	policy.Status.LastTrippedAt = &trippedAt
 
-	// Unmanaged DestinationRule: listManagedEdges must not treat it as ours.
+	// Unmanaged DestinationRule and no VirtualService at all: neither
+	// listManagedDestinationRuleEdges nor listManagedVirtualServiceEdges
+	// finds a managed edge, so this must fall straight to Normal.
 	r, c := patchReconcileWith(t, healthyQuerier(), policy, patchTestDR())
 	if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {
 		t.Fatal(err)

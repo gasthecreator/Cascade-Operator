@@ -35,22 +35,11 @@ import (
 // convention and, in Mitigate mode, cuts retries.attempts on every
 // forwarding route. Missing objects set DependencyObjectMissing and skip the
 // edge; they do not fail Reconcile. Same read-resolve-patch shape as
-// applyLatencyErrorMitigation, one object kind over.
-//
-// Deliberately NOT called from Reconcile yet (see the retry-storm
-// mitigation worklog): beginRestore/advanceRestore in restore.go only know
-// how to restore a managed DestinationRule. If this patched a VirtualService
-// and Reconcile called it on every retry-storm trip, a policy going healthy
-// would hit beginRestore's "zero managed DestinationRules -> snap to Normal"
-// fallback and silently leave retries cut at 0 forever — a stuck mitigation,
-// not a cosmetic gap. This function is built and tested standalone so the
-// next slice (retry-storm restoration) can wire it into Reconcile and add
-// VirtualService-aware restore in the same change, without ever exposing
-// that window live. host is unused by any caller for the same reason: it
-// will vary once the next slice calls this per dependsOn edge, same as
-// applyLatencyErrorMitigation's identically-shaped parameter.
-//
-//nolint:unparam // host is a constant in every caller until the next slice wires this into Reconcile
+// applyLatencyErrorMitigation, one object kind over. Called from Reconcile
+// on a retry-storm trip alongside VirtualService-aware restoration
+// (restore.go/retry_restore.go) — the two landed together deliberately so a
+// live patch is never left without a way back (see the retry-storm
+// mitigation and restoration worklogs).
 func (r *CascadePolicyReconciler) applyRetryStormMitigation(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
