@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-30 — Review: k6 cascade-simulation scripts + webhook-rejection proposal resolved](2026-08-30-review-k6-cascade-simulation.md)
 - [2026-08-30 — k6 cascade-simulation scripts: load generation for all three signatures, live evidence, one real mitigation bug found](2026-08-30-k6-cascade-simulation.md)
 - [2026-08-30 — Review: signature-handoff restore fix](2026-08-30-review-signature-handoff-fix.md)
 - [2026-08-30 — Signature handoff on a shared object: force-complete the outgoing signature's restore before adopting the incoming one](2026-08-30-signature-handoff-restore-fix.md)

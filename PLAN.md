@@ -293,12 +293,18 @@ pipeline**: latency/error-cascade (`DestinationRule` outlierDetection),
 retry storm (`VirtualService` retries.attempts), and fan-out amplification
 (`DestinationRule` connectionPool.http) — each detect → mitigate → restore,
 dispatched by `status.LastSignature`. Kind + Istio 1.30.4 is installed
-locally for scrape evidence. **Caveat found 2026-08-30 via live k6 evidence:
-retry storm's detect → trip is confirmed live-working, but its mitigate
-patch is not — Istio's validating webhook rejects the trip-time
+locally for scrape evidence. **Caveat found 2026-08-30 via live k6 evidence,
+now resolved:** retry storm's detect → trip is confirmed live-working, but
+its mitigate patch wasn't — Istio's validating webhook rejects the trip-time
 `attempts: 0` write whenever the route already has `retryOn`/
 `perTryTimeout` set, which a real retry storm's pre-existing policy always
-would. See `PROPOSALS.md`'s open entry.**
+would. Confirmed live (independently reproduced the exact rejection, then
+confirmed the fix): **on trip, clear `retryOn`/`perTryTimeout`/`backoff`
+alongside `attempts: 0`** — the full original block is already captured in
+`AnnotationOriginalRetries` and restored exactly at completion, so nothing
+is lost, and a route with retries disabled shouldn't carry retry-behavior
+fields describing retries that will never run. See `PROPOSALS.md`'s
+resolved entry. Implementation is the next slice.
 
 - [x] Repo scaffold (kubebuilder init, go.mod, Makefile, CI skeleton)
 - [x] `CascadePolicy` CRD types + deepcopy + CRD YAML

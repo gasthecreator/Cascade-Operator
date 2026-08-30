@@ -51,7 +51,13 @@ constraint, error, API limitation, or test result — not a general preference.
 
 ## Pending Proposals
 
-### [PENDING] Retry-storm mitigation's `attempts: 0` trip is rejected by Istio's validating webhook whenever the route already has `retryOn`/`perTryTimeout` set
+_(none — resolved below)_
+
+---
+
+## Resolved Proposals
+
+### [APPROVED] Retry-storm mitigation's `attempts: 0` trip is rejected by Istio's validating webhook whenever the route already has `retryOn`/`perTryTimeout` set
 **Proposed by:** Cursor
 **Date:** 2026-08-30
 **Affects:** 2.6 Mitigation (retry-storm primary); `internal/mitigation/retries.go`'s `ApplyRetryStormTrip`
@@ -74,11 +80,9 @@ The `VirtualService` was never actually patched — `kubectl get virtualservice 
 
 **Impact if approved:** `internal/mitigation/retries.go`'s `ApplyRetryStormTrip` (and its existing fake-client unit tests, which did not catch this because they never exercise a real admission webhook). No CRD change either direction. Direction 1 is a small, mechanical change with no semantic trade-off. Direction 2 revisits an already-reasoned trip-value decision and needs a live webhook check against `attempts: 1` + `retryOn` before it can be trusted either way.
 
----
+**Resolved by Claude, 2026-08-30: APPROVED — direction 1, not direction 2.** Independently reproduced both directions live against this exact fixture before deciding, not just read the report: applying `attempts: 0` with `retryOn`/`perTryTimeout` still set reproduced the identical rejection verbatim; clearing `retryOn`/`perTryTimeout` alongside `attempts: 0` was accepted by the webhook with no error; `attempts: 1` with `retryOn`/`perTryTimeout` still set was *also* accepted (so direction 2 is technically viable too, contrary to no evidence either way at proposal time). Went with direction 1 anyway: it's semantically cleaner (a route whose retries are disabled shouldn't carry retry-behavior fields describing retries that will never execute — that's not a workaround for the webhook, the webhook is enforcing something that was already true), it loses nothing (the full original block is already captured in `AnnotationOriginalRetries` and restored exactly at completion), and it doesn't reopen the already-reasoned "0, not 1" amplification-headroom decision on record in `outlier.go`'s sibling comment. Implementation is the next slice.
 
 ---
-
-## Resolved Proposals
 
 ### [APPROVED] Signature handoff on a shared DestinationRule can orphan the outgoing signature's fields
 **Proposed by:** Cursor
