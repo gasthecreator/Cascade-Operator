@@ -493,6 +493,52 @@ live-cluster claim before checking an item here.
   condition, not a silent skip), explicit `spec.mesh` field, Linkerd dev
   environment, integration coverage. Largest item by far — expect several
   independently-reviewed slices, not one.
+- [ ] Phase 7 — Visual cascade replay: capture a real trip→mitigate→restore
+  episode per signature as a JSON trace (reusing `demo/k6/*.js`, no new live
+  infra to *view* it) and build a self-contained page that animates the
+  topology graph, live metrics, the actual JSON patch appearing at trip
+  time, and the status timeline. This is the portfolio's actual distribution
+  problem being solved, not a feature for the operator itself — most
+  reviewers will never `kubectl apply` this repo, but will click a link.
+- [ ] Phase 8 — Postmortem generator: render a real incident postmortem
+  document (timeline, root cause/evidence, impact, remediation, resolution
+  timing) from `CascadePolicy.status` and the operator's own Prometheus
+  metrics after an episode. On-demand CLI first; auto-trigger on
+  `Tripped → Normal` (via Phase 4's notifier) as a stretch add-on, not the
+  first version.
+- [ ] Phase 9 — Quantified resilience benchmark: run each signature's chaos
+  scenario twice — `Mitigate` vs. the CRD's existing `DetectOnly` mode as
+  the real baseline — and publish time-to-detect / blast-radius /
+  time-to-restore numbers side by side (`make benchmark`,
+  `docs/benchmark-results.md`). Converts "it works" into a falsifiable,
+  measured claim; builds entirely on existing k6 scripts and PromQL.
+- [ ] Phase 10 — Property-based state-machine verification: use
+  `pgregory.net/rapid` to prove real invariants across the
+  Tripped/Restoring/signature-handoff state machine (e.g. "a handoff never
+  leaves a signature's annotation orphaned," "a completed restore always
+  returns every managed field to its true original," "a trip value always
+  survives the patch round-trip") against random generated sequences,
+  rather than only hand-written cases. Test-only; no new runtime behavior.
+- [ ] Phase 11 — eBPF-level kernel-signal corroboration: deploy Cilium's
+  **Tetragon** (not hand-written eBPF/CO-RE — too deep a separate
+  discipline for the payoff) as a DaemonSet exporting kernel-level TCP
+  signals (retransmits, resets) as a fourth, independent, *corroborating*
+  input alongside the existing Envoy-metric-based detection — never a
+  replacement, and detection works identically with Tetragon absent.
+  Highest-risk phase here (privileged DaemonSet, kernel/BPF compatibility
+  inside the Kind/Docker Desktop VM needs confirming) — starts with a spike
+  confirming Tetragon actually runs cleanly in this exact dev environment,
+  same discipline as Phase 6's Linkerd spike.
+
+**Sequencing note (revised after adding Phases 7–11):** 7–9 are the highest
+"someone actually notices this" payoff and don't depend on the webhook,
+observability, or hardening work — reasonable to pull them forward,
+interleaved with or even ahead of Phases 3–5, rather than only after Phase 6.
+Phase 10 (test-only) can happen anytime. Phase 11 is comparable in risk to
+Phase 6 and is sequenced after it deliberately — a kernel-level signal ought
+to corroborate detection across whichever mesh(es) are supported, so it
+benefits from Phase 6 already existing rather than being built against Istio
+alone and redone.
 
 ---
 
