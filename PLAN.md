@@ -21,7 +21,11 @@ secondary alongside its `DestinationRule` primary — the first signature to
 manage two object kinds on one trip, with `VirtualService` now itself
 shared between retry storm (`retries.attempts`) and latency/error-cascade
 (`timeout`), on disjoint fields; the two-object-kind trip/restore shape is
-in §2.6. The §2.7 demo topology
+in §2.6. Retry storm now also patches a `DestinationRule`
+`connectionPool.http` secondary alongside its `VirtualService` primary —
+same two-object-kind shape. Whether that secondary and fan-out's primary
+should both claim `http1MaxPendingRequests` (same field, not just same
+object) is pending in `PROPOSALS.md`, not locked here. The §2.7 demo topology
 (`checkout → {payments, inventory}`, under `demo/`) is built and deployed,
 and its live-scrape evidence (a clean 1:1:1 healthy ratio; a 3× ratio when
 `payments` fails and `checkout`'s own retry loop kicks in) is what the
@@ -211,7 +215,7 @@ detection), retry storm (`retries.attempts`), and fan-out amplification
 (`VirtualService` `timeout`, capped at `thresholds.latencyP99Ms`) is now
 also built — the first case of a single signature managing two different
 Istio object kinds on the same trip. Retry storm's `connectionPool`
-secondary remains contract, not built.
+secondary is now built too (same two-object-kind shape).
 
 **Two-object-kind trip/restore shape (locked 2026-08-30):** with
 latency/error-cascade now patching both `DestinationRule` (primary) and
@@ -367,8 +371,8 @@ live Kind cluster (unreachable — see the worklog).
 - [x] Istio patch layer — `VirtualService` retries.attempts primary (retry storm), annotations
 - [x] Istio patch layer — `DestinationRule` connectionPool.http primary (fan-out amplification), annotations
 - [x] Istio patch layer — `VirtualService` timeout secondary (latency/error cascade), annotations, two-object-kind trip + restore
-- [ ] Istio patch layer — remaining secondary (`DestinationRule` connectionPool for retry storm)
-- [x] Gradual restoration state machine (signature-dispatched: `DestinationRule` for latency/error cascade and fan-out amplification, on disjoint field sets; `VirtualService` for retry storm and, now, latency/error cascade's own timeout secondary)
+- [x] Istio patch layer — `DestinationRule` connectionPool.http secondary (retry storm), annotations, two-object-kind trip + restore
+- [x] Gradual restoration state machine (signature-dispatched: `DestinationRule` for latency/error cascade, fan-out amplification, and retry storm's connectionPool secondary; `VirtualService` for retry storm and latency/error cascade's timeout secondary)
 - [x] Force-complete outgoing signature's restore on a same-object signature handoff (§2.6)
 - [x] Operator's own Prometheus metrics (signatures detected, patches applied, restorations completed/regressed)
 - [x] Kind + Istio local dev environment docs/scripts

@@ -64,39 +64,62 @@ func (r *CascadePolicyReconciler) listManagedVirtualServiceEdges(
 	return out, nil
 }
 
+// beginRestoreRetryStorm, advanceRestoreRetryStorm,
+// applyRetryStormRestoreStep, and completeRetryStormRestore all gather and
+// act on *both* object kinds this signature now manages — the
+// VirtualService primary (retries.attempts) and the DestinationRule
+// secondary (connectionPool.http maxRetries/http1MaxPendingRequests,
+// PLAN.md §2.6) — independently of each other, mirroring
+// applyRetryStormMitigation's own independence and exactly the shape
+// beginRestoreLatencyError/advanceRestoreLatencyError/
+// completeLatencyErrorRestore (restore.go) already established for the
+// first two-object-kind signature. An edge with only one of the two
+// objects managed still restores that one correctly, an edge with both
+// restores both, and "nothing managed at all" (both lists empty) is the
+// only case that snaps straight to Normal. A single
+// restorationsCompletedTotal increment covers a completion touching
+// either or both object kinds.
 func (r *CascadePolicyReconciler) beginRestoreRetryStorm(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
 	log := logf.FromContext(ctx)
-	edges, err := r.listManagedVirtualServiceEdges(ctx, policy)
+	vsEdges, err := r.listManagedVirtualServiceEdges(ctx, policy)
 	if err != nil {
 		return err
 	}
-	if len(edges) == 0 {
-		log.Info("No managed VirtualService to restore; returning to Normal")
+	drEdges, err := r.listManagedDestinationRuleEdges(ctx, policy)
+	if err != nil {
+		return err
+	}
+	if len(vsEdges) == 0 && len(drEdges) == 0 {
+		log.Info("No managed VirtualService or DestinationRule to restore; returning to Normal")
 		policy.Status.Phase = cascadev1alpha1.PolicyPhaseNormal
 		policy.Status.RestoreStep = 0
 		return nil
 	}
 	policy.Status.Phase = cascadev1alpha1.PolicyPhaseRestoring
 	policy.Status.RestoreStep = 0
-	log.Info("Entered restoration ramp", "restoreStep", policy.Status.RestoreStep, "edges", len(edges))
-	return r.applyRetryStormRestoreStep(ctx, policy, edges, 0)
+	log.Info("Entered restoration ramp", "restoreStep", policy.Status.RestoreStep, "vsEdges", len(vsEdges), "drEdges", len(drEdges))
+	return r.applyRetryStormRestoreStep(ctx, policy, vsEdges, drEdges, 0)
 }
 
 func (r *CascadePolicyReconciler) advanceRestoreRetryStorm(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
 	log := logf.FromContext(ctx)
-	edges, err := r.listManagedVirtualServiceEdges(ctx, policy)
+	vsEdges, err := r.listManagedVirtualServiceEdges(ctx, policy)
 	if err != nil {
 		return err
 	}
-	if len(edges) == 0 {
-		log.Info("Managed VirtualService gone during restore; returning to Normal")
+	drEdges, err := r.listManagedDestinationRuleEdges(ctx, policy)
+	if err != nil {
+		return err
+	}
+	if len(vsEdges) == 0 && len(drEdges) == 0 {
+		log.Info("Managed VirtualService and DestinationRule both gone during restore; returning to Normal")
 		policy.Status.Phase = cascadev1alpha1.PolicyPhaseNormal
 		policy.Status.RestoreStep = 0
 		return nil
 	}
 
 	if policy.Status.RestoreStep >= mitigation.RestoreFinalStep {
-		if err := r.completeRetryStormRestore(ctx, policy, edges); err != nil {
+		if err := r.completeRetryStormRestore(ctx, policy, vsEdges, drEdges); err != nil {
 			return err
 		}
 		policy.Status.Phase = cascadev1alpha1.PolicyPhaseNormal
@@ -108,29 +131,39 @@ func (r *CascadePolicyReconciler) advanceRestoreRetryStorm(ctx context.Context, 
 	next := policy.Status.RestoreStep + 1
 	policy.Status.RestoreStep = next
 	log.Info("Advanced restoration step", "restoreStep", next)
-	return r.applyRetryStormRestoreStep(ctx, policy, edges, next)
+	return r.applyRetryStormRestoreStep(ctx, policy, vsEdges, drEdges, next)
 }
 
 func (r *CascadePolicyReconciler) applyRetryStormRestoreStep(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
-	edges []managedVSEdge,
+	vsEdges []managedVSEdge,
+	drEdges []managedDREdge,
 	step int32,
 ) error {
 	log := logf.FromContext(ctx)
 	if policy.Spec.Mode == cascadev1alpha1.PolicyModeDetectOnly {
-		log.Info("DetectOnly: would ramp VirtualService retries.attempts",
+		log.Info("DetectOnly: would ramp VirtualService retries.attempts and DestinationRule connectionPool.http",
 			"restoreStep", step,
-			"edges", len(edges),
+			"vsEdges", len(vsEdges),
+			"drEdges", len(drEdges),
 		)
 		return nil
 	}
-	for _, e := range edges {
+	for _, e := range vsEdges {
 		if err := mitigation.ApplyRetryStormRestoreStep(e.vs, step); err != nil {
 			return fmt.Errorf("restore step %d on %s: %w", step, e.host, err)
 		}
 		if err := r.Update(ctx, e.vs); err != nil {
 			return fmt.Errorf("update VirtualService during restore %s: %w", e.host, err)
+		}
+	}
+	for _, e := range drEdges {
+		if err := mitigation.ApplyRetryStormConnectionPoolRestoreStep(e.dr, step); err != nil {
+			return fmt.Errorf("restore step %d on %s: %w", step, e.host, err)
+		}
+		if err := r.Update(ctx, e.dr); err != nil {
+			return fmt.Errorf("update DestinationRule during restore %s: %w", e.host, err)
 		}
 	}
 	return nil
@@ -139,21 +172,31 @@ func (r *CascadePolicyReconciler) applyRetryStormRestoreStep(
 func (r *CascadePolicyReconciler) completeRetryStormRestore(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
-	edges []managedVSEdge,
+	vsEdges []managedVSEdge,
+	drEdges []managedDREdge,
 ) error {
 	log := logf.FromContext(ctx)
 	if policy.Spec.Mode == cascadev1alpha1.PolicyModeDetectOnly {
-		log.Info("DetectOnly: would restore original retries.attempts and drop annotations",
-			"edges", len(edges),
+		log.Info("DetectOnly: would restore original retries.attempts/connectionPool.http and drop annotations",
+			"vsEdges", len(vsEdges),
+			"drEdges", len(drEdges),
 		)
 		return nil
 	}
-	for _, e := range edges {
+	for _, e := range vsEdges {
 		if err := mitigation.CompleteRetryStormRestore(e.vs); err != nil {
 			return fmt.Errorf("complete restore on %s: %w", e.host, err)
 		}
 		if err := r.Update(ctx, e.vs); err != nil {
 			return fmt.Errorf("update VirtualService completing restore %s: %w", e.host, err)
+		}
+	}
+	for _, e := range drEdges {
+		if err := mitigation.CompleteRetryStormConnectionPoolRestore(e.dr); err != nil {
+			return fmt.Errorf("complete restore on %s: %w", e.host, err)
+		}
+		if err := r.Update(ctx, e.dr); err != nil {
+			return fmt.Errorf("update DestinationRule completing restore %s: %w", e.host, err)
 		}
 	}
 	restorationsCompletedTotal.WithLabelValues(string(cascadev1alpha1.SignatureRetryStorm)).Inc()

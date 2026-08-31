@@ -157,13 +157,18 @@ func TestSignatureHandoffFanOutToLatencyErrorForceCompletesOutgoing(t *testing.T
 	}
 }
 
-func singleRouteVSFor(host string) *networkingv1.VirtualService {
+// singleRouteVSFor builds a minimal, unmanaged VirtualService with one
+// forwarding route to patchDepHost — every caller needs exactly this host
+// (it's the only dependsOn entry patchTestPolicy declares), so this takes
+// no parameter rather than a host argument every call site would pass
+// identically.
+func singleRouteVSFor() *networkingv1.VirtualService {
 	return &networkingv1.VirtualService{
 		ObjectMeta: metav1.ObjectMeta{Name: patchDepName, Namespace: patchPolicyNS},
 		Spec: apinet.VirtualService{
-			Hosts: []string{host},
+			Hosts: []string{patchDepHost},
 			Http: []*apinet.HTTPRoute{
-				{Route: []*apinet.HTTPRouteDestination{{Destination: &apinet.Destination{Host: host}}}},
+				{Route: []*apinet.HTTPRouteDestination{{Destination: &apinet.Destination{Host: patchDepHost}}}},
 			},
 		},
 	}
@@ -193,7 +198,7 @@ func TestSignatureHandoffLatencyErrorToFanOutForceCompletesBothObjectKinds(t *te
 	}
 
 	const originalTimeout = `[{"timeout":"4s"}]`
-	vs := singleRouteVSFor(patchDepHost)
+	vs := singleRouteVSFor()
 	mitigation.ApplyLatencyErrorTimeoutTrip(vs, 500)
 	vs.Annotations[mitigation.AnnotationOriginalTimeout] = originalTimeout
 	if err := mitigation.ApplyLatencyErrorTimeoutRestoreStep(vs, 2, 500); err != nil {
@@ -266,7 +271,7 @@ func TestSignatureHandoffFanOutToLatencyErrorPatchesFreshVirtualServiceSecondary
 	if err := mitigation.ApplyFanOutConnectionPoolRestoreStep(dr, 2); err != nil {
 		t.Fatal(err)
 	}
-	vs := singleRouteVSFor(patchDepHost) // unmanaged — no prior annotations at all
+	vs := singleRouteVSFor() // unmanaged — no prior annotations at all
 
 	policy := seededFanOutPolicy(cascadev1alpha1.PolicyPhaseRestoring, 2)
 	r, c := patchReconcileWith(t, &fakeQuerier{p99: 900, errorRate: 0.2}, policy, dr, vs)

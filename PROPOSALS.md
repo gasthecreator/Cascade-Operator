@@ -51,7 +51,33 @@ constraint, error, API limitation, or test result — not a general preference.
 
 ## Pending Proposals
 
-_(none — resolved below)_
+### [PENDING] `connectionPool.http.http1MaxPendingRequests` is named by both fan-out's primary and retry storm's secondary
+**Proposed by:** Cursor
+**Date:** 2026-08-30
+**Affects:** 2.6 Mitigation (retry-storm secondary; fan-out primary field set)
+
+**Current state:** The locked §2.6 matrix names both of these, independently, on the same `DestinationRule` `connectionPool.http` sub-message:
+
+- Fan-out amplification primary: `http1MaxPendingRequests`, `http2MaxRequests`
+- Retry storm secondary: `maxRetries`, `http1MaxPendingRequests`
+
+Every prior shared-object case in this project was **disjoint fields on a shared object kind** (`outlierDetection` vs `connectionPool.http`; `retries.attempts` vs `timeout`). This is the first time two signatures' own fields are the **same proto field**. PLAN.md does not say what happens then — the matrix lists both claims, the handoff note talks about disjoint field sets, and nothing addresses a same-field collision.
+
+**Proposed change:** Not proposing a specific fix yet — flagging the overlap for a decision, same as the signature-handoff and retry-storm-webhook proposals. Two directions:
+
+1. **Keep both signatures claiming `http1MaxPendingRequests`**, i.e. implement the matrix as currently written. Under the existing one-active-signature model plus synchronous force-complete-on-handoff, the two never apply at the same time: the outgoing signature is restored to its true original (including this field) *before* the incoming signature captures its own baseline and writes its trip value. Fake-client tests for both handoff directions (`internal/controller/retry_connpool_handoff_test.go`) confirm that ordering: the incoming signature's captured original is the true pre-any-trip value (64), not the outgoing signature's leftover trip/interpolated value. What this direction does *not* have, that every prior sharing case did, is field-level disjointness as a second line of defense — if force-complete ever failed to run, the incoming signature would snapshot the outgoing one's trip value as "original" and restore to it later, silently losing the user's number. For disjoint fields that failure mode doesn't exist: capturing "current" still gets *your* field's true original because the other signature never wrote it.
+
+2. **Drop `http1MaxPendingRequests` from retry storm's secondary**, leaving only `maxRetries`. That makes the two signatures' `connectionPool.http` fields disjoint (`maxRetries` vs `http1MaxPendingRequests`/`http2MaxRequests`) — the same shape every other sharing case in this project already has — and `maxRetries` is the retry-specific circuit breaker (Envoy's `max_retries`, default 3), which is the part of this secondary that actually backs the primary's `retries.attempts → 0` rather than duplicating fan-out's general request bulkhead. Fan-out's primary is left untouched (this slice is scoped not to change any other signature's mitigation). The cost: retry storm no longer bulkheads non-retry pending volume on the dependency, which is a real (if secondary) part of what §2.6 currently names.
+
+Not on the table: dropping the field from fan-out instead, or inventing a split (retry storm writes it only when fan-out isn't the last signature, etc.) — both would be changes to a different signature, out of this slice's scope, or a new cross-signature coupling the codebase has spent the last several slices avoiding.
+
+**Why:** Found while building retry storm's last unbuilt patch cell, not hypothetically. Implementing the matrix as written means `ApplyRetryStormConnectionPoolTrip` and `ApplyFanOutConnectionPoolTrip` both assign `http.Http1MaxPendingRequests`. The own-annotation-keyed capture check (the defensive pattern every trip function now uses) is necessary and *not sufficient* for a shared field: it only stops you from overwriting *your own* already-captured baseline, it does not stop you from capturing the *other* signature's live trip value as that baseline if you run against an object it currently holds. Force-complete-on-handoff is what actually makes direction 1 correct at runtime; without it, this would be a real restore-to-wrong-original bug, not just an orphaned annotation. That is a stronger dependency on the handoff path than any previous sharing case had, and it is not something PLAN.md's existing text already answers.
+
+Whether two signatures would only ever plausibly trip on the same edge in practice is the wrong framing to dismiss this with. Checkout's live k6 runs have already produced an unscripted latency/error ↔ fan-out handoff on `payments-service` in a single episode (see the timeout-secondary worklog). Retry storm and fan-out are also co-plausible on a host that's both retry-amplifying and call-count-amplifying — `TestRetryStormWinsWhenRetryStormAndFanOutCouldTrip` exists specifically because both detectors can return true on the same tick. The one-active-signature model plus detector priority means they don't *apply* together, but they *do* hand off, which is exactly when a shared field's capture is load-bearing on force-complete.
+
+**Impact if approved:** Direction 1 is what this slice implements, so that the secondary can land against the matrix as currently written rather than silently rewriting it. If Claude takes direction 1, PLAN.md §2.6 should record that two signatures may claim the same field and that force-complete-on-handoff is load-bearing for that, not just for orphaned annotations. If Claude takes direction 2, this slice's `TripRetryStormMaxPendingRequests` writes, its original-snapshot JSON field, and the restore interpolation for it come out; `maxRetries` stays; fan-out is untouched. Either direction is a small, localized change — the reason this is a proposal is that picking one in code and writing the conclusion into PLAN.md is the exact pattern the last slice got flagged for.
+
+This slice does **not** edit PLAN.md §2 to lock either direction. Implementation follows the matrix as currently written (direction 1 in code) so there is something to review against; that is not a claim that direction 1 is decided.
 
 ---
 

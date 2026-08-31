@@ -41,7 +41,7 @@ import (
 func TestLatencyErrorRestoreAdvancesBothObjectKindsTogetherThenCompletes(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	vs := singleRouteVSFor(patchDepHost)
+	vs := singleRouteVSFor()
 	// A real (non-Unset) pre-trip timeout, so the ramp is a smooth
 	// monotonic curve across all 5 steps rather than the Unset case's
 	// ramp-toward-default-then-snap-to-cleared-at-the-final-step shape

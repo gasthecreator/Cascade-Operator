@@ -204,151 +204,171 @@ func TestFanOutQueryErrorWhileTrippedDoesNotRestore(t *testing.T) {
 	}
 }
 
-// TestRestoreDispatchTouchesOnlyItsOwnFieldsAcrossAllThreeSignatures is the
-// three-way version of TestRestoreDispatchTouchesOnlyDestinationRuleForLatencyError
-// / TestRestoreDispatchTouchesOnlyVirtualServiceForRetryStorm
-// (retry_restore_test.go), extended for the shared-object-kind subtlety this
-// slice introduced: latency/error-cascade and fan-out both restore a
-// DestinationRule, on disjoint field sets (outlierDetection vs.
-// connectionPool.http), while retry storm restores a separate
-// VirtualService. It seeds a *single* DestinationRule already carrying both
-// signatures' trip-time fields and annotations (exactly the scenario
-// fanout_restore.go's doc comment reasons through) plus a managed
-// VirtualService, then trips each signature in turn and confirms each
-// restore path only ever advances its own field set / annotation, leaving
-// the other signature's fields, annotation, and the VirtualService
-// completely untouched.
-func TestRestoreDispatchTouchesOnlyItsOwnFieldsAcrossAllThreeSignatures(t *testing.T) {
-	t.Parallel()
+// tripleManagedDR is one DestinationRule trip-time-patched by all three
+// signatures (fan-out, then retry storm, matching each trip function's own
+// "capture-my-baseline-even-if-managed-by-is-already-set" contract).
+// Construction order means retry storm's own captured "original" for
+// Http1MaxPendingRequests here is fan-out's trip value (1), not the
+// true pre-any-trip value (0) — an artifact of applying two trips
+// back-to-back with no force-complete between them, which cannot
+// happen via Reconcile in production (PLAN.md §2.6's handoff
+// force-complete guarantees the outgoing signature is fully restored
+// first). Harmless for what the dispatch-isolation tests check (not
+// restore-value correctness), and not a stand-in for the handoff
+// ordering question itself — see PROPOSALS.md's pending entry.
+func tripleManagedDR() *networkingv1.DestinationRule {
+	dr := patchTestDR()
+	mitigation.ApplyLatencyErrorOutlierTrip(dr)
+	mitigation.ApplyFanOutConnectionPoolTrip(dr)
+	mitigation.ApplyRetryStormConnectionPoolTrip(dr)
+	return dr
+}
 
-	// One DestinationRule, trip-time-patched by both signatures (fan-out
-	// second, matching ApplyFanOutConnectionPoolTrip's own
-	// "capture-my-baseline-even-if-managed-by-is-already-set" contract).
-	dualManagedDR := func() *networkingv1.DestinationRule {
-		dr := patchTestDR()
-		mitigation.ApplyLatencyErrorOutlierTrip(dr)
-		mitigation.ApplyFanOutConnectionPoolTrip(dr)
-		return dr
+// TestRestoreDispatchThreeSignaturesLatencyErrorOnlyAdvancesOwnFields is
+// the three-way version of TestRestoreDispatchAdvancesLatencyErrorsOwnFieldsOnBothObjectKinds
+// (retry_restore_test.go): all three signatures can now manage the same
+// DestinationRule, so this seeds a *single* DR already carrying all three
+// trip-time field sets plus a dual-managed VirtualService, then confirms
+// latency/error-cascade's restore path only advances its own fields.
+func TestRestoreDispatchThreeSignaturesLatencyErrorOnlyAdvancesOwnFields(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	r, c := patchReconcileWith(t, healthyQuerier(),
+		seededPolicy(cascadev1alpha1.PolicyPhaseTripped, 0), tripleManagedDR(), dualManagedVS())
+
+	if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {
+		t.Fatal(err)
 	}
 
-	t.Run("LatencyErrorCascade advances only outlierDetection and its own VirtualService field", func(t *testing.T) {
-		t.Parallel()
-		ctx := context.Background()
-		// dualManagedVS, not trippedManagedVS: latency/error-cascade now
-		// also manages the VirtualService's timeout (PLAN.md §2.6's
-		// secondary), so this dispatch legitimately touches it — the
-		// fixture must carry latency/error's own annotation too, same
-		// reasoning as dualManagedDR just below for the DestinationRule
-		// side (retry_restore_test.go's dualManagedVS doc comment has the
-		// full why).
-		r, c := patchReconcileWith(t, healthyQuerier(),
-			seededPolicy(cascadev1alpha1.PolicyPhaseTripped, 0), dualManagedDR(), dualManagedVS())
+	dr := &networkingv1.DestinationRule{}
+	if err := c.Get(ctx, types.NamespacedName{Name: patchDepName, Namespace: patchPolicyNS}, dr); err != nil {
+		t.Fatal(err)
+	}
+	od := dr.Spec.GetTrafficPolicy().GetOutlierDetection()
+	if od.GetInterval().AsDuration() != 6*time.Second {
+		t.Errorf("outlierDetection not advanced by dispatch: interval = %s, want 6s", od.GetInterval().AsDuration())
+	}
+	http := dr.Spec.GetTrafficPolicy().GetConnectionPool().GetHttp()
+	if http.GetHttp1MaxPendingRequests() != mitigation.TripHTTP1MaxPendingRequests {
+		t.Errorf("connectionPool.http touched by LatencyErrorCascade dispatch: http1MaxPendingRequests = %d, want unchanged trip value %d",
+			http.GetHttp1MaxPendingRequests(), mitigation.TripHTTP1MaxPendingRequests)
+	}
+	if http.GetMaxRetries() != mitigation.TripRetryStormMaxRetries {
+		t.Error("retry storm's own maxRetries touched by LatencyErrorCascade dispatch")
+	}
+	if dr.Annotations[mitigation.AnnotationOriginalConnectionPool] != mitigation.OriginalConnectionPoolUnsetJSON {
+		t.Error("fan-out's own original-connection-pool annotation disturbed by LatencyErrorCascade dispatch")
+	}
+	if dr.Annotations[mitigation.AnnotationOriginalRetryConnectionPool] == "" {
+		t.Error("retry storm's own original-retry-connection-pool annotation disturbed by LatencyErrorCascade dispatch")
+	}
 
-		if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {
-			t.Fatal(err)
-		}
+	vs := &networkingv1.VirtualService{}
+	if err := c.Get(ctx, types.NamespacedName{Name: patchDepName, Namespace: patchPolicyNS}, vs); err != nil {
+		t.Fatal(err)
+	}
+	if vs.Spec.Http[1].Retries.GetAttempts() != mitigation.TripRetryAttempts {
+		t.Error("retry storm's own retries field touched by LatencyErrorCascade dispatch")
+	}
+	if vs.Annotations[mitigation.AnnotationOriginalRetries] == "" {
+		t.Error("retry storm's own original-retries annotation disturbed by LatencyErrorCascade dispatch")
+	}
+	wantTimeout := 500*time.Millisecond + (2*time.Second-500*time.Millisecond)/5
+	if vs.Spec.Http[1].Timeout.AsDuration() != wantTimeout {
+		t.Errorf("latency/error's own timeout not advanced by dispatch: route[1] timeout = %s, want %s",
+			vs.Spec.Http[1].Timeout.AsDuration(), wantTimeout)
+	}
+}
 
-		dr := &networkingv1.DestinationRule{}
-		if err := c.Get(ctx, types.NamespacedName{Name: patchDepName, Namespace: patchPolicyNS}, dr); err != nil {
-			t.Fatal(err)
-		}
-		od := dr.Spec.GetTrafficPolicy().GetOutlierDetection()
-		if od.GetInterval().AsDuration() != 6*time.Second {
-			t.Errorf("outlierDetection not advanced by dispatch: interval = %s, want 6s", od.GetInterval().AsDuration())
-		}
-		http := dr.Spec.GetTrafficPolicy().GetConnectionPool().GetHttp()
-		if http.GetHttp1MaxPendingRequests() != mitigation.TripHTTP1MaxPendingRequests {
-			t.Errorf("connectionPool.http touched by LatencyErrorCascade dispatch: http1MaxPendingRequests = %d, want unchanged trip value %d",
-				http.GetHttp1MaxPendingRequests(), mitigation.TripHTTP1MaxPendingRequests)
-		}
-		if dr.Annotations[mitigation.AnnotationOriginalConnectionPool] != mitigation.OriginalConnectionPoolUnsetJSON {
-			t.Error("fan-out's own original-connection-pool annotation disturbed by LatencyErrorCascade dispatch")
-		}
+func TestRestoreDispatchThreeSignaturesFanOutOnlyAdvancesOwnFields(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	r, c := patchReconcileWith(t, healthyQuerier(),
+		seededFanOutPolicy(cascadev1alpha1.PolicyPhaseTripped, 0), tripleManagedDR(), trippedManagedVS())
 
-		vs := &networkingv1.VirtualService{}
-		if err := c.Get(ctx, types.NamespacedName{Name: patchDepName, Namespace: patchPolicyNS}, vs); err != nil {
-			t.Fatal(err)
-		}
-		if vs.Spec.Http[1].Retries.GetAttempts() != mitigation.TripRetryAttempts {
-			t.Error("retry storm's own retries field touched by LatencyErrorCascade dispatch")
-		}
-		if vs.Annotations[mitigation.AnnotationOriginalRetries] == "" {
-			t.Error("retry storm's own original-retries annotation disturbed by LatencyErrorCascade dispatch")
-		}
-		wantTimeout := 500*time.Millisecond + (2*time.Second-500*time.Millisecond)/5
-		if vs.Spec.Http[1].Timeout.AsDuration() != wantTimeout {
-			t.Errorf("latency/error's own timeout not advanced by dispatch: route[1] timeout = %s, want %s",
-				vs.Spec.Http[1].Timeout.AsDuration(), wantTimeout)
-		}
-	})
+	if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {
+		t.Fatal(err)
+	}
 
-	t.Run("FanOutAmplification advances only connectionPool.http", func(t *testing.T) {
-		t.Parallel()
-		ctx := context.Background()
-		r, c := patchReconcileWith(t, healthyQuerier(),
-			seededFanOutPolicy(cascadev1alpha1.PolicyPhaseTripped, 0), dualManagedDR(), trippedManagedVS())
+	dr := &networkingv1.DestinationRule{}
+	if err := c.Get(ctx, types.NamespacedName{Name: patchDepName, Namespace: patchPolicyNS}, dr); err != nil {
+		t.Fatal(err)
+	}
+	http := dr.Spec.GetTrafficPolicy().GetConnectionPool().GetHttp()
+	if http.GetHttp1MaxPendingRequests() != 206 {
+		t.Errorf("connectionPool.http not advanced by dispatch: http1MaxPendingRequests = %d, want 206", http.GetHttp1MaxPendingRequests())
+	}
+	od := dr.Spec.GetTrafficPolicy().GetOutlierDetection()
+	if od.GetConsecutive_5XxErrors().GetValue() != mitigation.TripConsecutive5xx {
+		t.Error("outlierDetection touched by FanOutAmplification dispatch")
+	}
+	if od.GetInterval().AsDuration() != mitigation.TripInterval {
+		t.Error("outlierDetection touched by FanOutAmplification dispatch")
+	}
+	if http.GetMaxRetries() != mitigation.TripRetryStormMaxRetries {
+		t.Error("retry storm's own maxRetries touched by FanOutAmplification dispatch")
+	}
+	if dr.Annotations[mitigation.AnnotationOriginalOutlier] != mitigation.OriginalOutlierUnsetJSON {
+		t.Error("latency/error's own original-outlier annotation disturbed by FanOutAmplification dispatch")
+	}
+	if dr.Annotations[mitigation.AnnotationOriginalRetryConnectionPool] == "" {
+		t.Error("retry storm's own original-retry-connection-pool annotation disturbed by FanOutAmplification dispatch")
+	}
 
-		if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {
-			t.Fatal(err)
-		}
+	vs := &networkingv1.VirtualService{}
+	if err := c.Get(ctx, types.NamespacedName{Name: patchDepName, Namespace: patchPolicyNS}, vs); err != nil {
+		t.Fatal(err)
+	}
+	if vs.Spec.Http[1].Retries.GetAttempts() != mitigation.TripRetryAttempts {
+		t.Error("VirtualService touched by FanOutAmplification dispatch")
+	}
+}
 
-		dr := &networkingv1.DestinationRule{}
-		if err := c.Get(ctx, types.NamespacedName{Name: patchDepName, Namespace: patchPolicyNS}, dr); err != nil {
-			t.Fatal(err)
-		}
-		http := dr.Spec.GetTrafficPolicy().GetConnectionPool().GetHttp()
-		if http.GetHttp1MaxPendingRequests() != 206 {
-			t.Errorf("connectionPool.http not advanced by dispatch: http1MaxPendingRequests = %d, want 206", http.GetHttp1MaxPendingRequests())
-		}
-		od := dr.Spec.GetTrafficPolicy().GetOutlierDetection()
-		if od.GetConsecutive_5XxErrors().GetValue() != mitigation.TripConsecutive5xx {
-			t.Error("outlierDetection touched by FanOutAmplification dispatch")
-		}
-		if od.GetInterval().AsDuration() != mitigation.TripInterval {
-			t.Error("outlierDetection touched by FanOutAmplification dispatch")
-		}
-		if dr.Annotations[mitigation.AnnotationOriginalOutlier] != mitigation.OriginalOutlierUnsetJSON {
-			t.Error("latency/error's own original-outlier annotation disturbed by FanOutAmplification dispatch")
-		}
+// TestRestoreDispatchThreeSignaturesRetryStormLeavesFanOutHttp2Alone is
+// specifically the *three*-signature case — TestRestoreDispatchAdvancesRetryStormsOwnFieldsOnBothObjectKinds
+// (retry_restore_test.go) already covers retry storm's two-object-kind
+// dispatch against a two-signature-shared DestinationRule. This one
+// confirms retry storm's dispatch, currently also writing
+// Http1MaxPendingRequests (matrix-as-written; overlap pending in
+// PROPOSALS.md), still only ever advances its own captured baseline and
+// never fan-out's live Http2MaxRequests value or annotation.
+func TestRestoreDispatchThreeSignaturesRetryStormLeavesFanOutHttp2Alone(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	r, c := patchReconcileWith(t, healthyQuerier(),
+		seededRetryStormPolicy(cascadev1alpha1.PolicyPhaseTripped, 0), tripleManagedDR(), trippedManagedVS())
 
-		vs := &networkingv1.VirtualService{}
-		if err := c.Get(ctx, types.NamespacedName{Name: patchDepName, Namespace: patchPolicyNS}, vs); err != nil {
-			t.Fatal(err)
-		}
-		if vs.Spec.Http[1].Retries.GetAttempts() != mitigation.TripRetryAttempts {
-			t.Error("VirtualService touched by FanOutAmplification dispatch")
-		}
-	})
+	if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {
+		t.Fatal(err)
+	}
 
-	t.Run("RetryStorm advances only the VirtualService", func(t *testing.T) {
-		t.Parallel()
-		ctx := context.Background()
-		r, c := patchReconcileWith(t, healthyQuerier(),
-			seededRetryStormPolicy(cascadev1alpha1.PolicyPhaseTripped, 0), dualManagedDR(), trippedManagedVS())
+	vs := &networkingv1.VirtualService{}
+	if err := c.Get(ctx, types.NamespacedName{Name: patchDepName, Namespace: patchPolicyNS}, vs); err != nil {
+		t.Fatal(err)
+	}
+	if vs.Spec.Http[1].Retries.GetAttempts() != 1 {
+		t.Errorf("VirtualService not advanced by dispatch: route[1] attempts = %d, want 1", vs.Spec.Http[1].Retries.GetAttempts())
+	}
 
-		if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {
-			t.Fatal(err)
-		}
-
-		vs := &networkingv1.VirtualService{}
-		if err := c.Get(ctx, types.NamespacedName{Name: patchDepName, Namespace: patchPolicyNS}, vs); err != nil {
-			t.Fatal(err)
-		}
-		if vs.Spec.Http[1].Retries.GetAttempts() != 1 {
-			t.Errorf("VirtualService not advanced by dispatch: route[1] attempts = %d, want 1", vs.Spec.Http[1].Retries.GetAttempts())
-		}
-
-		dr := &networkingv1.DestinationRule{}
-		if err := c.Get(ctx, types.NamespacedName{Name: patchDepName, Namespace: patchPolicyNS}, dr); err != nil {
-			t.Fatal(err)
-		}
-		od := dr.Spec.GetTrafficPolicy().GetOutlierDetection()
-		if od.GetConsecutive_5XxErrors().GetValue() != mitigation.TripConsecutive5xx {
-			t.Error("outlierDetection touched by RetryStorm dispatch")
-		}
-		http := dr.Spec.GetTrafficPolicy().GetConnectionPool().GetHttp()
-		if http.GetHttp1MaxPendingRequests() != mitigation.TripHTTP1MaxPendingRequests {
-			t.Error("connectionPool.http touched by RetryStorm dispatch")
-		}
-	})
+	dr := &networkingv1.DestinationRule{}
+	if err := c.Get(ctx, types.NamespacedName{Name: patchDepName, Namespace: patchPolicyNS}, dr); err != nil {
+		t.Fatal(err)
+	}
+	od := dr.Spec.GetTrafficPolicy().GetOutlierDetection()
+	if od.GetConsecutive_5XxErrors().GetValue() != mitigation.TripConsecutive5xx {
+		t.Error("outlierDetection touched by RetryStorm dispatch")
+	}
+	if dr.Annotations[mitigation.AnnotationOriginalOutlier] != mitigation.OriginalOutlierUnsetJSON {
+		t.Error("latency/error's own original-outlier annotation disturbed by RetryStorm dispatch")
+	}
+	http := dr.Spec.GetTrafficPolicy().GetConnectionPool().GetHttp()
+	if http.GetHttp2MaxRequests() != mitigation.TripHTTP2MaxRequests {
+		t.Error("fan-out's own Http2MaxRequests touched by RetryStorm dispatch")
+	}
+	if dr.Annotations[mitigation.AnnotationOriginalConnectionPool] != mitigation.OriginalConnectionPoolUnsetJSON {
+		t.Error("fan-out's own original-connection-pool annotation disturbed by RetryStorm dispatch")
+	}
+	if http.GetMaxRetries() == mitigation.TripRetryStormMaxRetries && http.GetHttp1MaxPendingRequests() == mitigation.TripRetryStormMaxPendingRequests {
+		t.Error("retry storm's own connectionPool.http fields were not advanced by dispatch")
+	}
 }

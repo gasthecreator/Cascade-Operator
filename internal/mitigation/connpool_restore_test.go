@@ -56,7 +56,7 @@ func TestFanOutRestoreProgressMonotonicTowardOriginal(t *testing.T) {
 	t.Parallel()
 	// Original: http1=64, http2=128 (well below the Envoy default of 1024,
 	// so this exercises the "explicit original, not Unset" ramp path).
-	const original = `{"http1MaxPendingRequests":64,"http2MaxRequests":128}`
+	const original = testFanOutOriginalConnPoolJSON
 
 	var prev1, prev2 int32
 	for step := int32(0); step <= RestoreFinalStep; step++ {
@@ -106,7 +106,7 @@ func TestFanOutRestoreUnsetRampsTowardEnvoyDefault(t *testing.T) {
 
 func TestCompleteFanOutConnectionPoolRestoreRestoresOriginalAndStripsAnnotations(t *testing.T) {
 	t.Parallel()
-	const original = `{"http1MaxPendingRequests":64,"http2MaxRequests":128}`
+	const original = testFanOutOriginalConnPoolJSON
 	dr := managedConnPoolDR(original)
 	if err := CompleteFanOutConnectionPoolRestore(dr); err != nil {
 		t.Fatal(err)

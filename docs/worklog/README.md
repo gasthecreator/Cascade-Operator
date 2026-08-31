@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-30 — Retry storm's DestinationRule connectionPool.http secondary — last unbuilt patch cell, with a same-field overlap filed as a proposal rather than locked](2026-08-30-retry-storm-connpool-secondary.md)
 - [2026-08-30 — Review: latency/error-cascade's timeout secondary — approved, with a firm protocol flag](2026-08-30-review-latency-error-timeout-secondary.md)
 - [2026-08-30 — Latency/error-cascade's `VirtualService` timeout secondary: the first signature to manage two object kinds on one trip](2026-08-30-latency-error-timeout-secondary.md)
 - [2026-08-30 — Review: operator self-metrics — live confirmation completed](2026-08-30-review-operator-metrics.md)

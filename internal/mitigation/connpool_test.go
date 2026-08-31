@@ -26,6 +26,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// testFanOutOriginalConnPoolJSON is fan-out's own original-connection-pool
+// snapshot shape, reused across this file, connpool_restore_test.go, and
+// retry_connpool_test.go's cross-signature guard (goconst).
+const testFanOutOriginalConnPoolJSON = `{"http1MaxPendingRequests":64,"http2MaxRequests":128}`
+
 func TestApplyFanOutConnectionPoolTripFirstPatch(t *testing.T) {
 	t.Parallel()
 	dr := &networkingv1.DestinationRule{
@@ -103,13 +108,13 @@ func TestApplyFanOutConnectionPoolTripDoesNotOverwriteOriginal(t *testing.T) {
 			Namespace: testDRNS,
 			Annotations: map[string]string{
 				AnnotationManagedBy:              ManagedByValue,
-				AnnotationOriginalConnectionPool: `{"http1MaxPendingRequests":64,"http2MaxRequests":128}`,
+				AnnotationOriginalConnectionPool: testFanOutOriginalConnPoolJSON,
 			},
 		},
 		Spec: apinet.DestinationRule{Host: testDRHost},
 	}
 	ApplyFanOutConnectionPoolTrip(dr)
-	if got := dr.Annotations[AnnotationOriginalConnectionPool]; got != `{"http1MaxPendingRequests":64,"http2MaxRequests":128}` {
+	if got := dr.Annotations[AnnotationOriginalConnectionPool]; got != testFanOutOriginalConnPoolJSON {
 		t.Errorf("original overwritten: %s", got)
 	}
 	if dr.Spec.TrafficPolicy.ConnectionPool.Http.GetHttp1MaxPendingRequests() != TripHTTP1MaxPendingRequests {

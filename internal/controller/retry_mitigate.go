@@ -31,15 +31,28 @@ import (
 
 // +kubebuilder:rbac:groups=networking.istio.io,resources=virtualservices,verbs=get;list;watch;update;patch
 
-// applyRetryStormMitigation resolves the VirtualService for host by
-// convention and, in Mitigate mode, cuts retries.attempts on every
-// forwarding route. Missing objects set DependencyObjectMissing and skip the
-// edge; they do not fail Reconcile. Same read-resolve-patch shape as
-// applyLatencyErrorMitigation, one object kind over. Called from Reconcile
-// on a retry-storm trip alongside VirtualService-aware restoration
-// (restore.go/retry_restore.go) — the two landed together deliberately so a
-// live patch is never left without a way back (see the retry-storm
-// mitigation and restoration worklogs).
+// applyRetryStormMitigation resolves both the VirtualService primary and
+// the DestinationRule connectionPool.http secondary for host by convention
+// (PLAN.md §2.6) and, in Mitigate mode, patches whichever exists —
+// independently, not as a joint precondition. Same two-object-kind
+// independence shape latency/error-cascade's timeout secondary already
+// proved (mitigate.go's applyLatencyErrorMitigation doc comment), one
+// signature over: the primary applies even if the secondary's
+// DestinationRule is missing, and vice versa, and DependencyObjectMissing
+// stays scoped to the primary (VirtualService) only — see
+// applyRetryStormRetriesPrimary/applyRetryStormConnectionPoolSecondary
+// below. That independence is carrying out the two-object-kind shape
+// already locked in §2.6 after review, not a new decision.
+//
+// This is the *third* signature to potentially manage a DestinationRule
+// (latency/error-cascade's outlierDetection, fan-out's connectionPool.http,
+// and now this signature's own connectionPool.http fields too), and the
+// first case where two signatures' own fields — this secondary's
+// Http1MaxPendingRequests and fan-out's primary's own Http1MaxPendingRequests —
+// name the *same field* on the *same sub-message*, not just the same
+// object kind on disjoint fields. The matrix currently names both; this
+// function implements that as written. Whether the overlap should stay is
+// a pending PROPOSALS.md entry, not locked here.
 func (r *CascadePolicyReconciler) applyRetryStormMitigation(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
@@ -49,15 +62,33 @@ func (r *CascadePolicyReconciler) applyRetryStormMitigation(
 
 	name, ns, err := mitigation.ParseServiceFQDN(host)
 	if err != nil {
-		log.Error(err, "cannot resolve VirtualService from dependsOn FQDN", "host", host)
+		log.Error(err, "cannot resolve dependsOn FQDN", "host", host)
 		setDependencyMissing(policy, fmt.Sprintf("cannot parse dependsOn FQDN %q", host))
 		return nil
 	}
 
+	if err := r.applyRetryStormRetriesPrimary(ctx, policy, host, name, ns); err != nil {
+		return err
+	}
+	return r.applyRetryStormConnectionPoolSecondary(ctx, policy, name, ns)
+}
+
+// applyRetryStormRetriesPrimary patches VirtualService retries.attempts —
+// unchanged behavior from before this signature grew a secondary, still
+// the sole driver of DependencyObjectMissing (see
+// applyRetryStormMitigation's doc comment above for why the secondary's
+// own absence doesn't also set it).
+func (r *CascadePolicyReconciler) applyRetryStormRetriesPrimary(
+	ctx context.Context,
+	policy *cascadev1alpha1.CascadePolicy,
+	host, name, ns string,
+) error {
+	log := logf.FromContext(ctx)
+
 	vs := &networkingv1.VirtualService{}
-	err = r.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, vs)
+	err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, vs)
 	if isAbsent(err) {
-		log.Info("VirtualService missing; skipping patch", "name", name, "namespace", ns)
+		log.Info("VirtualService missing; skipping primary patch", "name", name, "namespace", ns)
 		setDependencyMissing(policy, fmt.Sprintf("VirtualService %s/%s not found for dependsOn %q", ns, name, host))
 		return nil
 	}
@@ -81,5 +112,48 @@ func (r *CascadePolicyReconciler) applyRetryStormMitigation(
 	}
 	mitigationPatchesAppliedTotal.WithLabelValues(string(cascadev1alpha1.SignatureRetryStorm), kindVirtualService).Inc()
 	log.Info("patched VirtualService retries.attempts", "name", name, "namespace", ns)
+	return nil
+}
+
+// applyRetryStormConnectionPoolSecondary patches DestinationRule
+// connectionPool.http's maxRetries/http1MaxPendingRequests (PLAN.md §2.6's
+// secondary). Deliberately never touches DependencyObjectMissing either
+// way — see applyRetryStormMitigation's doc comment: a missing
+// DestinationRule here is logged but does not flag the edge, and a
+// present one must not incorrectly clear a condition the primary's own
+// absence may have correctly set.
+func (r *CascadePolicyReconciler) applyRetryStormConnectionPoolSecondary(
+	ctx context.Context,
+	policy *cascadev1alpha1.CascadePolicy,
+	name, ns string,
+) error {
+	log := logf.FromContext(ctx)
+
+	dr := &networkingv1.DestinationRule{}
+	err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, dr)
+	if isAbsent(err) {
+		log.Info("DestinationRule missing; skipping secondary patch", "name", name, "namespace", ns)
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("get DestinationRule %s/%s: %w", ns, name, err)
+	}
+
+	if policy.Spec.Mode == cascadev1alpha1.PolicyModeDetectOnly {
+		log.Info("DetectOnly: would cap DestinationRule connectionPool.http maxRetries/http1MaxPendingRequests",
+			"name", name,
+			"namespace", ns,
+			"maxRetries", mitigation.TripRetryStormMaxRetries,
+			"http1MaxPendingRequests", mitigation.TripRetryStormMaxPendingRequests,
+		)
+		return nil
+	}
+
+	mitigation.ApplyRetryStormConnectionPoolTrip(dr)
+	if err := r.Update(ctx, dr); err != nil {
+		return fmt.Errorf("update DestinationRule %s/%s: %w", ns, name, err)
+	}
+	mitigationPatchesAppliedTotal.WithLabelValues(string(cascadev1alpha1.SignatureRetryStorm), kindDestinationRule).Inc()
+	log.Info("patched DestinationRule connectionPool.http (retry storm secondary)", "name", name, "namespace", ns)
 	return nil
 }
