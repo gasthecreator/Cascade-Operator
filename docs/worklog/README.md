@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-31 — Phase 5 (3/4): security threat-model doc](2026-08-31-phase5-security-threat-model.md)
 - [2026-08-31 — Phase 5 (2/4): HA — replicas: 2 + preferred pod anti-affinity](2026-08-31-phase5-ha-replicas.md)
 - [2026-08-31 — Phase 5 (1/4): retry storm's restore-completion zero-value bug — VirtualService fixed, DestinationRule found not applicable](2026-08-31-phase5-retry-storm-restore-zero-value.md)
 - [2026-08-31 — Phase 4: Grafana dashboard + trip/restore webhook notifier](2026-08-31-phase4-observability.md)

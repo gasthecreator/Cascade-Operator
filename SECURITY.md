@@ -36,6 +36,10 @@ coordinate on disclosure timing and credit if you want it.
 In scope: this repository's operator code, CRD validation/webhook logic (when
 present), RBAC manifests, and documented deployment paths.
 
+See [docs/security-threat-model.md](docs/security-threat-model.md) for what
+the operator's RBAC actually grants, its trust boundaries, and known gaps
+stated plainly rather than assumed away.
+
 Out of scope: vulnerabilities in upstream dependencies (report those to the
 upstream project), misconfigurations in your own cluster, or issues in Istio /
 Prometheus themselves unless this operator introduces a specific unsafe default.
