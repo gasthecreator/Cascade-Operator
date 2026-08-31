@@ -28,3 +28,13 @@ go.work
 
 # Kubeconfig might contain secrets
 *.kubeconfig
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Local env files (secrets)
+.env
+.env.*

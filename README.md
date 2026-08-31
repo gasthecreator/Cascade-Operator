@@ -15,6 +15,8 @@ It's a portfolio piece, not a product — see
 [`PLAN.md`](PLAN.md)'s §1 for the full goal statement and why that framing
 drives every tradeoff in here.
 
+**License:** [Apache 2.0](LICENSE) · **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md) · **Security:** [SECURITY.md](SECURITY.md)
+
 ## Architecture at a glance
 
 Every reconcile tick (10s, or immediately on a `CascadePolicy` watch event),
@@ -156,14 +158,5 @@ PROPOSALS.md            Queue for proposed changes to PLAN.md's locked decisions
 
 Copyright 2026 Gideon Sanni.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the
+full text. For how to contribute, see [CONTRIBUTING.md](CONTRIBUTING.md).

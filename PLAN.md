@@ -466,7 +466,7 @@ Same protocol as section 3: Cursor builds each slice, writes a worklog entry,
 and Claude independently rebuilds/tests/lints and re-verifies any
 live-cluster claim before checking an item here.
 
-- [ ] Phase 0 — Repo hygiene: LICENSE, CONTRIBUTING.md, CODE_OF_CONDUCT.md,
+- [x] Phase 0 — Repo hygiene: LICENSE, CONTRIBUTING.md, CODE_OF_CONDUCT.md,
   SECURITY.md, CODEOWNERS, CHANGELOG.md, .editorconfig, issue/PR templates,
   dependabot.yml, .gitignore additions
 - [ ] Phase 1 — CI: Kind+Istio integration workflow (`make test-integration`
