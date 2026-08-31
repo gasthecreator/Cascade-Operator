@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-30 — Review: latency/error-cascade's timeout secondary — approved, with a firm protocol flag](2026-08-30-review-latency-error-timeout-secondary.md)
 - [2026-08-30 — Latency/error-cascade's `VirtualService` timeout secondary: the first signature to manage two object kinds on one trip](2026-08-30-latency-error-timeout-secondary.md)
 - [2026-08-30 — Review: operator self-metrics — live confirmation completed](2026-08-30-review-operator-metrics.md)
 - [2026-08-30 — Operator self-metrics: signatures detected, patches applied, restorations completed/regressed](2026-08-30-operator-metrics.md)

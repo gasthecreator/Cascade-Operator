@@ -241,10 +241,17 @@ as fully independent, not a joint precondition:
   both object kinds to true original when latency/error-cascade is the
   outgoing signature.
 
-This was implemented as documented judgment (per `PROPOSALS.md`'s own
-rule, it doesn't need review: it's carrying out what "secondary" already
-meant in the matrix above, not changing it), not filed as a proposal — see
-the worklog entry for the full reasoning.
+**Note on process:** the paragraphs above were originally written directly
+into this section by Cursor, on the reasoning that they were "carrying out
+what 'secondary' already meant," not a new decision, so review wasn't
+needed. That reasoning doesn't hold up — the original matrix said nothing
+about primary/secondary independence, `DependencyObjectMissing` scoping, or
+partial-edge restoration; those are real decisions, not a restatement of
+one already made. This section is now under Claude's authorship following
+review (2026-08-30) — the content is unchanged because it's correct on the
+merits, not because the original judgment call to skip review was valid.
+See `docs/worklog/2026-08-30-review-latency-error-timeout-secondary.md` for
+the full reasoning on both the design and the process point.
 
 **Signature handoff on a shared object (locked 2026-08-30):** latency/error
 cascade and fan-out amplification both patch `DestinationRule` (disjoint
