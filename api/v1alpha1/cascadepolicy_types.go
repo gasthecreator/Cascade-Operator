@@ -109,15 +109,57 @@ type CascadePolicySpec struct {
 	// +required
 	DependsOn []string `json:"dependsOn"`
 
-	// thresholds are detection cutoffs applied to every dependsOn edge.
+	// thresholds are detection cutoffs applied to every dependsOn edge,
+	// unless a specific edge has a thresholdOverrides entry.
 	// +required
 	Thresholds Thresholds `json:"thresholds"`
+
+	// thresholdOverrides overrides individual thresholds fields for
+	// specific dependsOn edges, keyed by the dependency's FQDN — each key
+	// must match an entry in dependsOn (enforced by the validating
+	// webhook, not the OpenAPI schema, since cross-field references
+	// aren't expressible there). A field left unset on an override falls
+	// back to thresholds' own value for that field; an edge with no entry
+	// here uses thresholds unmodified (PLAN.md §5, PROPOSALS.md 2026-08-31
+	// — purely additive, existing v1alpha1 objects are unaffected).
+	// +optional
+	ThresholdOverrides map[string]ThresholdOverrides `json:"thresholdOverrides,omitempty"`
 
 	// mode controls whether a tripped signature patches the mesh.
 	// DetectOnly logs/records without patching; Mitigate applies the patch matrix.
 	// +optional
 	// +kubebuilder:default=Mitigate
 	Mode PolicyMode `json:"mode,omitempty"`
+}
+
+// ThresholdOverrides overrides individual Thresholds fields for one
+// dependsOn edge. Every field is a pointer, not a plain scalar — this CRD
+// is one this project owns outright, so unlike the vendored Istio proto
+// types this project's retry-storm bug thread spent an entire session
+// working around, there's no reason to repeat "0 is ambiguous with unset"
+// here: a pointer field makes "explicitly zero" and "not overridden"
+// genuinely distinguishable, in both the OpenAPI schema and the Go struct.
+type ThresholdOverrides struct {
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	LatencyP99Ms *int32 `json:"latencyP99Ms,omitempty"`
+
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=1
+	ErrorRateFraction *float64 `json:"errorRateFraction,omitempty"`
+
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	WindowSeconds *int32 `json:"windowSeconds,omitempty"`
+
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	RetryStormMultiplier *float64 `json:"retryStormMultiplier,omitempty"`
+
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	FanOutMultiplier *float64 `json:"fanOutMultiplier,omitempty"`
 }
 
 // CascadePolicyStatus defines the observed state of CascadePolicy.

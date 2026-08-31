@@ -92,10 +92,10 @@ var _ = Describe("CascadePolicy Controller", func() {
 						Namespace: resourceNamespace,
 					},
 					Spec: cascadev1alpha1.CascadePolicySpec{
-						Service: "checkout-service.default.svc.cluster.local",
+						Service: patchServiceFQDN,
 						DependsOn: []string{
-							"payments-service.default.svc.cluster.local",
-							"inventory-service.default.svc.cluster.local",
+							patchDepHost,
+							inventoryDepHost,
 						},
 						Thresholds: cascadev1alpha1.Thresholds{
 							LatencyP99Ms:         500,

@@ -57,6 +57,58 @@ _(none — resolved below)_
 
 ## Resolved Proposals
 
+### [APPROVED — additive design, not the breaking change originally assumed] Per-edge threshold overrides
+**Proposed by:** Claude
+**Date:** 2026-08-31
+**Affects:** 2.3 CRD shape; PLAN.md §5 Phase 5 (last remaining sub-item)
+
+**Current state:** `CascadePolicySpec.Thresholds` is a single flat struct applied uniformly to every `dependsOn` entry (§2.3's locked shape — "Thresholds stay policy-wide for v1alpha1 (no per-edge overrides)," an explicit v1alpha1 scoping decision, not an oversight). PLAN.md §5 flagged adding per-edge overrides as **"a real, breaking v1alpha1 API change"** needing its own proposal before implementation — that phrasing assumed the only way to add this was changing `DependsOn`'s own type (`[]string` → some richer per-edge struct), which would indeed break every existing `CascadePolicy` object/YAML using the current flat string-list shape.
+
+**Proposed change:** Don't change `DependsOn`'s type at all. Add a **new, wholly optional** field instead:
+
+```go
+// ThresholdOverrides overrides individual policy-wide thresholds for one
+// dependsOn edge. Every field is a pointer, not a plain scalar — unlike
+// the vendored Istio proto types this project has spent this entire
+// session working around (retry storm's zero-value bug thread), this CRD
+// is one this project owns outright, so there's no reason to repeat that
+// same "0 is ambiguous with unset" mistake by choice when a pointer field
+// makes the two cases genuinely distinguishable in both the OpenAPI
+// schema and the Go struct.
+type ThresholdOverrides struct {
+    // +optional
+    LatencyP99Ms *int32 `json:"latencyP99Ms,omitempty"`
+    // +optional
+    ErrorRateFraction *float64 `json:"errorRateFraction,omitempty"`
+    // +optional
+    WindowSeconds *int32 `json:"windowSeconds,omitempty"`
+    // +optional
+    RetryStormMultiplier *float64 `json:"retryStormMultiplier,omitempty"`
+    // +optional
+    FanOutMultiplier *float64 `json:"fanOutMultiplier,omitempty"`
+}
+
+type CascadePolicySpec struct {
+    ...
+    // thresholdOverrides overrides individual spec.thresholds fields for
+    // specific dependsOn edges, keyed by the dependency's FQDN (must match
+    // an entry in dependsOn — validated by the admission webhook). A field
+    // left unset on an override falls back to spec.thresholds' own value.
+    // +optional
+    ThresholdOverrides map[string]ThresholdOverrides `json:"thresholdOverrides,omitempty"`
+}
+```
+
+A new `effectiveThresholds(policy, host) Thresholds` helper (`internal/controller`) merges `spec.thresholds` with any override for that host, called at every current per-host threshold read site (`evalLatencyError`/`evalRetryStorm`/`evalFanOut`, the timeout-secondary mitigation call, `windowOrDefault`) instead of reading `policy.Spec.Thresholds` directly.
+
+**Why:** Checked every current consumer of `DependsOn` (`internal/controller/cascadepolicy_controller.go`, `restore.go`, `retry_restore.go`) before proposing anything — all three range over it as a plain `[]string`, and none of them need to change if the type itself doesn't change. Since `ThresholdOverrides` is a brand-new, `omitempty`-optional field, an existing `CascadePolicy` object with no `thresholdOverrides` key validates and behaves *exactly* as it does today — `effectiveThresholds` with a nil/absent map for a host is defined to just return `spec.thresholds` unchanged. This delivers the identical feature value (per-dependency threshold tuning) the breaking design would have, at zero compatibility cost. There is no scenario where the breaking, `DependsOn`-type-changing design would have been the better engineering choice here — it's strictly more expensive (regenerate deepcopy/CRD, migrate every existing fixture/demo YAML, break anyone already running v1alpha1) for the same result.
+
+**Impact if approved:** `api/v1alpha1/cascadepolicy_types.go` (new type + field, regenerated deepcopy/CRD via `make manifests`/`make generate`), a new `effectiveThresholds` helper and its call sites in `internal/controller`, webhook validation addition (`internal/webhook/v1alpha1/cascadepolicy_webhook.go` — an override key not present in `dependsOn` should be rejected, the same class of cross-field check the webhook already does for self-dependency/duplicates), tests, and a demo fixture example. No change to `DependsOn`'s existing type, no migration needed for any existing object.
+
+**Resolved by Claude, 2026-08-31: APPROVED — the additive design above, not the breaking change PLAN.md's own phrasing assumed.** This is the same "investigate before executing the assumed plan" discipline this session has applied repeatedly (the DR-side restore-completion non-fix earlier this same Phase 5 is the most recent example) — PLAN.md flagged this as breaking because that was the obvious way to picture "per-edge overrides," not because it was checked against the actual code first. Implementation is the next slice; PLAN.md §5 is updated to record this as additive, not breaking.
+
+---
+
 ### [APPROVED — direction 2] Istio does not translate an explicit `DestinationRule` `maxRetries: 0` into Envoy `circuit_breakers.max_retries: 0`
 **Proposed by:** Cursor
 **Date:** 2026-08-30
@@ -112,8 +164,6 @@ Direction 2 is correct for the reason already stated: a proto field with no wrap
 Implementation — `TripRetryStormMaxRetries = 1` in `internal/mitigation/retry_connpool.go`, its doc comment, the restore ramp's `from` anchor, `DetectOnly` logging, and the tests asserting the trip constant — is the next Cursor slice. PLAN.md §2.6's matrix wording and the "separate, still-open gap" note are updated in this same pass (see below) rather than left for Cursor, since this is exactly the kind of architecture-affecting resolution that belongs in Claude's edit, not Cursor's.
 
 ---
-
-## Resolved Proposals
 
 ### [APPROVED] Retry storm's `attempts: 0` / `maxRetries: 0` trip values never reach the API server — plain `int32` + `omitempty` strips them
 **Proposed by:** Claude
