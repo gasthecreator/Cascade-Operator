@@ -1,12 +1,12 @@
 {
   "scenario": "latency-error-cascade",
-  "capturedAt": "2026-08-31T18:43:36Z",
+  "capturedAt": "2026-08-31T19:44:32Z",
   "points": [
     {
       "elapsedSeconds": 0,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "FanOutAmplification",
+      "lastSignature": "",
       "metricLabel": "p99_latency_ms",
       "metricValue": null,
       "objectKind": "destinationrule",
@@ -18,7 +18,7 @@
       "elapsedSeconds": 2,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "FanOutAmplification",
+      "lastSignature": "",
       "metricLabel": "p99_latency_ms",
       "metricValue": null,
       "objectKind": "destinationrule",
@@ -30,9 +30,9 @@
       "elapsedSeconds": 5,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "FanOutAmplification",
+      "lastSignature": "",
       "metricLabel": "p99_latency_ms",
-      "metricValue": null,
+      "metricValue": 24.85,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local"
@@ -40,131 +40,213 @@
     },
     {
       "elapsedSeconds": 7,
-      "phase": "Normal",
+      "phase": "Tripped",
       "restoreStep": 0,
-      "lastSignature": "FanOutAmplification",
+      "lastSignature": "RetryStorm",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 9.45,
+      "metricValue": 24.85,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "maxRetries": 1
+            }
+          }
+        }
       }
     },
     {
       "elapsedSeconds": 10,
-      "phase": "Normal",
+      "phase": "Tripped",
       "restoreStep": 0,
-      "lastSignature": "FanOutAmplification",
+      "lastSignature": "RetryStorm",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 9.45,
+      "metricValue": 24.85,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "maxRetries": 1
+            }
+          }
+        }
       }
     },
     {
       "elapsedSeconds": 12,
-      "phase": "Normal",
+      "phase": "Tripped",
       "restoreStep": 0,
-      "lastSignature": "FanOutAmplification",
+      "lastSignature": "RetryStorm",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 9.45,
+      "metricValue": 24.85,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "maxRetries": 1
+            }
+          }
+        }
       }
     },
     {
       "elapsedSeconds": 14,
-      "phase": "Normal",
+      "phase": "Tripped",
       "restoreStep": 0,
-      "lastSignature": "FanOutAmplification",
+      "lastSignature": "RetryStorm",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 9.45,
+      "metricValue": 24.85,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "maxRetries": 1
+            }
+          }
+        }
       }
     },
     {
       "elapsedSeconds": 16,
-      "phase": "Normal",
+      "phase": "Tripped",
       "restoreStep": 0,
-      "lastSignature": "FanOutAmplification",
+      "lastSignature": "RetryStorm",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 9.45,
+      "metricValue": 24.85,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "maxRetries": 1
+            }
+          }
+        }
       }
     },
     {
       "elapsedSeconds": 19,
-      "phase": "Normal",
+      "phase": "Tripped",
       "restoreStep": 0,
-      "lastSignature": "FanOutAmplification",
+      "lastSignature": "RetryStorm",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 9.45,
+      "metricValue": 13.749999999999986,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "maxRetries": 1
+            }
+          }
+        }
       }
     },
     {
       "elapsedSeconds": 21,
-      "phase": "Normal",
+      "phase": "Tripped",
       "restoreStep": 0,
-      "lastSignature": "FanOutAmplification",
+      "lastSignature": "RetryStorm",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 6.249999999999983,
+      "metricValue": 13.749999999999986,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "maxRetries": 1
+            }
+          }
+        }
       }
     },
     {
       "elapsedSeconds": 23,
-      "phase": "Normal",
+      "phase": "Tripped",
       "restoreStep": 0,
-      "lastSignature": "FanOutAmplification",
+      "lastSignature": "RetryStorm",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 6.249999999999983,
+      "metricValue": 13.749999999999986,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "maxRetries": 1
+            }
+          }
+        }
       }
     },
     {
       "elapsedSeconds": 25,
-      "phase": "Normal",
+      "phase": "Tripped",
       "restoreStep": 0,
-      "lastSignature": "FanOutAmplification",
+      "lastSignature": "RetryStorm",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 6.249999999999983,
+      "metricValue": 13.749999999999986,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "maxRetries": 1
+            }
+          }
+        }
       }
     },
     {
       "elapsedSeconds": 28,
+      "phase": "Restoring",
+      "restoreStep": 3,
+      "lastSignature": "RetryStorm",
+      "metricLabel": "p99_latency_ms",
+      "metricValue": 13.749999999999986,
+      "objectKind": "destinationrule",
+      "objectSpec": {
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "maxRetries": 3
+            }
+          }
+        }
+      }
+    },
+    {
+      "elapsedSeconds": 31,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "FanOutAmplification",
+      "lastSignature": "RetryStorm",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 6.249999999999983,
+      "metricValue": 13.749999999999986,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local"
       }
     },
     {
-      "elapsedSeconds": 30,
+      "elapsedSeconds": 33,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "FanOutAmplification",
+      "lastSignature": "RetryStorm",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 6.249999999999983,
+      "metricValue": 992.7272727272727,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local"
@@ -174,9 +256,9 @@
       "elapsedSeconds": 35,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "FanOutAmplification",
+      "lastSignature": "RetryStorm",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 1780.000000000003,
+      "metricValue": 992.7272727272727,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local"
@@ -186,9 +268,21 @@
       "elapsedSeconds": 38,
       "phase": "Normal",
       "restoreStep": 0,
+      "lastSignature": "RetryStorm",
+      "metricLabel": "p99_latency_ms",
+      "metricValue": 992.7272727272727,
+      "objectKind": "destinationrule",
+      "objectSpec": {
+        "host": "payments-service.default.svc.cluster.local"
+      }
+    },
+    {
+      "elapsedSeconds": 40,
+      "phase": "Tripped",
+      "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 1780.000000000003,
+      "metricValue": 992.7272727272727,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
@@ -202,12 +296,12 @@
       }
     },
     {
-      "elapsedSeconds": 41,
+      "elapsedSeconds": 42,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 1780.000000000003,
+      "metricValue": 992.7272727272727,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
@@ -221,12 +315,12 @@
       }
     },
     {
-      "elapsedSeconds": 43,
+      "elapsedSeconds": 44,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 1780.000000000003,
+      "metricValue": 992.7272727272727,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
@@ -240,12 +334,12 @@
       }
     },
     {
-      "elapsedSeconds": 46,
+      "elapsedSeconds": 47,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 1780.000000000003,
+      "metricValue": 992.7272727272727,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
@@ -259,12 +353,12 @@
       }
     },
     {
-      "elapsedSeconds": 48,
+      "elapsedSeconds": 49,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 1780.000000000003,
+      "metricValue": 984.4,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
@@ -278,12 +372,12 @@
       }
     },
     {
-      "elapsedSeconds": 50,
+      "elapsedSeconds": 51,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 2429.3548387096776,
+      "metricValue": 984.4,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
@@ -297,12 +391,12 @@
       }
     },
     {
-      "elapsedSeconds": 52,
+      "elapsedSeconds": 53,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 2429.3548387096776,
+      "metricValue": 984.4,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
@@ -316,12 +410,12 @@
       }
     },
     {
-      "elapsedSeconds": 55,
+      "elapsedSeconds": 56,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 2429.3548387096776,
+      "metricValue": 984.4,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
@@ -335,12 +429,12 @@
       }
     },
     {
-      "elapsedSeconds": 57,
+      "elapsedSeconds": 58,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 2429.3548387096776,
+      "metricValue": 984.4,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
@@ -354,12 +448,12 @@
       }
     },
     {
-      "elapsedSeconds": 59,
+      "elapsedSeconds": 60,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 2429.3548387096776,
+      "metricValue": 984.4,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
@@ -373,12 +467,12 @@
       }
     },
     {
-      "elapsedSeconds": 61,
+      "elapsedSeconds": 63,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 2429.3548387096776,
+      "metricValue": 929.3749999999999,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
@@ -392,12 +486,12 @@
       }
     },
     {
-      "elapsedSeconds": 64,
+      "elapsedSeconds": 65,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 2429.3548387096776,
+      "metricValue": 929.3749999999999,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
@@ -411,12 +505,12 @@
       }
     },
     {
-      "elapsedSeconds": 66,
+      "elapsedSeconds": 68,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 839.2857142857147,
+      "metricValue": 929.3749999999999,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
@@ -430,12 +524,24 @@
       }
     },
     {
-      "elapsedSeconds": 69,
+      "elapsedSeconds": 70,
+      "phase": "Tripped",
+      "restoreStep": 0,
+      "lastSignature": "FanOutAmplification",
+      "metricLabel": "p99_latency_ms",
+      "metricValue": 929.3749999999999,
+      "objectKind": "destinationrule",
+      "objectSpec": {
+        "host": "payments-service.default.svc.cluster.local"
+      }
+    },
+    {
+      "elapsedSeconds": 72,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 839.2857142857147,
+      "metricValue": 929.3749999999999,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
@@ -449,12 +555,24 @@
       }
     },
     {
-      "elapsedSeconds": 71,
+      "elapsedSeconds": 76,
+      "phase": "Tripped",
+      "restoreStep": 0,
+      "lastSignature": "FanOutAmplification",
+      "metricLabel": "p99_latency_ms",
+      "metricValue": 929.3749999999999,
+      "objectKind": "destinationrule",
+      "objectSpec": {
+        "host": "payments-service.default.svc.cluster.local"
+      }
+    },
+    {
+      "elapsedSeconds": 79,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 839.2857142857147,
+      "metricValue": 1980.0000000000002,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
@@ -464,21 +582,7 @@
               "http1MaxPendingRequests": 1,
               "http2MaxRequests": 1
             }
-          }
-        }
-      }
-    },
-    {
-      "elapsedSeconds": 77,
-      "phase": "Tripped",
-      "restoreStep": 0,
-      "lastSignature": "FanOutAmplification",
-      "metricLabel": "p99_latency_ms",
-      "metricValue": 839.2857142857147,
-      "objectKind": "destinationrule",
-      "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local",
-        "trafficPolicy": {
+          },
           "outlierDetection": {
             "baseEjectionTime": "30s",
             "consecutive5xxErrors": 3,
@@ -488,16 +592,97 @@
       }
     },
     {
-      "elapsedSeconds": 85,
+      "elapsedSeconds": 82,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 967.1135833333333,
+      "metricValue": 1979.9999999999984,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
         "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          },
+          "outlierDetection": {
+            "baseEjectionTime": "30s",
+            "consecutive5xxErrors": 3,
+            "interval": "5s"
+          }
+        }
+      }
+    },
+    {
+      "elapsedSeconds": 84,
+      "phase": "Tripped",
+      "restoreStep": 0,
+      "lastSignature": "LatencyErrorCascade",
+      "metricLabel": "p99_latency_ms",
+      "metricValue": 1980.0000000000002,
+      "objectKind": "destinationrule",
+      "objectSpec": {
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          },
+          "outlierDetection": {
+            "baseEjectionTime": "30s",
+            "consecutive5xxErrors": 3,
+            "interval": "5s"
+          }
+        }
+      }
+    },
+    {
+      "elapsedSeconds": 86,
+      "phase": "Tripped",
+      "restoreStep": 0,
+      "lastSignature": "LatencyErrorCascade",
+      "metricLabel": "p99_latency_ms",
+      "metricValue": 1980.0000000000002,
+      "objectKind": "destinationrule",
+      "objectSpec": {
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          },
+          "outlierDetection": {
+            "baseEjectionTime": "30s",
+            "consecutive5xxErrors": 3,
+            "interval": "5s"
+          }
+        }
+      }
+    },
+    {
+      "elapsedSeconds": 88,
+      "phase": "Tripped",
+      "restoreStep": 0,
+      "lastSignature": "LatencyErrorCascade",
+      "metricLabel": "p99_latency_ms",
+      "metricValue": 1980.0000000000002,
+      "objectKind": "destinationrule",
+      "objectSpec": {
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          },
           "outlierDetection": {
             "baseEjectionTime": "30s",
             "consecutive5xxErrors": 3,
@@ -512,11 +697,42 @@
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 966.1525166666667,
+      "metricValue": 1980.0000000000002,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
         "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          },
+          "outlierDetection": {
+            "baseEjectionTime": "30s",
+            "consecutive5xxErrors": 3,
+            "interval": "5s"
+          }
+        }
+      }
+    },
+    {
+      "elapsedSeconds": 93,
+      "phase": "Tripped",
+      "restoreStep": 0,
+      "lastSignature": "LatencyErrorCascade",
+      "metricLabel": "p99_latency_ms",
+      "metricValue": 1980.0000000000002,
+      "objectKind": "destinationrule",
+      "objectSpec": {
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          },
           "outlierDetection": {
             "baseEjectionTime": "30s",
             "consecutive5xxErrors": 3,
@@ -531,11 +747,17 @@
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 2473.2608695652175,
+      "metricValue": 788.3333333333336,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
         "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          },
           "outlierDetection": {
             "baseEjectionTime": "30s",
             "consecutive5xxErrors": 3,
@@ -550,11 +772,17 @@
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 2473.2608695652175,
+      "metricValue": 788.3333333333336,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
         "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          },
           "outlierDetection": {
             "baseEjectionTime": "30s",
             "consecutive5xxErrors": 3,
@@ -569,87 +797,42 @@
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 2473.2608695652175,
+      "metricValue": 788.3333333333336,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
         "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          },
           "outlierDetection": {
             "baseEjectionTime": "30s",
             "consecutive5xxErrors": 3,
-            "interval": "5s"
+            "interval": "6s"
           }
         }
       }
     },
     {
-      "elapsedSeconds": 102,
+      "elapsedSeconds": 103,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 2473.2608695652175,
+      "metricValue": 788.3333333333336,
       "objectKind": "destinationrule",
       "objectSpec": {
         "host": "payments-service.default.svc.cluster.local",
         "trafficPolicy": {
-          "outlierDetection": {
-            "baseEjectionTime": "30s",
-            "consecutive5xxErrors": 3,
-            "interval": "5s"
-          }
-        }
-      }
-    },
-    {
-      "elapsedSeconds": 106,
-      "phase": "Tripped",
-      "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
-      "metricLabel": "p99_latency_ms",
-      "metricValue": 2473.2608695652175,
-      "objectKind": "destinationrule",
-      "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local",
-        "trafficPolicy": {
-          "outlierDetection": {
-            "baseEjectionTime": "30s",
-            "consecutive5xxErrors": 3,
-            "interval": "5s"
-          }
-        }
-      }
-    },
-    {
-      "elapsedSeconds": 110,
-      "phase": "Tripped",
-      "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
-      "metricLabel": "p99_latency_ms",
-      "metricValue": 2473.2608695652175,
-      "objectKind": "destinationrule",
-      "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local",
-        "trafficPolicy": {
-          "outlierDetection": {
-            "baseEjectionTime": "30s",
-            "consecutive5xxErrors": 3,
-            "interval": "5s"
-          }
-        }
-      }
-    },
-    {
-      "elapsedSeconds": 112,
-      "phase": "Restoring",
-      "restoreStep": 1,
-      "lastSignature": "LatencyErrorCascade",
-      "metricLabel": "p99_latency_ms",
-      "metricValue": 917.9999999999999,
-      "objectKind": "destinationrule",
-      "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local",
-        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          },
           "outlierDetection": {
             "baseEjectionTime": "30s",
             "consecutive5xxErrors": 4,
@@ -659,279 +842,558 @@
       }
     },
     {
-      "elapsedSeconds": 115,
-      "phase": "Restoring",
-      "restoreStep": 3,
-      "lastSignature": "LatencyErrorCascade",
-      "metricLabel": "p99_latency_ms",
-      "metricValue": 917.9999999999999,
-      "objectKind": "destinationrule",
-      "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
-      }
-    },
-    {
-      "elapsedSeconds": 118,
-      "phase": "Normal",
+      "elapsedSeconds": 105,
+      "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 917.9999999999999,
+      "metricValue": 788.3333333333336,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          },
+          "outlierDetection": {
+            "baseEjectionTime": "30s",
+            "consecutive5xxErrors": 3,
+            "interval": "6s"
+          }
+        }
+      }
+    },
+    {
+      "elapsedSeconds": 108,
+      "phase": "Tripped",
+      "restoreStep": 0,
+      "lastSignature": "LatencyErrorCascade",
+      "metricLabel": "p99_latency_ms",
+      "metricValue": 514.9999999999966,
+      "objectKind": "destinationrule",
+      "objectSpec": {
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          },
+          "outlierDetection": {
+            "baseEjectionTime": "30s",
+            "consecutive5xxErrors": 3,
+            "interval": "6s"
+          }
+        }
+      }
+    },
+    {
+      "elapsedSeconds": 111,
+      "phase": "Tripped",
+      "restoreStep": 0,
+      "lastSignature": "LatencyErrorCascade",
+      "metricLabel": "p99_latency_ms",
+      "metricValue": 514.9999999999966,
+      "objectKind": "destinationrule",
+      "objectSpec": {
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          },
+          "outlierDetection": {
+            "baseEjectionTime": "30s",
+            "consecutive5xxErrors": 4,
+            "interval": "7s"
+          }
+        }
+      }
+    },
+    {
+      "elapsedSeconds": 114,
+      "phase": "Tripped",
+      "restoreStep": 0,
+      "lastSignature": "LatencyErrorCascade",
+      "metricLabel": "p99_latency_ms",
+      "metricValue": 514.9999999999966,
+      "objectKind": "destinationrule",
+      "objectSpec": {
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          },
+          "outlierDetection": {
+            "baseEjectionTime": "30s",
+            "consecutive5xxErrors": 3,
+            "interval": "5s"
+          }
+        }
+      }
+    },
+    {
+      "elapsedSeconds": 117,
+      "phase": "Tripped",
+      "restoreStep": 0,
+      "lastSignature": "LatencyErrorCascade",
+      "metricLabel": "p99_latency_ms",
+      "metricValue": 514.9999999999966,
+      "objectKind": "destinationrule",
+      "objectSpec": {
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          },
+          "outlierDetection": {
+            "baseEjectionTime": "30s",
+            "consecutive5xxErrors": 3,
+            "interval": "5s"
+          }
+        }
       }
     },
     {
       "elapsedSeconds": 120,
-      "phase": "Normal",
+      "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 917.9999999999999,
+      "metricValue": 514.9999999999966,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          },
+          "outlierDetection": {
+            "baseEjectionTime": "30s",
+            "consecutive5xxErrors": 3,
+            "interval": "6s"
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 122,
-      "phase": "Normal",
-      "restoreStep": 0,
+      "elapsedSeconds": 123,
+      "phase": "Restoring",
+      "restoreStep": 2,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 917.9999999999999,
+      "metricValue": 423.3333333333333,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          },
+          "outlierDetection": {
+            "baseEjectionTime": "30s",
+            "consecutive5xxErrors": 4,
+            "interval": "8s"
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 127,
+      "elapsedSeconds": 130,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": null,
+      "metricValue": 423.3333333333333,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 131,
+      "elapsedSeconds": 132,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 226.3,
+      "metricValue": 423.3333333333333,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 133,
+      "elapsedSeconds": 134,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 226.3,
+      "metricValue": 423.3333333333333,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 135,
+      "elapsedSeconds": 137,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 226.3,
+      "metricValue": 423.3333333333333,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 138,
+      "elapsedSeconds": 139,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 226.3,
+      "metricValue": 249.57142857142847,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 140,
+      "elapsedSeconds": 141,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 226.3,
+      "metricValue": 249.57142857142847,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 142,
+      "elapsedSeconds": 143,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 2119.9999999999995,
+      "metricValue": 249.57142857142847,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 144,
+      "elapsedSeconds": 146,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 2119.9999999999995,
+      "metricValue": 249.57142857142847,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 147,
+      "elapsedSeconds": 148,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 2119.9999999999995,
+      "metricValue": 249.57142857142847,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 149,
+      "elapsedSeconds": 150,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 2119.9999999999995,
+      "metricValue": 249.57142857142847,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 151,
+      "elapsedSeconds": 152,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 2119.9999999999995,
+      "metricValue": 249.57142857142847,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 153,
+      "elapsedSeconds": 155,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 2119.9999999999995,
+      "metricValue": 4.75,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 156,
+      "elapsedSeconds": 157,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 8.125000000000004,
+      "metricValue": 4.75,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 158,
+      "elapsedSeconds": 159,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 8.125000000000004,
+      "metricValue": 4.75,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 160,
+      "elapsedSeconds": 161,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 8.125000000000004,
+      "metricValue": 4.75,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 163,
+      "elapsedSeconds": 164,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 8.125000000000004,
+      "metricValue": 4.75,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 165,
+      "elapsedSeconds": 166,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 8.125000000000004,
+      "metricValue": 4.75,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 167,
+      "elapsedSeconds": 168,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 8.125000000000004,
+      "metricValue": 6.250000000000005,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 169,
+      "elapsedSeconds": 170,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 8.125000000000004,
+      "metricValue": 6.250000000000005,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
@@ -940,22 +1402,38 @@
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 6.249999999999983,
+      "metricValue": 6.250000000000005,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     },
     {
-      "elapsedSeconds": 174,
+      "elapsedSeconds": 175,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "p99_latency_ms",
-      "metricValue": 6.249999999999983,
+      "metricValue": 6.250000000000005,
       "objectKind": "destinationrule",
       "objectSpec": {
-        "host": "payments-service.default.svc.cluster.local"
+        "host": "payments-service.default.svc.cluster.local",
+        "trafficPolicy": {
+          "connectionPool": {
+            "http": {
+              "http1MaxPendingRequests": 1,
+              "http2MaxRequests": 1
+            }
+          }
+        }
       }
     }
   ]

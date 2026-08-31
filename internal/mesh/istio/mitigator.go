@@ -33,22 +33,30 @@ import (
 	"github.com/gasthecreator/Cascade-Operator/internal/mitigation"
 )
 
+// Object-kind label values for mesh.TripOutcome.AppliedKinds — matching
+// internal/controller/metrics.go's existing kindDestinationRule/
+// kindVirtualService constants exactly, so the Prometheus label values
+// this migration produces are byte-identical to what the pre-migration
+// code emitted. Exported since internal/controller reads them when
+// incrementing its own metric (this Mitigator reports what it touched;
+// the metric itself stays controller-owned — see mesh.Mitigator's doc
+// comment).
+const (
+	KindDestinationRule = "DestinationRule"
+	KindVirtualService  = "VirtualService"
+)
+
 // Mitigator implements mesh.Mitigator for Istio.
 //
-// Fan-out amplification only, for now (PLAN.md §5 Phase 6.3): it is the
-// simplest of the three signatures to migrate — one managed object kind
-// (DestinationRule), no secondary object, and no two-object-kind restore
-// bookkeeping — so it went first, as a real, fully-working, fully-tested
-// proof that this interface shape is sound, rather than attempting all
-// three signatures (each with more moving parts) in one pass.
-// Latency/error-cascade (DestinationRule primary + VirtualService
-// secondary) and retry storm (VirtualService primary + DestinationRule
-// secondary) still call internal/mitigation directly from
-// internal/controller's own per-signature functions — ApplyTrip/
+// Fan-out amplification and latency/error-cascade are migrated (PLAN.md §5
+// Phases 6.3/6.4). Retry storm is not — its restore path has the JSON-
+// Patch-vs-merge-patch zero-value subtlety this project spent real effort
+// getting right (PLAN.md §2.6), and migrating it needs its own dedicated,
+// careful pass rather than being folded into this one. ApplyTrip/
 // HasManagedEdges/ApplyRestoreStep/CompleteRestore below return an error
-// for any other SignatureType, which is safe today because
-// internal/controller never calls this Mitigator for those two yet, not
-// because they're unreachable in principle.
+// for SignatureRetryStorm, which is safe today because internal/controller
+// never calls this Mitigator for it yet, not because it's unreachable in
+// principle.
 type Mitigator struct {
 	Client client.Client
 }
@@ -64,29 +72,31 @@ func isAbsent(err error) bool {
 	return apierrors.IsNotFound(err) || meta.IsNoMatchError(err)
 }
 
-// fanOutEdge pairs a dependsOn host with its resolved, operator-managed
+// drEdge pairs a dependsOn host with its resolved, operator-managed
 // DestinationRule — the Istio-package-local twin of
 // internal/controller's managedDREdge. Kept as its own type here rather
 // than sharing that one directly: internal/controller's copy is still
-// used by latency/error-cascade's own restore path (not yet migrated),
-// and this package must not reach into internal/controller's unexported
-// symbols. The duplication is temporary — once latency/error-cascade and
-// retry storm are also migrated, internal/controller's edge-listing
-// helpers become dead code and can be deleted, leaving this package's
-// copy as the only one.
-type fanOutEdge struct {
+// used by retry storm's own restore path (not yet migrated), and this
+// package must not reach into internal/controller's unexported symbols.
+// The duplication is temporary — once retry storm is also migrated,
+// internal/controller's edge-listing helpers become dead code and can be
+// deleted, leaving this package's copy as the only one.
+type drEdge struct {
 	host string
 	dr   *networkingv1.DestinationRule
 }
 
-// listFanOutEdges resolves every policy.Spec.DependsOn host to an
+// listManagedDREdges resolves every policy.Spec.DependsOn host to an
 // operator-managed DestinationRule, skipping hosts with no resolvable or
 // no operator-managed object — mirrors internal/controller's
-// listManagedDestinationRuleEdges exactly (see fanOutEdge's doc comment
-// for why this isn't shared directly yet).
-func (m *Mitigator) listFanOutEdges(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) ([]fanOutEdge, error) {
+// listManagedDestinationRuleEdges exactly (see drEdge's doc comment for
+// why this isn't shared directly yet). Shared by both fan-out and
+// latency/error-cascade's primary — the listing logic itself only checks
+// the generic managed-by annotation, not which signature actually
+// patched the object, exactly like the pre-migration controller code.
+func (m *Mitigator) listManagedDREdges(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) ([]drEdge, error) {
 	log := logf.FromContext(ctx)
-	var out []fanOutEdge
+	var out []drEdge
 	for _, host := range policy.Spec.DependsOn {
 		name, ns, err := mitigation.ParseServiceFQDN(host)
 		if err != nil {
@@ -102,7 +112,42 @@ func (m *Mitigator) listFanOutEdges(ctx context.Context, policy *cascadev1alpha1
 			return nil, fmt.Errorf("get DestinationRule %s/%s: %w", ns, name, err)
 		}
 		if mitigation.IsOperatorManaged(dr) {
-			out = append(out, fanOutEdge{host: host, dr: dr})
+			out = append(out, drEdge{host: host, dr: dr})
+		}
+	}
+	return out, nil
+}
+
+// vsEdge is listManagedVSEdges' element type — the twin of drEdge for
+// VirtualService, same temporary-duplication reasoning (internal/controller's
+// own managedVSEdge is still used by retry storm's unmigrated restore path).
+type vsEdge struct {
+	host string
+	vs   *networkingv1.VirtualService
+}
+
+// listManagedVSEdges is listManagedDREdges' twin for VirtualService —
+// same convention-based resolution, same managed-by filter
+// (mitigation.IsVirtualServiceManaged), one object kind over.
+func (m *Mitigator) listManagedVSEdges(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) ([]vsEdge, error) {
+	log := logf.FromContext(ctx)
+	var out []vsEdge
+	for _, host := range policy.Spec.DependsOn {
+		name, ns, err := mitigation.ParseServiceFQDN(host)
+		if err != nil {
+			log.Error(err, "cannot resolve VirtualService from dependsOn FQDN", "host", host)
+			continue
+		}
+		vs := &networkingv1.VirtualService{}
+		err = m.Client.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, vs)
+		if isAbsent(err) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("get VirtualService %s/%s: %w", ns, name, err)
+		}
+		if mitigation.IsVirtualServiceManaged(vs) {
+			out = append(out, vsEdge{host: host, vs: vs})
 		}
 	}
 	return out, nil
@@ -114,25 +159,37 @@ func (m *Mitigator) ApplyTrip(
 	policy *cascadev1alpha1.CascadePolicy,
 	sig cascadev1alpha1.SignatureType,
 	host string,
-) (bool, error) {
-	if sig != cascadev1alpha1.SignatureFanOutAmplification {
-		return false, fmt.Errorf("istio.Mitigator.ApplyTrip: signature %s not yet migrated to mesh.Mitigator", sig)
+) (mesh.TripOutcome, error) {
+	switch sig {
+	case cascadev1alpha1.SignatureFanOutAmplification:
+		return m.applyFanOutTrip(ctx, policy, host)
+	case cascadev1alpha1.SignatureLatencyErrorCascade:
+		return m.applyLatencyErrorTrip(ctx, policy, host)
+	default:
+		return mesh.TripOutcome{}, fmt.Errorf("istio.Mitigator.ApplyTrip: signature %s not yet migrated to mesh.Mitigator", sig)
 	}
+}
+
+func (m *Mitigator) applyFanOutTrip(
+	ctx context.Context,
+	policy *cascadev1alpha1.CascadePolicy,
+	host string,
+) (mesh.TripOutcome, error) {
 	log := logf.FromContext(ctx)
 
 	name, ns, err := mitigation.ParseServiceFQDN(host)
 	if err != nil {
-		return false, nil //nolint:nilerr // unresolvable FQDN is "not found," not a reconcile error — matches the pre-migration behavior in fanout_mitigate.go.
+		return mesh.TripOutcome{}, nil //nolint:nilerr // unresolvable FQDN is "not found," not a reconcile error — matches the pre-migration behavior in fanout_mitigate.go.
 	}
 
 	dr := &networkingv1.DestinationRule{}
 	err = m.Client.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, dr)
 	if isAbsent(err) {
 		log.Info("DestinationRule missing; skipping patch", "name", name, "namespace", ns)
-		return false, nil
+		return mesh.TripOutcome{}, nil
 	}
 	if err != nil {
-		return false, fmt.Errorf("get DestinationRule %s/%s: %w", ns, name, err)
+		return mesh.TripOutcome{}, fmt.Errorf("get DestinationRule %s/%s: %w", ns, name, err)
 	}
 
 	if policy.Spec.Mode == cascadev1alpha1.PolicyModeDetectOnly {
@@ -142,15 +199,90 @@ func (m *Mitigator) ApplyTrip(
 			"http1MaxPendingRequests", mitigation.TripHTTP1MaxPendingRequests,
 			"http2MaxRequests", mitigation.TripHTTP2MaxRequests,
 		)
-		return true, nil
+		return mesh.TripOutcome{PrimaryFound: true}, nil
 	}
 
 	mitigation.ApplyFanOutConnectionPoolTrip(dr)
 	if err := m.Client.Update(ctx, dr); err != nil {
-		return true, fmt.Errorf("update DestinationRule %s/%s: %w", ns, name, err)
+		return mesh.TripOutcome{PrimaryFound: true}, fmt.Errorf("update DestinationRule %s/%s: %w", ns, name, err)
 	}
 	log.Info("patched DestinationRule connectionPool.http", "name", name, "namespace", ns)
-	return true, nil
+	return mesh.TripOutcome{PrimaryFound: true, AppliedKinds: []string{KindDestinationRule}}, nil
+}
+
+// applyLatencyErrorTrip patches the DestinationRule primary
+// (outlierDetection) and, independently, the VirtualService secondary
+// (route timeout) — mirrors mitigate.go's applyLatencyErrorMitigation:
+// the primary applies even if the secondary's VirtualService is missing,
+// and vice versa (PLAN.md §2.6), and only the primary's found/absent
+// status feeds into DependencyObjectMissing.
+func (m *Mitigator) applyLatencyErrorTrip(
+	ctx context.Context,
+	policy *cascadev1alpha1.CascadePolicy,
+	host string,
+) (mesh.TripOutcome, error) {
+	log := logf.FromContext(ctx)
+
+	name, ns, err := mitigation.ParseServiceFQDN(host)
+	if err != nil {
+		return mesh.TripOutcome{}, nil //nolint:nilerr // unresolvable FQDN is "not found," not a reconcile error — matches the pre-migration behavior in mitigate.go.
+	}
+
+	var outcome mesh.TripOutcome
+
+	dr := &networkingv1.DestinationRule{}
+	err = m.Client.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, dr)
+	switch {
+	case isAbsent(err):
+		log.Info("DestinationRule missing; skipping primary patch", "name", name, "namespace", ns)
+	case err != nil:
+		return mesh.TripOutcome{}, fmt.Errorf("get DestinationRule %s/%s: %w", ns, name, err)
+	default:
+		outcome.PrimaryFound = true
+		if policy.Spec.Mode == cascadev1alpha1.PolicyModeDetectOnly {
+			log.Info("DetectOnly: would patch DestinationRule outlierDetection",
+				"name", name,
+				"namespace", ns,
+				"consecutive5xxErrors", mitigation.TripConsecutive5xx,
+				"interval", mitigation.TripInterval.String(),
+				"baseEjectionTime", mitigation.TripBaseEjection.String(),
+			)
+		} else {
+			mitigation.ApplyLatencyErrorOutlierTrip(dr)
+			if err := m.Client.Update(ctx, dr); err != nil {
+				return outcome, fmt.Errorf("update DestinationRule %s/%s: %w", ns, name, err)
+			}
+			log.Info("patched DestinationRule outlierDetection", "name", name, "namespace", ns)
+			outcome.AppliedKinds = append(outcome.AppliedKinds, KindDestinationRule)
+		}
+	}
+
+	vs := &networkingv1.VirtualService{}
+	err = m.Client.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, vs)
+	switch {
+	case isAbsent(err):
+		log.Info("VirtualService missing; skipping secondary patch", "name", name, "namespace", ns)
+	case err != nil:
+		return outcome, fmt.Errorf("get VirtualService %s/%s: %w", ns, name, err)
+	default:
+		th := cascadev1alpha1.EffectiveThresholds(policy, host)
+		if policy.Spec.Mode == cascadev1alpha1.PolicyModeDetectOnly {
+			log.Info("DetectOnly: would cap VirtualService route timeout",
+				"name", name,
+				"namespace", ns,
+				"timeoutMs", th.LatencyP99Ms,
+			)
+		} else {
+			mitigation.ApplyLatencyErrorTimeoutTrip(vs, th.LatencyP99Ms)
+			if err := m.Client.Update(ctx, vs); err != nil {
+				return outcome, fmt.Errorf("update VirtualService %s/%s: %w", ns, name, err)
+			}
+			log.Info("patched VirtualService timeout", "name", name, "namespace", ns)
+			outcome.AppliedKinds = append(outcome.AppliedKinds, KindVirtualService)
+		}
+	}
+
+	return outcome, nil
 }
 
 // HasManagedEdges implements mesh.Mitigator.
@@ -159,14 +291,26 @@ func (m *Mitigator) HasManagedEdges(
 	policy *cascadev1alpha1.CascadePolicy,
 	sig cascadev1alpha1.SignatureType,
 ) (bool, error) {
-	if sig != cascadev1alpha1.SignatureFanOutAmplification {
+	switch sig {
+	case cascadev1alpha1.SignatureFanOutAmplification:
+		edges, err := m.listManagedDREdges(ctx, policy)
+		if err != nil {
+			return false, err
+		}
+		return len(edges) > 0, nil
+	case cascadev1alpha1.SignatureLatencyErrorCascade:
+		drEdges, err := m.listManagedDREdges(ctx, policy)
+		if err != nil {
+			return false, err
+		}
+		vsEdges, err := m.listManagedVSEdges(ctx, policy)
+		if err != nil {
+			return false, err
+		}
+		return len(drEdges) > 0 || len(vsEdges) > 0, nil
+	default:
 		return false, fmt.Errorf("istio.Mitigator.HasManagedEdges: signature %s not yet migrated to mesh.Mitigator", sig)
 	}
-	edges, err := m.listFanOutEdges(ctx, policy)
-	if err != nil {
-		return false, err
-	}
-	return len(edges) > 0, nil
 }
 
 // ApplyRestoreStep implements mesh.Mitigator.
@@ -176,12 +320,19 @@ func (m *Mitigator) ApplyRestoreStep(
 	sig cascadev1alpha1.SignatureType,
 	step int32,
 ) error {
-	if sig != cascadev1alpha1.SignatureFanOutAmplification {
+	switch sig {
+	case cascadev1alpha1.SignatureFanOutAmplification:
+		return m.applyFanOutRestoreStep(ctx, policy, step)
+	case cascadev1alpha1.SignatureLatencyErrorCascade:
+		return m.applyLatencyErrorRestoreStep(ctx, policy, step)
+	default:
 		return fmt.Errorf("istio.Mitigator.ApplyRestoreStep: signature %s not yet migrated to mesh.Mitigator", sig)
 	}
-	log := logf.FromContext(ctx)
+}
 
-	edges, err := m.listFanOutEdges(ctx, policy)
+func (m *Mitigator) applyFanOutRestoreStep(ctx context.Context, policy *cascadev1alpha1.CascadePolicy, step int32) error {
+	log := logf.FromContext(ctx)
+	edges, err := m.listManagedDREdges(ctx, policy)
 	if err != nil {
 		return err
 	}
@@ -200,18 +351,60 @@ func (m *Mitigator) ApplyRestoreStep(
 	return nil
 }
 
+func (m *Mitigator) applyLatencyErrorRestoreStep(ctx context.Context, policy *cascadev1alpha1.CascadePolicy, step int32) error {
+	log := logf.FromContext(ctx)
+	drEdges, err := m.listManagedDREdges(ctx, policy)
+	if err != nil {
+		return err
+	}
+	vsEdges, err := m.listManagedVSEdges(ctx, policy)
+	if err != nil {
+		return err
+	}
+	if policy.Spec.Mode == cascadev1alpha1.PolicyModeDetectOnly {
+		log.Info("DetectOnly: would loosen DestinationRule outlierDetection and VirtualService timeout",
+			"restoreStep", step, "drEdges", len(drEdges), "vsEdges", len(vsEdges))
+		return nil
+	}
+	for _, e := range drEdges {
+		if err := mitigation.ApplyLatencyErrorOutlierRestoreStep(e.dr, step); err != nil {
+			return fmt.Errorf("restore step %d on %s: %w", step, e.host, err)
+		}
+		if err := m.Client.Update(ctx, e.dr); err != nil {
+			return fmt.Errorf("update DestinationRule during restore %s: %w", e.host, err)
+		}
+	}
+	for _, e := range vsEdges {
+		latencyP99Ms := cascadev1alpha1.EffectiveThresholds(policy, e.host).LatencyP99Ms
+		if err := mitigation.ApplyLatencyErrorTimeoutRestoreStep(e.vs, step, latencyP99Ms); err != nil {
+			return fmt.Errorf("restore step %d on %s: %w", step, e.host, err)
+		}
+		if err := m.Client.Update(ctx, e.vs); err != nil {
+			return fmt.Errorf("update VirtualService during restore %s: %w", e.host, err)
+		}
+	}
+	return nil
+}
+
 // CompleteRestore implements mesh.Mitigator.
 func (m *Mitigator) CompleteRestore(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
 	sig cascadev1alpha1.SignatureType,
 ) error {
-	if sig != cascadev1alpha1.SignatureFanOutAmplification {
+	switch sig {
+	case cascadev1alpha1.SignatureFanOutAmplification:
+		return m.completeFanOutRestore(ctx, policy)
+	case cascadev1alpha1.SignatureLatencyErrorCascade:
+		return m.completeLatencyErrorRestore(ctx, policy)
+	default:
 		return fmt.Errorf("istio.Mitigator.CompleteRestore: signature %s not yet migrated to mesh.Mitigator", sig)
 	}
-	log := logf.FromContext(ctx)
+}
 
-	edges, err := m.listFanOutEdges(ctx, policy)
+func (m *Mitigator) completeFanOutRestore(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
+	log := logf.FromContext(ctx)
+	edges, err := m.listManagedDREdges(ctx, policy)
 	if err != nil {
 		return err
 	}
@@ -225,6 +418,40 @@ func (m *Mitigator) CompleteRestore(
 		}
 		if err := m.Client.Update(ctx, e.dr); err != nil {
 			return fmt.Errorf("update DestinationRule completing restore %s: %w", e.host, err)
+		}
+	}
+	return nil
+}
+
+func (m *Mitigator) completeLatencyErrorRestore(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
+	log := logf.FromContext(ctx)
+	drEdges, err := m.listManagedDREdges(ctx, policy)
+	if err != nil {
+		return err
+	}
+	vsEdges, err := m.listManagedVSEdges(ctx, policy)
+	if err != nil {
+		return err
+	}
+	if policy.Spec.Mode == cascadev1alpha1.PolicyModeDetectOnly {
+		log.Info("DetectOnly: would restore original outlierDetection/timeout and drop annotations",
+			"drEdges", len(drEdges), "vsEdges", len(vsEdges))
+		return nil
+	}
+	for _, e := range drEdges {
+		if err := mitigation.CompleteLatencyErrorOutlierRestore(e.dr); err != nil {
+			return fmt.Errorf("complete restore on %s: %w", e.host, err)
+		}
+		if err := m.Client.Update(ctx, e.dr); err != nil {
+			return fmt.Errorf("update DestinationRule completing restore %s: %w", e.host, err)
+		}
+	}
+	for _, e := range vsEdges {
+		if err := mitigation.CompleteLatencyErrorTimeoutRestore(e.vs); err != nil {
+			return fmt.Errorf("complete restore on %s: %w", e.host, err)
+		}
+		if err := m.Client.Update(ctx, e.vs); err != nil {
+			return fmt.Errorf("update VirtualService completing restore %s: %w", e.host, err)
 		}
 	}
 	return nil

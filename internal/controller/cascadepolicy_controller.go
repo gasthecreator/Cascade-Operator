@@ -210,7 +210,7 @@ func (r *CascadePolicyReconciler) detectSignatures(
 ) (string, signatures.Verdict, cascadev1alpha1.SignatureType, bool, int) {
 	evaluated := 0
 	for _, host := range policy.Spec.DependsOn {
-		th := effectiveThresholds(policy, host)
+		th := cascadev1alpha1.EffectiveThresholds(policy, host)
 		window := windowOrDefault(th.WindowSeconds)
 
 		latV, latOK := r.evalLatencyError(ctx, th, host, window)
