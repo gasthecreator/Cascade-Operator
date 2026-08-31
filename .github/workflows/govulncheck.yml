@@ -21,8 +21,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
-          # go.mod is 1.26.0; govulncheck needs 1.26.1+ for stdlib fixes (GO-2026-4599 et al.)
-          go-version: "1.26.1"
+          # go.mod is 1.26.0; govulncheck needs latest 1.26.x patch for stdlib fixes
+          go-version: "1.26.2"
 
       - name: Run govulncheck
         run: |
