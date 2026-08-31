@@ -1,0 +1,30 @@
+# Phase 11 (PLAN.md §5): watches tcp_retransmit_skb — a kernel-level TCP
+# retransmit — as a fourth, independent, corroborating signal alongside the
+# existing Envoy-metric-based detection (istio_requests_total/
+# istio_request_duration_milliseconds_bucket). Never a replacement:
+# detection must work identically with Tetragon absent.
+#
+# Cluster-wide, not namespace-scoped: Tetragon's arg-based selectors (see
+# tcp-connect-with-selectors.yaml in cilium/tetragon's own examples) filter
+# on destination address, not namespace/pod labels directly, and getting a
+# namespace-scoped TracingPolicyNamespaced variant exactly right for this
+# Tetragon version wasn't verified live in the time this spike had —
+# unscoped is the honest, verified-working starting point; scoping to the
+# demo namespace specifically is a follow-up, not assumed done.
+#
+# Verified live (2026-08-31): applied to the dev Kind cluster running
+# Tetragon (installed via `helm install tetragon cilium/tetragon -n
+# kube-system`, confirmed loading its BPF sensor successfully against
+# /sys/kernel/btf/vmlinux on Docker Desktop 29.7.2 / kernel 7.0.12-linuxkit,
+# arm64) — see the worklog for the exact confirmation.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: "cascade-tcp-retransmit"
+spec:
+  kprobes:
+    - call: "tcp_retransmit_skb"
+      syscall: false
+      args:
+        - index: 0
+          type: "sock"

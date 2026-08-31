@@ -28,6 +28,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
+	"github.com/gasthecreator/Cascade-Operator/internal/mesh"
+	istiomesh "github.com/gasthecreator/Cascade-Operator/internal/mesh/istio"
 	"github.com/gasthecreator/Cascade-Operator/internal/metrics"
 	"github.com/gasthecreator/Cascade-Operator/internal/notify"
 	"github.com/gasthecreator/Cascade-Operator/internal/signatures"
@@ -48,6 +50,23 @@ type CascadePolicyReconciler struct {
 	// propagated as a reconcile error — same reasoning as Metrics being
 	// nil-able: an optional dependency, not a required one.
 	Notify notify.Notifier
+	// QueryBuilder selects which mesh's PromQL shapes detection uses
+	// (PLAN.md §5 Phase 6.1). Unlike Metrics/Notify this is not optional
+	// infrastructure — detection cannot run without it — so it defaults to
+	// istio.QueryBuilder{} via queryBuilder() below rather than requiring
+	// every existing constructor call site (cmd/main.go, and every test
+	// building a CascadePolicyReconciler directly) to set it explicitly.
+	QueryBuilder mesh.QueryBuilder
+}
+
+// queryBuilder returns r.QueryBuilder, defaulting to Istio's implementation
+// when unset — see the QueryBuilder field's own doc comment for why this is
+// a default-when-nil fallback rather than a required field.
+func (r *CascadePolicyReconciler) queryBuilder() mesh.QueryBuilder {
+	if r.QueryBuilder != nil {
+		return r.QueryBuilder
+	}
+	return istiomesh.QueryBuilder{}
 }
 
 // +kubebuilder:rbac:groups=cascade.gideonsanni.dev,resources=cascadepolicies,verbs=get;list;watch;create;update;patch;delete
@@ -218,12 +237,12 @@ func (r *CascadePolicyReconciler) evalLatencyError(
 ) (signatures.Verdict, bool) {
 	log := logf.FromContext(ctx)
 
-	latSnap, err := r.Metrics.Query(ctx, latencyP99Query(host, window))
+	latSnap, err := r.Metrics.Query(ctx, r.queryBuilder().LatencyP99Query(host, window))
 	if err != nil {
 		log.Error(err, "p99 latency query failed", "dependency", host)
 		return signatures.Verdict{}, false
 	}
-	errSnap, err := r.Metrics.Query(ctx, errorRateQuery(host, window))
+	errSnap, err := r.Metrics.Query(ctx, r.queryBuilder().ErrorRateQuery(host, window))
 	if err != nil {
 		log.Error(err, "error-rate query failed", "dependency", host)
 		return signatures.Verdict{}, false
@@ -264,7 +283,7 @@ func (r *CascadePolicyReconciler) evalRetryStorm(
 ) (signatures.Verdict, bool) {
 	log := logf.FromContext(ctx)
 
-	snap, err := r.Metrics.Query(ctx, retryStormRatioQuery(host, window))
+	snap, err := r.Metrics.Query(ctx, r.queryBuilder().RetryStormRatioQuery(host, window))
 	if err != nil {
 		log.Error(err, "retry-storm ratio query failed", "dependency", host)
 		return signatures.Verdict{}, false
@@ -300,7 +319,7 @@ func (r *CascadePolicyReconciler) evalFanOut(
 ) (signatures.Verdict, bool) {
 	log := logf.FromContext(ctx)
 
-	snap, err := r.Metrics.Query(ctx, fanOutRatioQuery(host, policy.Spec.Service, window))
+	snap, err := r.Metrics.Query(ctx, r.queryBuilder().FanOutRatioQuery(host, policy.Spec.Service, window))
 	if err != nil {
 		log.Error(err, "fan-out ratio query failed", "dependency", host)
 		return signatures.Verdict{}, false

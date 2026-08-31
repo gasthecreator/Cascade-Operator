@@ -68,6 +68,18 @@ spec:
                 minItems: 1
                 type: array
                 x-kubernetes-list-type: atomic
+              mesh:
+                default: Istio
+                description: |-
+                  mesh selects which service mesh's detection queries and mitigation
+                  this policy uses. Defaults to Istio — the only implementation this
+                  project has today (PLAN.md §5 Phase 6; Linkerd support is still in
+                  progress, see internal/mesh's own doc comment for exactly what's
+                  wired so far).
+                enum:
+                - Istio
+                - Linkerd
+                type: string
               mode:
                 default: Mitigate
                 description: |-

@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cascade Operator — Visual Replay</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0b0f14;
+    --panel: #131a22;
+    --panel-border: #223040;
+    --text: #d8e2ea;
+    --text-dim: #7d92a3;
+    --accent: #4fc3f7;
+    --normal: #34d399;
+    --tripped: #f87171;
+    --restoring: #fbbf24;
+    --mono: "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    padding: 24px;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--text-dim); font-size: 13px; margin-bottom: 20px; }
+  .controls {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 10px; padding: 14px 18px; margin-bottom: 20px;
+  }
+  select, button {
+    background: #1b2530; color: var(--text); border: 1px solid var(--panel-border);
+    border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer;
+  }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button:hover:not(:disabled), select:hover { border-color: var(--accent); }
+  input[type=range] { flex: 1; min-width: 200px; accent-color: var(--accent); }
+  .timecode { font-family: var(--mono); font-size: 13px; color: var(--text-dim); min-width: 60px; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 20px;
+  }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 10px; padding: 18px;
+  }
+  .panel h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-dim); margin: 0 0 14px;
+  }
+  .status-row { display: flex; gap: 24px; margin-bottom: 16px; flex-wrap: wrap; }
+  .status-item .label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; }
+  .status-item .value { font-size: 18px; font-weight: 600; font-family: var(--mono); }
+  .phase-Normal { color: var(--normal); }
+  .phase-Tripped { color: var(--tripped); }
+  .phase-Restoring { color: var(--restoring); }
+  svg text { fill: var(--text); font-size: 12px; font-family: var(--mono); }
+  .node circle { stroke-width: 2; transition: stroke 0.3s, fill 0.3s; }
+  .node.healthy circle { stroke: var(--normal); fill: #14251d; }
+  .node.affected circle { stroke: var(--tripped); fill: #2a1414; }
+  .node.restoring circle { stroke: var(--restoring); fill: #2a2114; }
+  .edge { stroke: var(--panel-border); stroke-width: 2; transition: stroke 0.3s; }
+  .edge.active { stroke: var(--tripped); stroke-width: 3; }
+  .edge.restoring-edge { stroke: var(--restoring); stroke-width: 3; }
+  .metric-chart { width: 100%; height: 140px; }
+  .metric-value { font-family: var(--mono); font-size: 28px; margin: 8px 0 2px; }
+  .metric-label { color: var(--text-dim); font-size: 12px; }
+  pre.json {
+    background: #0d1319; border: 1px solid var(--panel-border); border-radius: 6px;
+    padding: 12px; font-size: 12px; line-height: 1.5; overflow: auto; max-height: 320px;
+    font-family: var(--mono); margin: 0;
+  }
+  .json-key { color: #7fd1ff; }
+  .json-str { color: #a5e075; }
+  .json-num { color: #f0b072; }
+  .json-changed { background: rgba(248, 113, 113, 0.32); border-radius: 3px; box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.5); }
+  .empty-state { color: var(--text-dim); font-size: 13px; padding: 20px; text-align: center; }
+</style>
+</head>
+<body>
+
+<h1>Cascade Operator — Visual Replay</h1>
+<div class="sub">A captured trip → mitigate → restore episode, replayed from real cluster data (PLAN.md §5 Phase 7).</div>
+
+<div class="controls">
+  <select id="scenarioSelect">
+    <option value="latency-error-cascade">Latency / Error Cascade</option>
+    <option value="retry-storm">Retry Storm</option>
+    <option value="fanout-amplification">Fan-Out Amplification</option>
+  </select>
+  <button id="playBtn">▶ Play</button>
+  <input type="range" id="scrubber" min="0" max="0" value="0" step="1">
+  <span class="timecode" id="timecode">t=0s</span>
+  <button id="speedBtn">1×</button>
+</div>
+
+<div class="grid">
+  <div class="panel">
+    <h2>Topology</h2>
+    <svg id="topology" viewBox="0 0 480 220" class="metric-chart" style="height:220px">
+      <line class="edge" id="edge-payments" x1="240" y1="110" x2="80" y2="40"></line>
+      <line class="edge" id="edge-inventory" x1="240" y1="110" x2="80" y2="180"></line>
+      <g class="node healthy" id="node-checkout">
+        <circle cx="240" cy="110" r="34"></circle>
+        <text x="240" y="115" text-anchor="middle">checkout</text>
+      </g>
+      <g class="node healthy" id="node-payments">
+        <circle cx="80" cy="40" r="30"></circle>
+        <text x="80" y="45" text-anchor="middle">payments</text>
+      </g>
+      <g class="node healthy" id="node-inventory">
+        <circle cx="80" cy="180" r="30"></circle>
+        <text x="80" y="185" text-anchor="middle">inventory</text>
+      </g>
+    </svg>
+
+    <div class="status-row">
+      <div class="status-item">
+        <div class="label">Phase</div>
+        <div class="value" id="statPhase">—</div>
+      </div>
+      <div class="status-item">
+        <div class="label">Signature</div>
+        <div class="value" id="statSig" style="font-size:14px">—</div>
+      </div>
+      <div class="status-item">
+        <div class="label">Restore Step</div>
+        <div class="value" id="statStep">—</div>
+      </div>
+    </div>
+
+    <h2 style="margin-top:8px">Metric</h2>
+    <div class="metric-label" id="metricLabel">—</div>
+    <div class="metric-value" id="metricValue">—</div>
+    <svg class="metric-chart" id="metricChart" viewBox="0 0 480 140" preserveAspectRatio="none">
+      <polyline id="metricLine" fill="none" stroke="#4fc3f7" stroke-width="2" points=""></polyline>
+      <line id="metricCursor" x1="0" y1="0" x2="0" y2="140" stroke="#fff" stroke-opacity="0.3"></line>
+    </svg>
+  </div>
+
+  <div class="panel">
+    <h2 id="objectHeading">Live object (spec)</h2>
+    <pre class="json" id="objectJson">Select a scenario to load its captured trace.</pre>
+  </div>
+</div>
+
+<script>
+// This page always fetches its trace data from ./traces/<scenario>.json —
+// the repo-hosted copy (served via any static file server, e.g.
+// `python3 -m http.server` from demo/replay/) — never embeds data inline.
+// A separately-published Claude Artifact copy of this same page embeds one
+// trace's JSON inline instead, since an artifact is a single sandboxed file
+// with no ability to fetch sibling files; see PLAN.md §5 Phase 7's worklog.
+
+const AFFECTED_HOST = {
+  'latency-error-cascade': 'payments',
+  'retry-storm': 'inventory',
+  'fanout-amplification': 'payments',
+};
+
+let trace = null;
+let playing = false;
+let playTimer = null;
+let speed = 1;
+
+const els = {
+  select: document.getElementById('scenarioSelect'),
+  play: document.getElementById('playBtn'),
+  scrubber: document.getElementById('scrubber'),
+  timecode: document.getElementById('timecode'),
+  speedBtn: document.getElementById('speedBtn'),
+  statPhase: document.getElementById('statPhase'),
+  statSig: document.getElementById('statSig'),
+  statStep: document.getElementById('statStep'),
+  metricLabel: document.getElementById('metricLabel'),
+  metricValue: document.getElementById('metricValue'),
+  metricLine: document.getElementById('metricLine'),
+  metricCursor: document.getElementById('metricCursor'),
+  objectJson: document.getElementById('objectJson'),
+  objectHeading: document.getElementById('objectHeading'),
+};
+
+function highlightJSON(obj, changedPaths) {
+  const json = JSON.stringify(obj, null, 2);
+  return json
+    .replace(/"([^"]+)":/g, '<span class="json-key">"$1"</span>:')
+    .replace(/: "([^"]*)"/g, ': <span class="json-str">"$1"</span>')
+    .replace(/: (-?\d+(\.\d+)?)/g, ': <span class="json-num">$1</span>');
+}
+
+function diffPaths(a, b, prefix = '') {
+  const paths = new Set();
+  const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
+  for (const k of keys) {
+    const av = (a || {})[k], bv = (b || {})[k];
+    const p = prefix ? `${prefix}.${k}` : k;
+    if (typeof av === 'object' && typeof bv === 'object' && av && bv) {
+      diffPaths(av, bv, p).forEach((x) => paths.add(x));
+    } else if (JSON.stringify(av) !== JSON.stringify(bv)) {
+      paths.add(p);
+    }
+  }
+  return paths;
+}
+
+async function loadScenario(name) {
+  els.objectJson.textContent = 'Loading ' + name + '...';
+  try {
+    const res = await fetch('./traces/' + name + '.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    trace = await res.json();
+  } catch (e) {
+    trace = null;
+    els.objectJson.textContent =
+      'No captured trace found at ./traces/' + name + '.json yet.\n\n' +
+      'Run: hack/capture-episode.sh ' + name + '\n\n(' + e + ')';
+    els.scrubber.max = 0;
+    return;
+  }
+  els.scrubber.max = trace.points.length - 1;
+  els.scrubber.value = 0;
+  render(0);
+}
+
+function render(i) {
+  if (!trace || !trace.points.length) return;
+  const p = trace.points[Math.max(0, Math.min(i, trace.points.length - 1))];
+  const first = trace.points[0];
+
+  els.timecode.textContent = 't=' + p.elapsedSeconds + 's';
+  els.statPhase.textContent = p.phase || '—';
+  els.statPhase.className = 'value phase-' + (p.phase || '');
+  els.statSig.textContent = p.lastSignature || 'none';
+  els.statStep.textContent = p.phase === 'Restoring' ? p.restoreStep : '—';
+
+  els.metricLabel.textContent = p.metricLabel || '';
+  els.metricValue.textContent = p.metricValue === null || p.metricValue === undefined
+    ? 'n/a' : Number(p.metricValue).toFixed(2);
+
+  // Topology coloring: the scenario's affected node/edge turns red on
+  // Tripped, amber on Restoring, back to healthy on Normal — checkout
+  // itself never turns unhealthy, only the dependency edge does.
+  const affected = AFFECTED_HOST[trace.scenario];
+  ['payments', 'inventory'].forEach((host) => {
+    const node = document.getElementById('node-' + host);
+    const edge = document.getElementById('edge-' + host);
+    node.className.baseVal = 'node healthy';
+    edge.className.baseVal = 'edge';
+    if (host === affected) {
+      if (p.phase === 'Tripped') {
+        node.className.baseVal = 'node affected';
+        edge.className.baseVal = 'edge active';
+      } else if (p.phase === 'Restoring') {
+        node.className.baseVal = 'node restoring';
+        edge.className.baseVal = 'edge restoring-edge';
+      }
+    }
+  });
+
+  // Metric sparkline across the whole trace, with a cursor at the current point.
+  const vals = trace.points.map((pt) => pt.metricValue).filter((v) => v !== null && v !== undefined);
+  const maxV = Math.max(1, ...vals);
+  const w = 480, h = 140;
+  const pts = trace.points.map((pt, idx) => {
+    const x = (idx / (trace.points.length - 1 || 1)) * w;
+    const v = pt.metricValue === null || pt.metricValue === undefined ? 0 : pt.metricValue;
+    const y = h - (v / maxV) * (h - 10) - 5;
+    return x + ',' + y;
+  }).join(' ');
+  els.metricLine.setAttribute('points', pts);
+  const cursorX = (i / (trace.points.length - 1 || 1)) * w;
+  els.metricCursor.setAttribute('x1', cursorX);
+  els.metricCursor.setAttribute('x2', cursorX);
+
+  // Object spec panel: diff against the pre-trip baseline (point 0) so
+  // fields the operator actually changed are visually highlighted, not
+  // just dumped as an opaque blob.
+  els.objectHeading.textContent = (p.objectKind || 'object') + ' spec — ' + affected + '-service';
+  const changed = diffPaths(first.objectSpec, p.objectSpec);
+  let html = highlightJSON(p.objectSpec);
+  changed.forEach((path) => {
+    const leafKey = path.split('.').pop();
+    const re = new RegExp('(<span class="json-key">"' + leafKey + '"</span>:[^\\n<]*(?:<span[^>]*>[^<]*</span>)?)');
+    html = html.replace(re, '<span class="json-changed">$1</span>');
+  });
+  els.objectJson.innerHTML = html;
+}
+
+els.select.addEventListener('change', () => {
+  stopPlaying();
+  loadScenario(els.select.value);
+});
+els.scrubber.addEventListener('input', () => render(Number(els.scrubber.value)));
+
+function stopPlaying() {
+  playing = false;
+  els.play.textContent = '▶ Play';
+  if (playTimer) clearInterval(playTimer);
+}
+
+els.play.addEventListener('click', () => {
+  if (!trace) return;
+  if (playing) { stopPlaying(); return; }
+  playing = true;
+  els.play.textContent = '⏸ Pause';
+  playTimer = setInterval(() => {
+    let i = Number(els.scrubber.value) + 1;
+    if (i > Number(els.scrubber.max)) { stopPlaying(); return; }
+    els.scrubber.value = i;
+    render(i);
+  }, 400 / speed);
+});
+
+els.speedBtn.addEventListener('click', () => {
+  speed = speed === 1 ? 2 : speed === 2 ? 4 : 1;
+  els.speedBtn.textContent = speed + '×';
+  if (playing) { stopPlaying(); els.play.click(); }
+});
+
+loadScenario(els.select.value);
+</script>
+</body>
+</html>
