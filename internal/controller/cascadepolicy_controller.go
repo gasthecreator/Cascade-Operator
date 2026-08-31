@@ -57,6 +57,11 @@ type CascadePolicyReconciler struct {
 	// every existing constructor call site (cmd/main.go, and every test
 	// building a CascadePolicyReconciler directly) to set it explicitly.
 	QueryBuilder mesh.QueryBuilder
+	// Mitigator selects which mesh's objects fan-out amplification's
+	// mitigation patches (PLAN.md §5 Phase 6.3) — latency/error-cascade and
+	// retry storm are not migrated yet and never read this field. Same
+	// default-when-nil pattern as QueryBuilder.
+	Mitigator mesh.Mitigator
 }
 
 // queryBuilder returns r.QueryBuilder, defaulting to Istio's implementation
@@ -67,6 +72,16 @@ func (r *CascadePolicyReconciler) queryBuilder() mesh.QueryBuilder {
 		return r.QueryBuilder
 	}
 	return istiomesh.QueryBuilder{}
+}
+
+// mitigator returns r.Mitigator, defaulting to a fresh Istio implementation
+// built around this reconciler's own client when unset — see the Mitigator
+// field's own doc comment.
+func (r *CascadePolicyReconciler) mitigator() mesh.Mitigator {
+	if r.Mitigator != nil {
+		return r.Mitigator
+	}
+	return istiomesh.NewMitigator(r.Client)
 }
 
 // +kubebuilder:rbac:groups=cascade.gideonsanni.dev,resources=cascadepolicies,verbs=get;list;watch;create;update;patch;delete

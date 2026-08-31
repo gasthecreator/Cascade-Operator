@@ -20,64 +20,34 @@ import (
 	"context"
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/types"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-
-	networkingv1 "istio.io/client-go/pkg/apis/networking/v1"
-
 	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
-	"github.com/gasthecreator/Cascade-Operator/internal/mitigation"
 )
 
-// applyFanOutMitigation resolves the DestinationRule for host by convention
-// and, in Mitigate mode, caps connectionPool.http (a bulkhead). Missing
-// objects set DependencyObjectMissing and skip the edge; they do not fail
-// Reconcile. Same read-resolve-patch shape as applyLatencyErrorMitigation,
-// same object kind (DestinationRule) but a disjoint field set
-// (connectionPool.http vs. outlierDetection) — see fanout_restore.go's doc
-// comment for why sharing that object kind with latency/error-cascade is
-// safe under the current one-signature-at-a-time status model.
+// applyFanOutMitigation delegates to the reconciler's Mitigator (PLAN.md §5
+// Phase 6.3 — the first signature migrated behind mesh.Mitigator) to
+// resolve and, in Mitigate mode, patch whatever primitive that mesh uses to
+// bulkhead fan-out amplification for host. DependencyObjectMissing stays a
+// controller-owned, mesh-agnostic concern: set when the Mitigator reports
+// found=false, cleared otherwise — see fanout_restore.go's doc comment for
+// why sharing a DestinationRule with latency/error-cascade (still
+// unmigrated, calling internal/mitigation directly) is safe under the
+// current one-signature-at-a-time status model.
 func (r *CascadePolicyReconciler) applyFanOutMitigation(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
 	host string,
 ) error {
-	log := logf.FromContext(ctx)
-
-	name, ns, err := mitigation.ParseServiceFQDN(host)
+	found, err := r.mitigator().ApplyTrip(ctx, policy, cascadev1alpha1.SignatureFanOutAmplification, host)
 	if err != nil {
-		log.Error(err, "cannot resolve DestinationRule from dependsOn FQDN", "host", host)
-		setDependencyMissing(policy, fmt.Sprintf("cannot parse dependsOn FQDN %q", host))
-		return nil
+		return fmt.Errorf("apply fan-out trip for %q: %w", host, err)
 	}
-
-	dr := &networkingv1.DestinationRule{}
-	err = r.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, dr)
-	if isAbsent(err) {
-		log.Info("DestinationRule missing; skipping patch", "name", name, "namespace", ns)
-		setDependencyMissing(policy, fmt.Sprintf("DestinationRule %s/%s not found for dependsOn %q", ns, name, host))
+	if !found {
+		setDependencyMissing(policy, fmt.Sprintf("no mitigation target found for dependsOn %q", host))
 		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("get DestinationRule %s/%s: %w", ns, name, err)
 	}
 	clearDependencyMissing(policy)
-
-	if policy.Spec.Mode == cascadev1alpha1.PolicyModeDetectOnly {
-		log.Info("DetectOnly: would cap DestinationRule connectionPool.http",
-			"name", name,
-			"namespace", ns,
-			"http1MaxPendingRequests", mitigation.TripHTTP1MaxPendingRequests,
-			"http2MaxRequests", mitigation.TripHTTP2MaxRequests,
-		)
-		return nil
+	if policy.Spec.Mode == cascadev1alpha1.PolicyModeMitigate {
+		mitigationPatchesAppliedTotal.WithLabelValues(string(cascadev1alpha1.SignatureFanOutAmplification), kindDestinationRule).Inc()
 	}
-
-	mitigation.ApplyFanOutConnectionPoolTrip(dr)
-	if err := r.Update(ctx, dr); err != nil {
-		return fmt.Errorf("update DestinationRule %s/%s: %w", ns, name, err)
-	}
-	mitigationPatchesAppliedTotal.WithLabelValues(string(cascadev1alpha1.SignatureFanOutAmplification), kindDestinationRule).Inc()
-	log.Info("patched DestinationRule connectionPool.http", "name", name, "namespace", ns)
 	return nil
 }
