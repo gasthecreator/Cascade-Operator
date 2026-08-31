@@ -1,12 +1,12 @@
 {
   "scenario": "retry-storm",
-  "capturedAt": "2026-08-31T18:48:59Z",
+  "capturedAt": "2026-08-31T20:00:02Z",
   "points": [
     {
       "elapsedSeconds": 0,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "",
       "metricLabel": "dest_source_ratio",
       "metricValue": null,
       "objectKind": "virtualservice",
@@ -36,7 +36,7 @@
       "elapsedSeconds": 2,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "",
       "metricLabel": "dest_source_ratio",
       "metricValue": null,
       "objectKind": "virtualservice",
@@ -66,7 +66,7 @@
       "elapsedSeconds": 5,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "",
       "metricLabel": "dest_source_ratio",
       "metricValue": null,
       "objectKind": "virtualservice",
@@ -93,42 +93,12 @@
       }
     },
     {
-      "elapsedSeconds": 7,
+      "elapsedSeconds": 8,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 0.7619555555555555,
-      "objectKind": "virtualservice",
-      "objectSpec": {
-        "hosts": [
-          "inventory-service.default.svc.cluster.local"
-        ],
-        "http": [
-          {
-            "retries": {
-              "attempts": 3,
-              "perTryTimeout": "2s",
-              "retryOn": "5xx,reset,connect-failure,refused-stream"
-            },
-            "route": [
-              {
-                "destination": {
-                  "host": "inventory-service.default.svc.cluster.local"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "elapsedSeconds": 9,
-      "phase": "Normal",
-      "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
-      "metricLabel": "dest_source_ratio",
-      "metricValue": 0.7619555555555555,
+      "metricValue": null,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -156,9 +126,9 @@
       "elapsedSeconds": 11,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 0.7619555555555555,
+      "metricValue": 0.54187202223738,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -183,12 +153,12 @@
       }
     },
     {
-      "elapsedSeconds": 14,
+      "elapsedSeconds": 15,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 0.7619555555555555,
+      "metricValue": 0.54187202223738,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -213,42 +183,12 @@
       }
     },
     {
-      "elapsedSeconds": 16,
+      "elapsedSeconds": 17,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 0.7619555555555555,
-      "objectKind": "virtualservice",
-      "objectSpec": {
-        "hosts": [
-          "inventory-service.default.svc.cluster.local"
-        ],
-        "http": [
-          {
-            "retries": {
-              "attempts": 3,
-              "perTryTimeout": "2s",
-              "retryOn": "5xx,reset,connect-failure,refused-stream"
-            },
-            "route": [
-              {
-                "destination": {
-                  "host": "inventory-service.default.svc.cluster.local"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "elapsedSeconds": 18,
-      "phase": "Normal",
-      "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
-      "metricLabel": "dest_source_ratio",
-      "metricValue": 0.7619555555555555,
+      "metricValue": 0.54187202223738,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -276,9 +216,9 @@
       "elapsedSeconds": 20,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 3.571428571428571,
+      "metricValue": 0.54187202223738,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -303,12 +243,12 @@
       }
     },
     {
-      "elapsedSeconds": 23,
+      "elapsedSeconds": 22,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 0.9999333377774814,
+      "metricValue": 0.54187202223738,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -333,12 +273,12 @@
       }
     },
     {
-      "elapsedSeconds": 25,
+      "elapsedSeconds": 24,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 0.9999333377774814,
+      "metricValue": 5.804997615543579,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -363,12 +303,12 @@
       }
     },
     {
-      "elapsedSeconds": 28,
-      "phase": "Normal",
+      "elapsedSeconds": 27,
+      "phase": "Tripped",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 0.9999333377774814,
+      "metricValue": 0.9937337510832611,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -377,9 +317,7 @@
         "http": [
           {
             "retries": {
-              "attempts": 3,
-              "perTryTimeout": "2s",
-              "retryOn": "5xx,reset,connect-failure,refused-stream"
+              "attempts": 0
             },
             "route": [
               {
@@ -394,11 +332,11 @@
     },
     {
       "elapsedSeconds": 30,
-      "phase": "Normal",
+      "phase": "Restoring",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 0.9999333377774814,
+      "metricValue": 0.993733751083261,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -407,39 +345,7 @@
         "http": [
           {
             "retries": {
-              "attempts": 3,
-              "perTryTimeout": "2s",
-              "retryOn": "5xx,reset,connect-failure,refused-stream"
-            },
-            "route": [
-              {
-                "destination": {
-                  "host": "inventory-service.default.svc.cluster.local"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "elapsedSeconds": 32,
-      "phase": "Normal",
-      "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
-      "metricLabel": "dest_source_ratio",
-      "metricValue": 0.9999333377774814,
-      "objectKind": "virtualservice",
-      "objectSpec": {
-        "hosts": [
-          "inventory-service.default.svc.cluster.local"
-        ],
-        "http": [
-          {
-            "retries": {
-              "attempts": 3,
-              "perTryTimeout": "2s",
-              "retryOn": "5xx,reset,connect-failure,refused-stream"
+              "attempts": 1
             },
             "route": [
               {
@@ -454,293 +360,11 @@
     },
     {
       "elapsedSeconds": 34,
-      "phase": "Normal",
-      "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
-      "metricLabel": "dest_source_ratio",
-      "metricValue": 0.9999333377774814,
-      "objectKind": "virtualservice",
-      "objectSpec": {
-        "hosts": [
-          "inventory-service.default.svc.cluster.local"
-        ],
-        "http": [
-          {
-            "retries": {
-              "attempts": 3,
-              "perTryTimeout": "2s",
-              "retryOn": "5xx,reset,connect-failure,refused-stream"
-            },
-            "route": [
-              {
-                "destination": {
-                  "host": "inventory-service.default.svc.cluster.local"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "elapsedSeconds": 37,
-      "phase": "Tripped",
-      "restoreStep": 0,
-      "lastSignature": "RetryStorm",
-      "metricLabel": "dest_source_ratio",
-      "metricValue": 3.599999999999999,
-      "objectKind": "virtualservice",
-      "objectSpec": {
-        "hosts": [
-          "inventory-service.default.svc.cluster.local"
-        ],
-        "http": [
-          {
-            "retries": {
-              "attempts": 0
-            },
-            "route": [
-              {
-                "destination": {
-                  "host": "inventory-service.default.svc.cluster.local"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "elapsedSeconds": 39,
-      "phase": "Tripped",
-      "restoreStep": 0,
-      "lastSignature": "RetryStorm",
-      "metricLabel": "dest_source_ratio",
-      "metricValue": 3.6,
-      "objectKind": "virtualservice",
-      "objectSpec": {
-        "hosts": [
-          "inventory-service.default.svc.cluster.local"
-        ],
-        "http": [
-          {
-            "retries": {
-              "attempts": 0
-            },
-            "route": [
-              {
-                "destination": {
-                  "host": "inventory-service.default.svc.cluster.local"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "elapsedSeconds": 41,
-      "phase": "Tripped",
-      "restoreStep": 0,
-      "lastSignature": "RetryStorm",
-      "metricLabel": "dest_source_ratio",
-      "metricValue": 3.6,
-      "objectKind": "virtualservice",
-      "objectSpec": {
-        "hosts": [
-          "inventory-service.default.svc.cluster.local"
-        ],
-        "http": [
-          {
-            "retries": {
-              "attempts": 0
-            },
-            "route": [
-              {
-                "destination": {
-                  "host": "inventory-service.default.svc.cluster.local"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "elapsedSeconds": 44,
-      "phase": "Tripped",
-      "restoreStep": 0,
-      "lastSignature": "RetryStorm",
-      "metricLabel": "dest_source_ratio",
-      "metricValue": 3.6,
-      "objectKind": "virtualservice",
-      "objectSpec": {
-        "hosts": [
-          "inventory-service.default.svc.cluster.local"
-        ],
-        "http": [
-          {
-            "retries": {
-              "attempts": 0
-            },
-            "route": [
-              {
-                "destination": {
-                  "host": "inventory-service.default.svc.cluster.local"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "elapsedSeconds": 46,
-      "phase": "Tripped",
-      "restoreStep": 0,
-      "lastSignature": "RetryStorm",
-      "metricLabel": "dest_source_ratio",
-      "metricValue": 3.6,
-      "objectKind": "virtualservice",
-      "objectSpec": {
-        "hosts": [
-          "inventory-service.default.svc.cluster.local"
-        ],
-        "http": [
-          {
-            "retries": {
-              "attempts": 0
-            },
-            "route": [
-              {
-                "destination": {
-                  "host": "inventory-service.default.svc.cluster.local"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "elapsedSeconds": 48,
-      "phase": "Tripped",
-      "restoreStep": 0,
-      "lastSignature": "RetryStorm",
-      "metricLabel": "dest_source_ratio",
-      "metricValue": 3.6,
-      "objectKind": "virtualservice",
-      "objectSpec": {
-        "hosts": [
-          "inventory-service.default.svc.cluster.local"
-        ],
-        "http": [
-          {
-            "retries": {
-              "attempts": 0
-            },
-            "route": [
-              {
-                "destination": {
-                  "host": "inventory-service.default.svc.cluster.local"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "elapsedSeconds": 50,
-      "phase": "Tripped",
-      "restoreStep": 0,
-      "lastSignature": "RetryStorm",
-      "metricLabel": "dest_source_ratio",
-      "metricValue": 1.3331555792560992,
-      "objectKind": "virtualservice",
-      "objectSpec": {
-        "hosts": [
-          "inventory-service.default.svc.cluster.local"
-        ],
-        "http": [
-          {
-            "retries": {
-              "attempts": 0
-            },
-            "route": [
-              {
-                "destination": {
-                  "host": "inventory-service.default.svc.cluster.local"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "elapsedSeconds": 53,
-      "phase": "Tripped",
-      "restoreStep": 0,
-      "lastSignature": "RetryStorm",
-      "metricLabel": "dest_source_ratio",
-      "metricValue": 1.3333333333333333,
-      "objectKind": "virtualservice",
-      "objectSpec": {
-        "hosts": [
-          "inventory-service.default.svc.cluster.local"
-        ],
-        "http": [
-          {
-            "retries": {
-              "attempts": 0
-            },
-            "route": [
-              {
-                "destination": {
-                  "host": "inventory-service.default.svc.cluster.local"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "elapsedSeconds": 55,
-      "phase": "Tripped",
-      "restoreStep": 0,
-      "lastSignature": "RetryStorm",
-      "metricLabel": "dest_source_ratio",
-      "metricValue": 1.3333333333333333,
-      "objectKind": "virtualservice",
-      "objectSpec": {
-        "hosts": [
-          "inventory-service.default.svc.cluster.local"
-        ],
-        "http": [
-          {
-            "retries": {
-              "attempts": 0
-            },
-            "route": [
-              {
-                "destination": {
-                  "host": "inventory-service.default.svc.cluster.local"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "elapsedSeconds": 57,
       "phase": "Restoring",
-      "restoreStep": 1,
+      "restoreStep": 2,
       "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.3333333333333333,
+      "metricValue": 0.993733751083261,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -763,12 +387,12 @@
       }
     },
     {
-      "elapsedSeconds": 60,
+      "elapsedSeconds": 38,
       "phase": "Restoring",
       "restoreStep": 4,
       "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.3333333333333333,
+      "metricValue": 0.993733751083261,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -793,12 +417,12 @@
       }
     },
     {
-      "elapsedSeconds": 64,
+      "elapsedSeconds": 41,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.3333333333333333,
+      "metricValue": 1.256672978558186,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -823,12 +447,12 @@
       }
     },
     {
-      "elapsedSeconds": 66,
+      "elapsedSeconds": 43,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 2.0266666666666664,
+      "metricValue": 1.256672978558186,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -853,12 +477,12 @@
       }
     },
     {
-      "elapsedSeconds": 69,
+      "elapsedSeconds": 46,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 2.0266666666666664,
+      "metricValue": 1.256672978558186,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -883,12 +507,12 @@
       }
     },
     {
-      "elapsedSeconds": 71,
+      "elapsedSeconds": 48,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 2.0266666666666664,
+      "metricValue": 1.256672978558186,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -913,12 +537,12 @@
       }
     },
     {
-      "elapsedSeconds": 73,
+      "elapsedSeconds": 50,
       "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 2.0266666666666664,
+      "metricValue": 1.256672978558186,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -943,12 +567,102 @@
       }
     },
     {
-      "elapsedSeconds": 75,
-      "phase": "Tripped",
+      "elapsedSeconds": 53,
+      "phase": "Normal",
+      "restoreStep": 0,
+      "lastSignature": "RetryStorm",
+      "metricLabel": "dest_source_ratio",
+      "metricValue": 1.256672978558186,
+      "objectKind": "virtualservice",
+      "objectSpec": {
+        "hosts": [
+          "inventory-service.default.svc.cluster.local"
+        ],
+        "http": [
+          {
+            "retries": {
+              "attempts": 3,
+              "perTryTimeout": "2s",
+              "retryOn": "5xx,reset,connect-failure,refused-stream"
+            },
+            "route": [
+              {
+                "destination": {
+                  "host": "inventory-service.default.svc.cluster.local"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "elapsedSeconds": 55,
+      "phase": "Normal",
+      "restoreStep": 0,
+      "lastSignature": "RetryStorm",
+      "metricLabel": "dest_source_ratio",
+      "metricValue": 4.053603573571571,
+      "objectKind": "virtualservice",
+      "objectSpec": {
+        "hosts": [
+          "inventory-service.default.svc.cluster.local"
+        ],
+        "http": [
+          {
+            "retries": {
+              "attempts": 3,
+              "perTryTimeout": "2s",
+              "retryOn": "5xx,reset,connect-failure,refused-stream"
+            },
+            "route": [
+              {
+                "destination": {
+                  "host": "inventory-service.default.svc.cluster.local"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "elapsedSeconds": 57,
+      "phase": "Normal",
+      "restoreStep": 0,
+      "lastSignature": "RetryStorm",
+      "metricLabel": "dest_source_ratio",
+      "metricValue": 4.053603573571571,
+      "objectKind": "virtualservice",
+      "objectSpec": {
+        "hosts": [
+          "inventory-service.default.svc.cluster.local"
+        ],
+        "http": [
+          {
+            "retries": {
+              "attempts": 3,
+              "perTryTimeout": "2s",
+              "retryOn": "5xx,reset,connect-failure,refused-stream"
+            },
+            "route": [
+              {
+                "destination": {
+                  "host": "inventory-service.default.svc.cluster.local"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "elapsedSeconds": 60,
+      "phase": "Normal",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 2.0266666666666664,
+      "metricValue": 4.053603573571571,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -974,12 +688,229 @@
       }
     },
     {
-      "elapsedSeconds": 78,
+      "elapsedSeconds": 62,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 2.0266666666666664,
+      "metricValue": 4.053603573571571,
+      "objectKind": "virtualservice",
+      "objectSpec": {
+        "hosts": [
+          "inventory-service.default.svc.cluster.local"
+        ],
+        "http": [
+          {
+            "retries": {
+              "attempts": 3,
+              "perTryTimeout": "2s",
+              "retryOn": "5xx,reset,connect-failure,refused-stream"
+            },
+            "route": [
+              {
+                "destination": {
+                  "host": "inventory-service.default.svc.cluster.local"
+                }
+              }
+            ],
+            "timeout": "0.500s"
+          }
+        ]
+      }
+    },
+    {
+      "elapsedSeconds": 64,
+      "phase": "Tripped",
+      "restoreStep": 0,
+      "lastSignature": "LatencyErrorCascade",
+      "metricLabel": "dest_source_ratio",
+      "metricValue": 4.053603573571571,
+      "objectKind": "virtualservice",
+      "objectSpec": {
+        "hosts": [
+          "inventory-service.default.svc.cluster.local"
+        ],
+        "http": [
+          {
+            "retries": {
+              "attempts": 3,
+              "perTryTimeout": "2s",
+              "retryOn": "5xx,reset,connect-failure,refused-stream"
+            },
+            "route": [
+              {
+                "destination": {
+                  "host": "inventory-service.default.svc.cluster.local"
+                }
+              }
+            ],
+            "timeout": "0.500s"
+          }
+        ]
+      }
+    },
+    {
+      "elapsedSeconds": 68,
+      "phase": "Tripped",
+      "restoreStep": 0,
+      "lastSignature": "LatencyErrorCascade",
+      "metricLabel": "dest_source_ratio",
+      "metricValue": 4.053603573571571,
+      "objectKind": "virtualservice",
+      "objectSpec": {
+        "hosts": [
+          "inventory-service.default.svc.cluster.local"
+        ],
+        "http": [
+          {
+            "retries": {
+              "attempts": 3,
+              "perTryTimeout": "2s",
+              "retryOn": "5xx,reset,connect-failure,refused-stream"
+            },
+            "route": [
+              {
+                "destination": {
+                  "host": "inventory-service.default.svc.cluster.local"
+                }
+              }
+            ],
+            "timeout": "0.500s"
+          }
+        ]
+      }
+    },
+    {
+      "elapsedSeconds": 70,
+      "phase": "Tripped",
+      "restoreStep": 0,
+      "lastSignature": "LatencyErrorCascade",
+      "metricLabel": "dest_source_ratio",
+      "metricValue": 3.8,
+      "objectKind": "virtualservice",
+      "objectSpec": {
+        "hosts": [
+          "inventory-service.default.svc.cluster.local"
+        ],
+        "http": [
+          {
+            "retries": {
+              "attempts": 3,
+              "perTryTimeout": "2s",
+              "retryOn": "5xx,reset,connect-failure,refused-stream"
+            },
+            "route": [
+              {
+                "destination": {
+                  "host": "inventory-service.default.svc.cluster.local"
+                }
+              }
+            ],
+            "timeout": "0.500s"
+          }
+        ]
+      }
+    },
+    {
+      "elapsedSeconds": 72,
+      "phase": "Tripped",
+      "restoreStep": 0,
+      "lastSignature": "LatencyErrorCascade",
+      "metricLabel": "dest_source_ratio",
+      "metricValue": 3.8,
+      "objectKind": "virtualservice",
+      "objectSpec": {
+        "hosts": [
+          "inventory-service.default.svc.cluster.local"
+        ],
+        "http": [
+          {
+            "retries": {
+              "attempts": 3,
+              "perTryTimeout": "2s",
+              "retryOn": "5xx,reset,connect-failure,refused-stream"
+            },
+            "route": [
+              {
+                "destination": {
+                  "host": "inventory-service.default.svc.cluster.local"
+                }
+              }
+            ],
+            "timeout": "0.500s"
+          }
+        ]
+      }
+    },
+    {
+      "elapsedSeconds": 75,
+      "phase": "Tripped",
+      "restoreStep": 0,
+      "lastSignature": "LatencyErrorCascade",
+      "metricLabel": "dest_source_ratio",
+      "metricValue": 3.8,
+      "objectKind": "virtualservice",
+      "objectSpec": {
+        "hosts": [
+          "inventory-service.default.svc.cluster.local"
+        ],
+        "http": [
+          {
+            "retries": {
+              "attempts": 3,
+              "perTryTimeout": "2s",
+              "retryOn": "5xx,reset,connect-failure,refused-stream"
+            },
+            "route": [
+              {
+                "destination": {
+                  "host": "inventory-service.default.svc.cluster.local"
+                }
+              }
+            ],
+            "timeout": "0.500s"
+          }
+        ]
+      }
+    },
+    {
+      "elapsedSeconds": 77,
+      "phase": "Tripped",
+      "restoreStep": 0,
+      "lastSignature": "LatencyErrorCascade",
+      "metricLabel": "dest_source_ratio",
+      "metricValue": 3.8,
+      "objectKind": "virtualservice",
+      "objectSpec": {
+        "hosts": [
+          "inventory-service.default.svc.cluster.local"
+        ],
+        "http": [
+          {
+            "retries": {
+              "attempts": 3,
+              "perTryTimeout": "2s",
+              "retryOn": "5xx,reset,connect-failure,refused-stream"
+            },
+            "route": [
+              {
+                "destination": {
+                  "host": "inventory-service.default.svc.cluster.local"
+                }
+              }
+            ],
+            "timeout": "0.500s"
+          }
+        ]
+      }
+    },
+    {
+      "elapsedSeconds": 79,
+      "phase": "Tripped",
+      "restoreStep": 0,
+      "lastSignature": "LatencyErrorCascade",
+      "metricLabel": "dest_source_ratio",
+      "metricValue": 3.8,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1010,7 +941,7 @@
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 3.9066666666666663,
+      "metricValue": 3.8,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1036,12 +967,12 @@
       }
     },
     {
-      "elapsedSeconds": 83,
+      "elapsedSeconds": 84,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 3.906927111111111,
+      "metricValue": 3.8,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1067,12 +998,12 @@
       }
     },
     {
-      "elapsedSeconds": 85,
+      "elapsedSeconds": 86,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 3.906927111111111,
+      "metricValue": 4.0,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1098,12 +1029,12 @@
       }
     },
     {
-      "elapsedSeconds": 87,
+      "elapsedSeconds": 88,
       "phase": "Tripped",
       "restoreStep": 0,
       "lastSignature": "LatencyErrorCascade",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 3.906927111111111,
+      "metricValue": 4.0,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1132,9 +1063,9 @@
       "elapsedSeconds": 90,
       "phase": "Tripped",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 3.906927111111111,
+      "metricValue": 4.0,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1143,9 +1074,7 @@
         "http": [
           {
             "retries": {
-              "attempts": 3,
-              "perTryTimeout": "2s",
-              "retryOn": "5xx,reset,connect-failure,refused-stream"
+              "attempts": 0
             },
             "route": [
               {
@@ -1153,39 +1082,7 @@
                   "host": "inventory-service.default.svc.cluster.local"
                 }
               }
-            ],
-            "timeout": "0.500s"
-          }
-        ]
-      }
-    },
-    {
-      "elapsedSeconds": 92,
-      "phase": "Tripped",
-      "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
-      "metricLabel": "dest_source_ratio",
-      "metricValue": 3.906927111111111,
-      "objectKind": "virtualservice",
-      "objectSpec": {
-        "hosts": [
-          "inventory-service.default.svc.cluster.local"
-        ],
-        "http": [
-          {
-            "retries": {
-              "attempts": 3,
-              "perTryTimeout": "2s",
-              "retryOn": "5xx,reset,connect-failure,refused-stream"
-            },
-            "route": [
-              {
-                "destination": {
-                  "host": "inventory-service.default.svc.cluster.local"
-                }
-              }
-            ],
-            "timeout": "0.500s"
+            ]
           }
         ]
       }
@@ -1194,9 +1091,9 @@
       "elapsedSeconds": 94,
       "phase": "Tripped",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 3.906927111111111,
+      "metricValue": 4.0,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1205,9 +1102,7 @@
         "http": [
           {
             "retries": {
-              "attempts": 3,
-              "perTryTimeout": "2s",
-              "retryOn": "5xx,reset,connect-failure,refused-stream"
+              "attempts": 0
             },
             "route": [
               {
@@ -1215,8 +1110,7 @@
                   "host": "inventory-service.default.svc.cluster.local"
                 }
               }
-            ],
-            "timeout": "0.500s"
+            ]
           }
         ]
       }
@@ -1225,9 +1119,9 @@
       "elapsedSeconds": 96,
       "phase": "Tripped",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.399906672888474,
+      "metricValue": 4.0,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1236,9 +1130,7 @@
         "http": [
           {
             "retries": {
-              "attempts": 3,
-              "perTryTimeout": "2s",
-              "retryOn": "5xx,reset,connect-failure,refused-stream"
+              "attempts": 0
             },
             "route": [
               {
@@ -1246,19 +1138,18 @@
                   "host": "inventory-service.default.svc.cluster.local"
                 }
               }
-            ],
-            "timeout": "0.500s"
+            ]
           }
         ]
       }
     },
     {
-      "elapsedSeconds": 99,
+      "elapsedSeconds": 98,
       "phase": "Tripped",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.399906672888474,
+      "metricValue": 4.0,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1267,9 +1158,7 @@
         "http": [
           {
             "retries": {
-              "attempts": 3,
-              "perTryTimeout": "2s",
-              "retryOn": "5xx,reset,connect-failure,refused-stream"
+              "attempts": 0
             },
             "route": [
               {
@@ -1277,8 +1166,7 @@
                   "host": "inventory-service.default.svc.cluster.local"
                 }
               }
-            ],
-            "timeout": "0.500s"
+            ]
           }
         ]
       }
@@ -1287,9 +1175,9 @@
       "elapsedSeconds": 101,
       "phase": "Tripped",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.399906672888474,
+      "metricValue": 1.723454401285528,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1298,9 +1186,7 @@
         "http": [
           {
             "retries": {
-              "attempts": 3,
-              "perTryTimeout": "2s",
-              "retryOn": "5xx,reset,connect-failure,refused-stream"
+              "attempts": 0
             },
             "route": [
               {
@@ -1308,19 +1194,18 @@
                   "host": "inventory-service.default.svc.cluster.local"
                 }
               }
-            ],
-            "timeout": "0.500s"
+            ]
           }
         ]
       }
     },
     {
       "elapsedSeconds": 103,
-      "phase": "Tripped",
-      "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "phase": "Restoring",
+      "restoreStep": 1,
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.399906672888474,
+      "metricValue": 1.723454401285528,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1329,9 +1214,7 @@
         "http": [
           {
             "retries": {
-              "attempts": 3,
-              "perTryTimeout": "2s",
-              "retryOn": "5xx,reset,connect-failure,refused-stream"
+              "attempts": 2
             },
             "route": [
               {
@@ -1339,19 +1222,18 @@
                   "host": "inventory-service.default.svc.cluster.local"
                 }
               }
-            ],
-            "timeout": "0.500s"
+            ]
           }
         ]
       }
     },
     {
-      "elapsedSeconds": 105,
-      "phase": "Normal",
-      "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "elapsedSeconds": 106,
+      "phase": "Restoring",
+      "restoreStep": 3,
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.399906672888474,
+      "metricValue": 1.723454401285528,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1376,12 +1258,12 @@
       }
     },
     {
-      "elapsedSeconds": 108,
+      "elapsedSeconds": 111,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.399906672888474,
+      "metricValue": 1.723454401285528,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1406,42 +1288,12 @@
       }
     },
     {
-      "elapsedSeconds": 110,
+      "elapsedSeconds": 113,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 0.9999333377774814,
-      "objectKind": "virtualservice",
-      "objectSpec": {
-        "hosts": [
-          "inventory-service.default.svc.cluster.local"
-        ],
-        "http": [
-          {
-            "retries": {
-              "attempts": 3,
-              "perTryTimeout": "2s",
-              "retryOn": "5xx,reset,connect-failure,refused-stream"
-            },
-            "route": [
-              {
-                "destination": {
-                  "host": "inventory-service.default.svc.cluster.local"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "elapsedSeconds": 112,
-      "phase": "Normal",
-      "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
-      "metricLabel": "dest_source_ratio",
-      "metricValue": 0.9999333377774814,
+      "metricValue": 1.723454401285528,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1469,9 +1321,9 @@
       "elapsedSeconds": 115,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 0.9999333377774814,
+      "metricValue": 1.0001333777925976,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1496,12 +1348,12 @@
       }
     },
     {
-      "elapsedSeconds": 117,
+      "elapsedSeconds": 118,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 0.9999333377774814,
+      "metricValue": 1.0001333777925976,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1526,12 +1378,12 @@
       }
     },
     {
-      "elapsedSeconds": 119,
+      "elapsedSeconds": 120,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 0.9999333377774814,
+      "metricValue": 1.0001333777925976,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1556,12 +1408,12 @@
       }
     },
     {
-      "elapsedSeconds": 121,
+      "elapsedSeconds": 122,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 0.9999333377774814,
+      "metricValue": 1.0001333777925976,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1589,9 +1441,9 @@
       "elapsedSeconds": 124,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 0.9999333377774814,
+      "metricValue": 1.0001333777925976,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1616,12 +1468,12 @@
       }
     },
     {
-      "elapsedSeconds": 126,
+      "elapsedSeconds": 127,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.0000666755567407,
+      "metricValue": 1.0001333777925976,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1646,12 +1498,12 @@
       }
     },
     {
-      "elapsedSeconds": 128,
+      "elapsedSeconds": 129,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.0000666755567407,
+      "metricValue": 0.9998,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1676,12 +1528,12 @@
       }
     },
     {
-      "elapsedSeconds": 130,
+      "elapsedSeconds": 131,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.0000666755567407,
+      "metricValue": 0.9999333333333332,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1709,9 +1561,9 @@
       "elapsedSeconds": 133,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.0000666755567407,
+      "metricValue": 0.9999333333333332,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1736,12 +1588,12 @@
       }
     },
     {
-      "elapsedSeconds": 135,
+      "elapsedSeconds": 136,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.0000666755567407,
+      "metricValue": 0.9999333333333335,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1766,12 +1618,12 @@
       }
     },
     {
-      "elapsedSeconds": 137,
+      "elapsedSeconds": 138,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.0000666755567407,
+      "metricValue": 0.9999333333333332,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1796,12 +1648,12 @@
       }
     },
     {
-      "elapsedSeconds": 139,
+      "elapsedSeconds": 140,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.0000666755567407,
+      "metricValue": 0.9999333333333332,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1829,9 +1681,9 @@
       "elapsedSeconds": 142,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.0,
+      "metricValue": 0.9999333333333332,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1856,12 +1708,12 @@
       }
     },
     {
-      "elapsedSeconds": 144,
+      "elapsedSeconds": 145,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.0,
+      "metricValue": 0.999666755531858,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1886,12 +1738,12 @@
       }
     },
     {
-      "elapsedSeconds": 146,
+      "elapsedSeconds": 147,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.0,
+      "metricValue": 1.0000666488936283,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1919,9 +1771,9 @@
       "elapsedSeconds": 149,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.0,
+      "metricValue": 1.0000666488936283,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -1949,7 +1801,127 @@
       "elapsedSeconds": 151,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
+      "metricLabel": "dest_source_ratio",
+      "metricValue": 1.0000666488936283,
+      "objectKind": "virtualservice",
+      "objectSpec": {
+        "hosts": [
+          "inventory-service.default.svc.cluster.local"
+        ],
+        "http": [
+          {
+            "retries": {
+              "attempts": 3,
+              "perTryTimeout": "2s",
+              "retryOn": "5xx,reset,connect-failure,refused-stream"
+            },
+            "route": [
+              {
+                "destination": {
+                  "host": "inventory-service.default.svc.cluster.local"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "elapsedSeconds": 154,
+      "phase": "Normal",
+      "restoreStep": 0,
+      "lastSignature": "RetryStorm",
+      "metricLabel": "dest_source_ratio",
+      "metricValue": 1.0000666488936283,
+      "objectKind": "virtualservice",
+      "objectSpec": {
+        "hosts": [
+          "inventory-service.default.svc.cluster.local"
+        ],
+        "http": [
+          {
+            "retries": {
+              "attempts": 3,
+              "perTryTimeout": "2s",
+              "retryOn": "5xx,reset,connect-failure,refused-stream"
+            },
+            "route": [
+              {
+                "destination": {
+                  "host": "inventory-service.default.svc.cluster.local"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "elapsedSeconds": 156,
+      "phase": "Normal",
+      "restoreStep": 0,
+      "lastSignature": "RetryStorm",
+      "metricLabel": "dest_source_ratio",
+      "metricValue": 1.0000666488936283,
+      "objectKind": "virtualservice",
+      "objectSpec": {
+        "hosts": [
+          "inventory-service.default.svc.cluster.local"
+        ],
+        "http": [
+          {
+            "retries": {
+              "attempts": 3,
+              "perTryTimeout": "2s",
+              "retryOn": "5xx,reset,connect-failure,refused-stream"
+            },
+            "route": [
+              {
+                "destination": {
+                  "host": "inventory-service.default.svc.cluster.local"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "elapsedSeconds": 158,
+      "phase": "Normal",
+      "restoreStep": 0,
+      "lastSignature": "RetryStorm",
+      "metricLabel": "dest_source_ratio",
+      "metricValue": 1.0000666488936283,
+      "objectKind": "virtualservice",
+      "objectSpec": {
+        "hosts": [
+          "inventory-service.default.svc.cluster.local"
+        ],
+        "http": [
+          {
+            "retries": {
+              "attempts": 3,
+              "perTryTimeout": "2s",
+              "retryOn": "5xx,reset,connect-failure,refused-stream"
+            },
+            "route": [
+              {
+                "destination": {
+                  "host": "inventory-service.default.svc.cluster.local"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "elapsedSeconds": 161,
+      "phase": "Normal",
+      "restoreStep": 0,
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
       "metricValue": 1.0,
       "objectKind": "virtualservice",
@@ -1976,10 +1948,40 @@
       }
     },
     {
-      "elapsedSeconds": 153,
+      "elapsedSeconds": 163,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
+      "metricLabel": "dest_source_ratio",
+      "metricValue": 1.0000000000000002,
+      "objectKind": "virtualservice",
+      "objectSpec": {
+        "hosts": [
+          "inventory-service.default.svc.cluster.local"
+        ],
+        "http": [
+          {
+            "retries": {
+              "attempts": 3,
+              "perTryTimeout": "2s",
+              "retryOn": "5xx,reset,connect-failure,refused-stream"
+            },
+            "route": [
+              {
+                "destination": {
+                  "host": "inventory-service.default.svc.cluster.local"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "elapsedSeconds": 165,
+      "phase": "Normal",
+      "restoreStep": 0,
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
       "metricValue": 1.0,
       "objectKind": "virtualservice",
@@ -2006,12 +2008,12 @@
       }
     },
     {
-      "elapsedSeconds": 155,
+      "elapsedSeconds": 167,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.000133342222815,
+      "metricValue": 1.0,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -2036,12 +2038,12 @@
       }
     },
     {
-      "elapsedSeconds": 157,
+      "elapsedSeconds": 170,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.0000666711114075,
+      "metricValue": 1.0,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -2066,12 +2068,12 @@
       }
     },
     {
-      "elapsedSeconds": 160,
+      "elapsedSeconds": 173,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.0000666711114075,
+      "metricValue": 1.0,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -2096,12 +2098,12 @@
       }
     },
     {
-      "elapsedSeconds": 162,
+      "elapsedSeconds": 175,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.0000666711114075,
+      "metricValue": 0.9999333377774814,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -2126,12 +2128,12 @@
       }
     },
     {
-      "elapsedSeconds": 164,
+      "elapsedSeconds": 178,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.0000666711114075,
+      "metricValue": 0.9999333377774814,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [
@@ -2156,102 +2158,12 @@
       }
     },
     {
-      "elapsedSeconds": 166,
+      "elapsedSeconds": 180,
       "phase": "Normal",
       "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
+      "lastSignature": "RetryStorm",
       "metricLabel": "dest_source_ratio",
-      "metricValue": 1.0000666711114075,
-      "objectKind": "virtualservice",
-      "objectSpec": {
-        "hosts": [
-          "inventory-service.default.svc.cluster.local"
-        ],
-        "http": [
-          {
-            "retries": {
-              "attempts": 3,
-              "perTryTimeout": "2s",
-              "retryOn": "5xx,reset,connect-failure,refused-stream"
-            },
-            "route": [
-              {
-                "destination": {
-                  "host": "inventory-service.default.svc.cluster.local"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "elapsedSeconds": 169,
-      "phase": "Normal",
-      "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
-      "metricLabel": "dest_source_ratio",
-      "metricValue": 1.0000666711114075,
-      "objectKind": "virtualservice",
-      "objectSpec": {
-        "hosts": [
-          "inventory-service.default.svc.cluster.local"
-        ],
-        "http": [
-          {
-            "retries": {
-              "attempts": 3,
-              "perTryTimeout": "2s",
-              "retryOn": "5xx,reset,connect-failure,refused-stream"
-            },
-            "route": [
-              {
-                "destination": {
-                  "host": "inventory-service.default.svc.cluster.local"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "elapsedSeconds": 171,
-      "phase": "Normal",
-      "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
-      "metricLabel": "dest_source_ratio",
-      "metricValue": null,
-      "objectKind": "virtualservice",
-      "objectSpec": {
-        "hosts": [
-          "inventory-service.default.svc.cluster.local"
-        ],
-        "http": [
-          {
-            "retries": {
-              "attempts": 3,
-              "perTryTimeout": "2s",
-              "retryOn": "5xx,reset,connect-failure,refused-stream"
-            },
-            "route": [
-              {
-                "destination": {
-                  "host": "inventory-service.default.svc.cluster.local"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "elapsedSeconds": 174,
-      "phase": "Normal",
-      "restoreStep": 0,
-      "lastSignature": "LatencyErrorCascade",
-      "metricLabel": "dest_source_ratio",
-      "metricValue": 1.033714869459153,
+      "metricValue": 0.9999333377774814,
       "objectKind": "virtualservice",
       "objectSpec": {
         "hosts": [

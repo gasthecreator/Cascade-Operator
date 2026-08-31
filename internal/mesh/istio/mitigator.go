@@ -48,15 +48,16 @@ const (
 
 // Mitigator implements mesh.Mitigator for Istio.
 //
-// Fan-out amplification and latency/error-cascade are migrated (PLAN.md §5
-// Phases 6.3/6.4). Retry storm is not — its restore path has the JSON-
-// Patch-vs-merge-patch zero-value subtlety this project spent real effort
-// getting right (PLAN.md §2.6), and migrating it needs its own dedicated,
-// careful pass rather than being folded into this one. ApplyTrip/
-// HasManagedEdges/ApplyRestoreStep/CompleteRestore below return an error
-// for SignatureRetryStorm, which is safe today because internal/controller
-// never calls this Mitigator for it yet, not because it's unreachable in
-// principle.
+// All three signatures are migrated (PLAN.md §5 Phases 6.3/6.4/6.5).
+// Retry storm's own patches are written via client.Patch (JSON Patch for
+// the trip, JSON merge patch for every restore write), never typed
+// Update() — internal/mitigation's retries.go/retry_connpool.go build
+// those bytes from maps specifically so encoding/json's omitempty can
+// never silently strip an explicit zero (PLAN.md §2.6's zero-value bug
+// thread). The DestinationRule secondary's restore path is a deliberate
+// exception, kept as typed Update() — investigated for PLAN.md §5 Phase 5
+// and found not to be the same bug (see completeRetryStormRestore's own
+// doc comment).
 type Mitigator struct {
 	Client client.Client
 }
@@ -165,8 +166,10 @@ func (m *Mitigator) ApplyTrip(
 		return m.applyFanOutTrip(ctx, policy, host)
 	case cascadev1alpha1.SignatureLatencyErrorCascade:
 		return m.applyLatencyErrorTrip(ctx, policy, host)
+	case cascadev1alpha1.SignatureRetryStorm:
+		return m.applyRetryStormTrip(ctx, policy, host)
 	default:
-		return mesh.TripOutcome{}, fmt.Errorf("istio.Mitigator.ApplyTrip: signature %s not yet migrated to mesh.Mitigator", sig)
+		return mesh.TripOutcome{}, fmt.Errorf("istio.Mitigator.ApplyTrip: unknown signature %s", sig)
 	}
 }
 
@@ -285,6 +288,81 @@ func (m *Mitigator) applyLatencyErrorTrip(
 	return outcome, nil
 }
 
+// applyRetryStormTrip patches the VirtualService primary (retries.attempts)
+// and, independently, the DestinationRule secondary (connectionPool.http
+// maxRetries) — mirrors retry_mitigate.go's applyRetryStormMitigation: the
+// primary applies even if the secondary's DestinationRule is missing, and
+// vice versa (PLAN.md §2.6), and only the primary's found/absent status
+// feeds into DependencyObjectMissing. Both writes are client.Patch, never
+// typed Update() — see this Mitigator's own doc comment for why.
+func (m *Mitigator) applyRetryStormTrip(
+	ctx context.Context,
+	policy *cascadev1alpha1.CascadePolicy,
+	host string,
+) (mesh.TripOutcome, error) {
+	log := logf.FromContext(ctx)
+
+	name, ns, err := mitigation.ParseServiceFQDN(host)
+	if err != nil {
+		return mesh.TripOutcome{}, nil //nolint:nilerr // unresolvable FQDN is "not found," not a reconcile error — matches the pre-migration behavior in retry_mitigate.go.
+	}
+
+	var outcome mesh.TripOutcome
+
+	vs := &networkingv1.VirtualService{}
+	err = m.Client.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, vs)
+	switch {
+	case isAbsent(err):
+		log.Info("VirtualService missing; skipping primary patch", "name", name, "namespace", ns)
+	case err != nil:
+		return mesh.TripOutcome{}, fmt.Errorf("get VirtualService %s/%s: %w", ns, name, err)
+	default:
+		outcome.PrimaryFound = true
+		if policy.Spec.Mode == cascadev1alpha1.PolicyModeDetectOnly {
+			log.Info("DetectOnly: would cut VirtualService retries.attempts",
+				"name", name,
+				"namespace", ns,
+				"attempts", mitigation.TripRetryAttempts,
+			)
+		} else {
+			mitigation.ApplyRetryStormTrip(vs)
+			patch := client.RawPatch(types.JSONPatchType, mitigation.RetryStormAttemptsJSONPatch(vs))
+			if err := m.Client.Patch(ctx, vs, patch); err != nil {
+				return outcome, fmt.Errorf("patch VirtualService %s/%s: %w", ns, name, err)
+			}
+			log.Info("patched VirtualService retries.attempts", "name", name, "namespace", ns)
+			outcome.AppliedKinds = append(outcome.AppliedKinds, KindVirtualService)
+		}
+	}
+
+	dr := &networkingv1.DestinationRule{}
+	err = m.Client.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, dr)
+	switch {
+	case isAbsent(err):
+		log.Info("DestinationRule missing; skipping secondary patch", "name", name, "namespace", ns)
+	case err != nil:
+		return outcome, fmt.Errorf("get DestinationRule %s/%s: %w", ns, name, err)
+	default:
+		if policy.Spec.Mode == cascadev1alpha1.PolicyModeDetectOnly {
+			log.Info("DetectOnly: would cap DestinationRule connectionPool.http maxRetries",
+				"name", name,
+				"namespace", ns,
+				"maxRetries", mitigation.TripRetryStormMaxRetries,
+			)
+		} else {
+			mitigation.ApplyRetryStormConnectionPoolTrip(dr)
+			patch := client.RawPatch(types.MergePatchType, mitigation.RetryStormMaxRetriesMergePatch(dr))
+			if err := m.Client.Patch(ctx, dr, patch); err != nil {
+				return outcome, fmt.Errorf("patch DestinationRule %s/%s: %w", ns, name, err)
+			}
+			log.Info("patched DestinationRule connectionPool.http (retry storm secondary)", "name", name, "namespace", ns)
+			outcome.AppliedKinds = append(outcome.AppliedKinds, KindDestinationRule)
+		}
+	}
+
+	return outcome, nil
+}
+
 // HasManagedEdges implements mesh.Mitigator.
 func (m *Mitigator) HasManagedEdges(
 	ctx context.Context,
@@ -298,7 +376,7 @@ func (m *Mitigator) HasManagedEdges(
 			return false, err
 		}
 		return len(edges) > 0, nil
-	case cascadev1alpha1.SignatureLatencyErrorCascade:
+	case cascadev1alpha1.SignatureLatencyErrorCascade, cascadev1alpha1.SignatureRetryStorm:
 		drEdges, err := m.listManagedDREdges(ctx, policy)
 		if err != nil {
 			return false, err
@@ -309,7 +387,7 @@ func (m *Mitigator) HasManagedEdges(
 		}
 		return len(drEdges) > 0 || len(vsEdges) > 0, nil
 	default:
-		return false, fmt.Errorf("istio.Mitigator.HasManagedEdges: signature %s not yet migrated to mesh.Mitigator", sig)
+		return false, fmt.Errorf("istio.Mitigator.HasManagedEdges: unknown signature %s", sig)
 	}
 }
 
@@ -325,8 +403,10 @@ func (m *Mitigator) ApplyRestoreStep(
 		return m.applyFanOutRestoreStep(ctx, policy, step)
 	case cascadev1alpha1.SignatureLatencyErrorCascade:
 		return m.applyLatencyErrorRestoreStep(ctx, policy, step)
+	case cascadev1alpha1.SignatureRetryStorm:
+		return m.applyRetryStormRestoreStep(ctx, policy, step)
 	default:
-		return fmt.Errorf("istio.Mitigator.ApplyRestoreStep: signature %s not yet migrated to mesh.Mitigator", sig)
+		return fmt.Errorf("istio.Mitigator.ApplyRestoreStep: unknown signature %s", sig)
 	}
 }
 
@@ -386,6 +466,41 @@ func (m *Mitigator) applyLatencyErrorRestoreStep(ctx context.Context, policy *ca
 	return nil
 }
 
+func (m *Mitigator) applyRetryStormRestoreStep(ctx context.Context, policy *cascadev1alpha1.CascadePolicy, step int32) error {
+	log := logf.FromContext(ctx)
+	vsEdges, err := m.listManagedVSEdges(ctx, policy)
+	if err != nil {
+		return err
+	}
+	drEdges, err := m.listManagedDREdges(ctx, policy)
+	if err != nil {
+		return err
+	}
+	if policy.Spec.Mode == cascadev1alpha1.PolicyModeDetectOnly {
+		log.Info("DetectOnly: would ramp VirtualService retries.attempts and DestinationRule connectionPool.http",
+			"restoreStep", step, "vsEdges", len(vsEdges), "drEdges", len(drEdges))
+		return nil
+	}
+	for _, e := range vsEdges {
+		if err := mitigation.ApplyRetryStormRestoreStep(e.vs, step); err != nil {
+			return fmt.Errorf("restore step %d on %s: %w", step, e.host, err)
+		}
+		patch := client.RawPatch(types.MergePatchType, mitigation.RetryStormRestoreStepMergePatch(e.vs))
+		if err := m.Client.Patch(ctx, e.vs, patch); err != nil {
+			return fmt.Errorf("patch VirtualService during restore %s: %w", e.host, err)
+		}
+	}
+	for _, e := range drEdges {
+		if err := mitigation.ApplyRetryStormConnectionPoolRestoreStep(e.dr, step); err != nil {
+			return fmt.Errorf("restore step %d on %s: %w", step, e.host, err)
+		}
+		if err := m.Client.Update(ctx, e.dr); err != nil {
+			return fmt.Errorf("update DestinationRule during restore %s: %w", e.host, err)
+		}
+	}
+	return nil
+}
+
 // CompleteRestore implements mesh.Mitigator.
 func (m *Mitigator) CompleteRestore(
 	ctx context.Context,
@@ -397,8 +512,10 @@ func (m *Mitigator) CompleteRestore(
 		return m.completeFanOutRestore(ctx, policy)
 	case cascadev1alpha1.SignatureLatencyErrorCascade:
 		return m.completeLatencyErrorRestore(ctx, policy)
+	case cascadev1alpha1.SignatureRetryStorm:
+		return m.completeRetryStormRestore(ctx, policy)
 	default:
-		return fmt.Errorf("istio.Mitigator.CompleteRestore: signature %s not yet migrated to mesh.Mitigator", sig)
+		return fmt.Errorf("istio.Mitigator.CompleteRestore: unknown signature %s", sig)
 	}
 }
 
@@ -452,6 +569,54 @@ func (m *Mitigator) completeLatencyErrorRestore(ctx context.Context, policy *cas
 		}
 		if err := m.Client.Update(ctx, e.vs); err != nil {
 			return fmt.Errorf("update VirtualService completing restore %s: %w", e.host, err)
+		}
+	}
+	return nil
+}
+
+// completeRetryStormRestore restores the VirtualService primary via a JSON
+// merge patch (not typed Update — see this Mitigator's own doc comment)
+// and the DestinationRule secondary via typed Update, deliberately.
+// Investigated for PLAN.md §5 Phase 5 and found this asymmetry is not a
+// bug: the DestinationRule secondary's own annotation-capture struct
+// already has omitempty on MaxRetries, so a true original of exactly 0 is
+// indistinguishable from "never set" before this write is ever reached —
+// writing it via patch would both contradict that already-documented
+// intent and accomplish nothing at Envoy anyway, since Istio Pilot's own
+// DestinationRule->CDS translation ignores an explicit MaxRetries of 0
+// regardless of how it's written (PROPOSALS.md, approved 2026-08-30,
+// direction 2 — the reason this signature's secondary trip value is 1,
+// not 0).
+func (m *Mitigator) completeRetryStormRestore(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
+	log := logf.FromContext(ctx)
+	vsEdges, err := m.listManagedVSEdges(ctx, policy)
+	if err != nil {
+		return err
+	}
+	drEdges, err := m.listManagedDREdges(ctx, policy)
+	if err != nil {
+		return err
+	}
+	if policy.Spec.Mode == cascadev1alpha1.PolicyModeDetectOnly {
+		log.Info("DetectOnly: would restore original retries.attempts/connectionPool.http and drop annotations",
+			"vsEdges", len(vsEdges), "drEdges", len(drEdges))
+		return nil
+	}
+	for _, e := range vsEdges {
+		if err := mitigation.CompleteRetryStormRestore(e.vs); err != nil {
+			return fmt.Errorf("complete restore on %s: %w", e.host, err)
+		}
+		patch := client.RawPatch(types.MergePatchType, mitigation.RetryStormRestoreCompleteJSONPatch(e.vs))
+		if err := m.Client.Patch(ctx, e.vs, patch); err != nil {
+			return fmt.Errorf("patch VirtualService completing restore %s: %w", e.host, err)
+		}
+	}
+	for _, e := range drEdges {
+		if err := mitigation.CompleteRetryStormConnectionPoolRestore(e.dr); err != nil {
+			return fmt.Errorf("complete restore on %s: %w", e.host, err)
+		}
+		if err := m.Client.Update(ctx, e.dr); err != nil {
+			return fmt.Errorf("update DestinationRule completing restore %s: %w", e.host, err)
 		}
 	}
 	return nil

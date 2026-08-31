@@ -20,50 +20,11 @@ import (
 	"context"
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/types"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-
-	networkingv1 "istio.io/client-go/pkg/apis/networking/v1"
 
 	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
 	"github.com/gasthecreator/Cascade-Operator/internal/mitigation"
 )
-
-type managedDREdge struct {
-	host string
-	dr   *networkingv1.DestinationRule
-}
-
-// listManagedDestinationRuleEdges resolves each dependsOn FQDN and returns
-// DestinationRules this operator has already annotated. Missing objects are
-// skipped; they do not fail the reconcile (same spirit as a missing trip
-// target).
-func (r *CascadePolicyReconciler) listManagedDestinationRuleEdges(
-	ctx context.Context,
-	policy *cascadev1alpha1.CascadePolicy,
-) ([]managedDREdge, error) {
-	log := logf.FromContext(ctx)
-	var out []managedDREdge
-	for _, host := range policy.Spec.DependsOn {
-		name, ns, err := mitigation.ParseServiceFQDN(host)
-		if err != nil {
-			log.Error(err, "cannot resolve DestinationRule from dependsOn FQDN", "host", host)
-			continue
-		}
-		dr := &networkingv1.DestinationRule{}
-		err = r.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, dr)
-		if isAbsent(err) {
-			continue
-		}
-		if err != nil {
-			return nil, fmt.Errorf("get DestinationRule %s/%s: %w", ns, name, err)
-		}
-		if mitigation.IsOperatorManaged(dr) {
-			out = append(out, managedDREdge{host: host, dr: dr})
-		}
-	}
-	return out, nil
-}
 
 // beginRestore and advanceRestore dispatch by status.LastSignature, the
 // same field Reconcile's own detectSignatures/mitigation switch already
@@ -166,19 +127,15 @@ func (r *CascadePolicyReconciler) forceCompleteOutgoingRestore(
 		// never find retry storm's own MaxRetries still at the trip
 		// value, and the reverse (an incoming signature adopting the
 		// VirtualService) must never find retries.attempts still at 0.
-		vsEdges, err := r.listManagedVirtualServiceEdges(ctx, policy)
+		has, err := r.mitigator().HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureRetryStorm)
 		if err != nil {
 			return err
 		}
-		drEdges, err := r.listManagedDestinationRuleEdges(ctx, policy)
-		if err != nil {
-			return err
-		}
-		if len(vsEdges) == 0 && len(drEdges) == 0 {
+		if !has {
 			return nil
 		}
-		log.Info("Signature handoff: force-completing outgoing restore", "outgoing", outgoing, "vsEdges", len(vsEdges), "drEdges", len(drEdges))
-		return r.completeRetryStormRestore(ctx, policy, vsEdges, drEdges)
+		log.Info("Signature handoff: force-completing outgoing restore", "outgoing", outgoing)
+		return r.completeRetryStormRestore(ctx, policy)
 	case cascadev1alpha1.SignatureFanOutAmplification:
 		has, err := r.mitigator().HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureFanOutAmplification)
 		if err != nil {

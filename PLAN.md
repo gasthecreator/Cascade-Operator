@@ -603,8 +603,8 @@ live-cluster claim before checking an item here.
   live against the dev cluster mid-benchmark-run. Every generated report
   includes its own "Known limitations" section (host attribution,
   restore-timing precision).
-- [ ] Phase 6 — Multi-mesh (Linkerd) support: **6.1/6.2/6.3/6.4 done, 6.5/6.6
-  not started (retry storm's own migration).** Live-researched Linkerd's
+- [x] Phase 6, 6.1–6.5 — Multi-mesh adapter interface + all three signatures
+  migrated behind `internal/mesh.Mitigator`. Live-researched Linkerd's
   actual current mechanisms first (not assumed): failure-accrual `Service`
   annotations (`balancer.linkerd.io/failure-accrual*`) vs. `ServiceProfile`
   retry budgets are confirmed mutually exclusive per Service (Linkerd's
@@ -613,22 +613,31 @@ live-cluster claim before checking an item here.
   the only production-viable retry mechanism today despite being feature-
   frozen. Built: `internal/mesh.QueryBuilder` interface +
   `internal/mesh/istio` reference implementation (moved from
-  `internal/controller/promql.go`), the additive `spec.mesh`
-  CRD field (`Istio | Linkerd`, default `Istio`), and `internal/mesh.Mitigator`
-  (trip/restore patch application) with **both** fan-out amplification
-  and latency/error-cascade (the two-object-kind case: DestinationRule
-  primary + VirtualService secondary, independently patched/restored)
-  fully migrated behind it — live-verified against the dev cluster for
-  both (real trip patches on both object kinds, real restore to true
-  original, `make test-integration`'s full three-signature suite passing
-  through the new path). `EffectiveThresholds` moved to `api/v1alpha1` to
-  avoid an import cycle once the Istio Mitigator needed it too. **Not
-  done**: retry storm's own migration (also two object kinds, plus the
-  JSON-Patch-vs-merge-patch zero-value subtlety this project spent real
-  effort getting right — its own dedicated slice), Linkerd's actual
-  `QueryBuilder`/`Mitigator` implementations, the failure-accrual/
-  ServiceProfile arbitration logic, a Linkerd dev environment, and
-  integration coverage. See its worklogs for the exact line.
+  `internal/controller/promql.go`), the additive `spec.mesh` CRD field
+  (`Istio | Linkerd`, default `Istio`), and `internal/mesh.Mitigator`
+  (trip/restore patch application) with **all three signatures** —
+  fan-out amplification, latency/error-cascade, and retry storm (the two
+  hardest cases: independent secondary object kinds, plus retry storm's
+  JSON-Patch-vs-merge-patch zero-value writes, preserved exactly through
+  the migration) — fully migrated behind it. `EffectiveThresholds` moved
+  to `api/v1alpha1` to avoid an import cycle. `internal/controller`'s old
+  edge-listing helpers (`listManagedDestinationRuleEdges`/
+  `listManagedVirtualServiceEdges`) deleted as fully dead code once all
+  three signatures stopped needing them. Live-verified against the dev
+  cluster for all three: `make test-integration`'s full suite passing
+  through the new path (including retry storm's raw-JSON
+  `"attempts":0`/`"maxRetries":1` wire-format assertions — the exact
+  proof the original zero-value bug thread was built around), plus a
+  real k6-driven run that happened to exercise the hardest case for
+  free — a genuine cross-signature handoff (retry storm → latency/error-
+  cascade on the same host), confirmed live to force-complete retry
+  storm's restore (both object kinds, both annotations) cleanly before
+  the incoming signature's trip applied.
+- [ ] Phase 6, 6.6 — Linkerd's actual `QueryBuilder`/`Mitigator`
+  implementations, the failure-accrual/ServiceProfile arbitration logic,
+  a Linkerd dev environment, and integration coverage. Not started — see
+  the Phase 6 worklogs for the mesh-adapter interface these will
+  implement.
 - [ ] Phase 11 — eBPF-level kernel-signal corroboration: **spike done and
   passed; corroboration integration not done.** Confirmed live on this
   exact dev environment (Docker Desktop 29.7.2, kernel 7.0.12-linuxkit,

@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-31 — Phase 6.5: retry storm migrated to mesh.Mitigator (last of three signatures)](2026-08-31-phase6.5-mitigator-retrystorm.md)
 - [2026-08-31 — Phase 6.4: latency/error-cascade migrated to mesh.Mitigator](2026-08-31-phase6.4-mitigator-latency-error.md)
 - [2026-08-31 — Phase 6.3: Mitigator interface + fan-out amplification migrated](2026-08-31-phase6.3-mitigator-fanout.md)
 - [2026-08-31 — Phase 7: visual cascade replay](2026-08-31-phase7-visual-cascade-replay.md)
