@@ -36,6 +36,10 @@ fan-out detector and its cross-host PromQL are built against. Kind cluster
 has Istio 1.30.4 (demo) + Prometheus, the sleep/httpbin validation workload,
 and the demo topology. PromQL `sum by (le)` / `response_flags=URX` findings
 are in PLAN.md §2.4.
+**Known gap, fix in progress:** retry storm's `attempts`/`maxRetries` zero
+trip values never actually reach the API server (plain `int32` +
+`omitempty` strips them) — see §2.6's "Known gap, fix in progress" note and
+`PROPOSALS.md`. Top priority for the next slice.
 This file is the
 single source of truth for goal, architecture, and progress. Read it before
 touching code in any session (Cursor or Claude). Keep it updated as work lands —
@@ -276,6 +280,20 @@ has cleared — there's no in-progress ramp needing a regression check, only a
 clean object state that needs to be reached before the next signature can
 safely claim it. See `PROPOSALS.md`'s resolved entry for the full reasoning
 and the two rejected alternatives.
+
+**Known gap, fix in progress (flagged 2026-08-30):** retry storm's primary
+(`retries.attempts → 0`) and secondary (`connectionPool.http.maxRetries → 0`)
+are both plain `int32` proto fields with `omitempty`, so an explicit trip
+value of `0` is stripped by JSON marshaling before the operator's typed
+`Update()` call ever reaches the API server — confirmed live, down to the
+raw stored object, not just reasoned about (see
+`docs/worklog/2026-08-30-retry-storm-zero-value-serialization-bug.md`).
+Retry storm's mitigation has likely never actually reduced retries at the
+Envoy enforcement level. This does not change the matrix or the trip values
+above — the mitigation *strategy* is unaffected, only *how* the zero value
+is transmitted needs to change (patch-based write instead of typed
+`Update()`, per `PROPOSALS.md`'s resolved entry). Not yet implemented; top
+priority for the next slice, ahead of any other unfinished work.
 
 - Every patch the operator makes is annotated
   (`cascade.gideonsanni.dev/managed-by: cascade-operator`) so reconciliation
