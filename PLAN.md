@@ -471,8 +471,9 @@ live-cluster claim before checking an item here.
   dependabot.yml, .gitignore additions
 - [x] Phase 1 — CI: Kind+Istio integration workflow (`make test-integration`
   in Actions), govulncheck, CodeQL
-- [ ] Phase 2 — Integration test coverage for latency/error-cascade and
-  fan-out amplification (retry storm's is done — `test/integration/`)
+- [x] Phase 2 — Integration test coverage for latency/error-cascade and
+  fan-out amplification, extending `test/integration/` — all three
+  signatures now have raw-JSON wire-format trip/restore coverage
 - [ ] Phase 3 — `CascadePolicy` admission webhook (validating; field-level
   checks only, no live dependency-resolution check)
 - [ ] Phase 4 — Grafana dashboard over existing operator metrics; trip/restore

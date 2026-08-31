@@ -269,12 +269,26 @@ func formatJSONForLog(b []byte) string {
 }
 
 // hostAwareQuerier stubs Prometheus for deterministic detection. Metrics are
-// not what this suite proves — wire-format through a real apiserver Patch is.
-// Inventory alone gets a tripping dest:source ratio; every other host/query
-// stays healthy so payments does not win the per-host detector race.
+// not what these suites prove — wire-format through a real apiserver Patch
+// is. Each signature's own boolean field elevates exactly the query shape
+// and host that signature's own PromQL construction uses (see
+// internal/controller/promql.go) above its threshold
+// (demo/k8s/cascadepolicy.yaml); every other query/host stays at a safe,
+// healthy default so a different detector doesn't win the per-host race for
+// the same reconcile (latency/error cascade is evaluated before retry storm,
+// which is evaluated before fan-out, per host — see detectSignatures's own
+// doc comment in internal/controller/cascadepolicy_controller.go).
+//
+// fanOutRatioQuery is the only reporter="destination" query that also names
+// the caller host (policy.Spec.Service) in its text — retryStormRatioQuery
+// never does, even for the same dependency host — so checking for the
+// caller host's name is the only reliable way to tell the two apart from
+// raw PromQL text alone.
 type hostAwareQuerier struct {
-	inventoryRetryStorm bool
-	healthy             bool
+	inventoryRetryStorm   bool
+	inventoryLatencyError bool
+	inventoryFanOut       bool
+	healthy               bool
 }
 
 func (q *hostAwareQuerier) Query(_ context.Context, promql string) (metrics.Snapshot, error) {
@@ -285,15 +299,24 @@ func (q *hostAwareQuerier) Query(_ context.Context, promql string) (metrics.Snap
 	switch {
 	case strings.Contains(promql, "histogram_quantile"):
 		v = 80
+		if q.inventoryLatencyError && strings.Contains(promql, inventoryName) {
+			v = 600 // above thresholds.latencyP99Ms:500
+		}
 	case strings.Contains(promql, `reporter="source"`):
 		v = 1.0
-		if q.inventoryRetryStorm && strings.Contains(promql, "inventory-service") {
+		if q.inventoryRetryStorm && strings.Contains(promql, inventoryName) {
 			v = 4.0
 		}
 	case strings.Contains(promql, `reporter="destination"`):
 		v = 1.0
+		if q.inventoryFanOut && strings.Contains(promql, inventoryName) && strings.Contains(promql, "checkout-service") {
+			v = 3.0 // above thresholds.fanOutMultiplier:2.0
+		}
 	default:
 		v = 0.001
+		if q.inventoryLatencyError && strings.Contains(promql, inventoryName) {
+			v = 0.10 // above thresholds.errorRateFraction:0.05
+		}
 	}
 	return metrics.Snapshot{Samples: []metrics.Sample{{Value: v}}}, nil
 }
