@@ -40,13 +40,14 @@ are in PLAN.md §2.4.
 reach the API server as explicit JSON zeros (patch-based writes, not typed
 `Update()`) — confirmed live down to the raw stored object by both Cursor
 and, independently, Claude on review. The primary is also confirmed
-enforced at Envoy (`retry_policy: null`). A **separate, new gap** surfaced
-during that same live check: Istio's own DestinationRule→Envoy CDS
-translation renders an explicit `maxRetries: 0` as `4294967295` (unlimited)
-rather than 0, so retry storm's *secondary* is still a no-op at the Envoy
-enforcement layer — this is Istio's control-plane translation, not a
-marshaling bug in this codebase, and is tracked as its own pending
-`PROPOSALS.md` entry, undecided. See §2.6.
+enforced at Envoy (`retry_policy: null`). A **separate gap**, also now
+resolved: Istio's own DestinationRule→Envoy CDS translation renders an
+explicit `maxRetries: 0` as `4294967295` (unlimited) rather than 0 — a
+hard-coded Pilot limitation confirmed against the `1.30.4` source (and
+unchanged on `master`), not a marshaling bug in this codebase. Retry
+storm's secondary trip value is now `1`, not `0`, since the API cannot
+express explicit zero for this field; implementation is the next slice.
+See §2.6.
 This file is the
 single source of truth for goal, architecture, and progress. Read it before
 touching code in any session (Cursor or Claude). Keep it updated as work lands —
@@ -210,7 +211,7 @@ generic "patch a DestinationRule or a VirtualService" rule:
 | Signature | Trip — primary | Trip — secondary | Restore |
 |---|---|---|---|
 | Latency/error cascade | `DestinationRule` `outlierDetection`: lower `consecutive5xxErrors`, shorter `interval`, longer `baseEjectionTime` | `VirtualService` `timeout` on the dependency host, capped at `thresholds.latencyP99Ms` | Stepwise loosen the same fields |
-| Retry storm | `VirtualService` `retries.attempts` → 0 or 1 | `DestinationRule` `connectionPool.http.maxRetries`, `http1MaxPendingRequests` | Stepwise raise attempts / pool limits |
+| Retry storm | `VirtualService` `retries.attempts` → 0 | `DestinationRule` `connectionPool.http.maxRetries` → 1 (not 0 — Istio's Pilot has no way to push an explicit 0 to Envoy for this field; see below) | Stepwise raise attempts / pool limits |
 | Fan-out amplification | `DestinationRule` `connectionPool.http` (`http1MaxPendingRequests`, `http2MaxRequests`) on the downstream host — bulkhead in-flight calls | — (none for v1alpha1) | Stepwise raise pool limits |
 
 Reasoning: a latency/error cascade is service-level, so instance-scoped
@@ -306,17 +307,24 @@ stored object: both fields now store an explicit `0`
 mitigation *strategy* did not change, only how the zero value is
 transmitted.
 
-That same live check surfaced a **separate, still-open gap**: the primary
-is confirmed enforced at Envoy (`retry_policy: null` on the outbound
-route), but the secondary is not — Istio's own DestinationRule→CDS
+That same live check surfaced a **separate gap, now resolved (2026-08-30):**
+the primary is confirmed enforced at Envoy (`retry_policy: null` on the
+outbound route), but the secondary was not — Istio's own DestinationRule→CDS
 translation renders an explicit `maxRetries: 0` as Envoy
 `circuit_breakers.max_retries: 4294967295` (unlimited), not `0`. This is
-Istio's control-plane translation layer, not a marshaling bug in this
-codebase, and is a different root cause from the one just fixed even
-though the symptom (secondary doesn't actually cap retries at Envoy) looks
-similar. Tracked as a pending, undecided `PROPOSALS.md` entry — retry
-storm's secondary should be considered **not yet proven effective at
-Envoy** until that's resolved.
+Istio's control-plane translation, not a marshaling bug in this codebase:
+Pilot's `applyConnectionPool` (`cluster_traffic_policy.go`, confirmed
+against the exact `pilot:1.30.4` source and unchanged on `master`) guards
+the assignment with `if settings.Http.MaxRetries > 0`, so an explicit API
+`0` is indistinguishable from unset and the `math.MaxUint32` default is
+left in place — the same `int32`-vs-wrapper distinction as the earlier
+serialization bug, but one layer up, inside Istio's own Go code rather
+than this project's JSON marshaling. Resolved (`PROPOSALS.md`, approved
+2026-08-30): the secondary's trip value is `1`, not `0` — the smallest
+change that actually reaches Envoy as a real, enforced circuit-breaker
+cap, given the API has no way to express "explicit zero" for this
+particular field. The primary is unaffected and still trips `attempts: 0`
+exactly as before. Implementation of the `1` value is the next slice.
 
 - Every patch the operator makes is annotated
   (`cascade.gideonsanni.dev/managed-by: cascade-operator`) so reconciliation

@@ -57,6 +57,8 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-30 — Review: Istio maxRetries-zero translation investigation — approved, direction 2](2026-08-30-review-istio-maxretries-zero-translation.md)
+- [2026-08-30 — Istio does not push DestinationRule `maxRetries: 0` into Envoy CDS](2026-08-30-istio-maxretries-zero-translation.md)
 - [2026-08-30 — Review: retry storm's zero-value patch fix — approved, Envoy-level check confirmed independently](2026-08-30-review-retry-storm-zero-value-patch.md)
 - [2026-08-30 — Retry storm's zero trip values now cross the wire as explicit JSON zeros](2026-08-30-retry-storm-zero-value-patch.md)
 - [2026-08-30 — Retry storm's zero-value trip fields never actually reach the API server](2026-08-30-retry-storm-zero-value-serialization-bug.md)

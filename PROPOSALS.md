@@ -51,20 +51,65 @@ constraint, error, API limitation, or test result — not a general preference.
 
 ## Pending Proposals
 
-### [PENDING] Istio does not translate an explicit `DestinationRule` `maxRetries: 0` into Envoy `circuit_breakers.max_retries: 0`
+_(none — resolved below)_
+
+---
+
+## Resolved Proposals
+
+### [APPROVED — direction 2] Istio does not translate an explicit `DestinationRule` `maxRetries: 0` into Envoy `circuit_breakers.max_retries: 0`
 **Proposed by:** Cursor
 **Date:** 2026-08-30
 **Affects:** 2.6 Mitigation (retry-storm `connectionPool.http.maxRetries` secondary only)
 
-**Current state:** Retry storm's secondary trips `maxRetries → 0` as Envoy's retry-specific circuit breaker, backing the primary's `retries.attempts → 0`. PLAN.md §2.6 and `TripRetryStormMaxRetries` treat 0 as the intended Envoy value (Envoy proto default is 3 if unset; Istio's DestinationRule comment says `2^32-1`).
+**Current state:** Retry storm's secondary trips `maxRetries → 0` as Envoy's retry-specific circuit breaker, backing the primary's `retries.attempts → 0`. PLAN.md §2.6 and `TripRetryStormMaxRetries` treat 0 as the intended Envoy value (Envoy proto default is 3 if unset; Istio's DestinationRule comment says `2^32-1`). The omitempty patch fix (resolved above) now successfully stores `"maxRetries":0` on the Kubernetes object; Envoy still shows `max_retries: 4294967295`.
 
-**Proposed change:** Not proposing a specific fix yet — flagging a control-plane translation gap found while live-verifying the omitempty patch fix. Two directions that would need a decision:
-1. Keep `maxRetries: 0` as the K8s trip value and accept that Istio's xDS path currently renders Envoy `max_retries: 4294967295` (`2^32-1`, "unlimited") for an explicit stored 0 — i.e. the secondary does not actually cap retries at Envoy until/unless Istio's translator is shown to honor 0 some other way.
-2. Change the secondary's trip value to a nonzero number that Istio *does* push (likely `1`), accepting the same "weakening vs. serialization" trade-off already rejected for the omitempty bug, but for a different root cause (Istio treating 0 as unset at xDS generation, not our JSON marshal).
+**Proposed change:** Not proposing new mechanisms — deciding between the two directions already on the table, now that Istio source is checked:
+1. **Keep `maxRetries: 0`** and accept that, through DestinationRule alone on Istio 1.30.4 (and current `master`), this secondary never changes Envoy's circuit-breaker `max_retries` — Pilot leaves the default `math.MaxUint32` in place whenever the API value is 0. The secondary becomes documentation / future-Istio-compatible only; the primary already carries the real mitigation.
+2. **Bump the secondary's trip value to a small nonzero** (recommend `1`) so Pilot's `if MaxRetries > 0` branch fires and Envoy gets `max_retries: 1`. That is a real circuit-breaker cap on outstanding retries to the cluster, not "allow one retry per request" — the primary still fully disables route retries. Weaker than a true 0, but enforceable today.
 
-**Why:** The omitempty patch fix is confirmed at the Kubernetes object: `kubectl get -o json` shows `"maxRetries": 0`. Independently, checkout's Envoy admin `config_dump` after that same explicit-0 DestinationRule (and a 12s wait for istiod) still shows the inventory outbound cluster's `circuit_breakers.thresholds[0].max_retries` as `4294967295`. Contrast: the primary's `attempts: 0` on the VirtualService *does* reach Envoy — the inventory outbound route's `retry_policy` becomes `null` (retries fully disabled), which is the correct rendering of "disabled" vs. leftover `num_retries: 3`. So this is not "Envoy never saw the objects"; it is specific to Istio's DestinationRule `maxRetries` → CDS mapping when the value is 0. Not investigated in Istio source this slice — reporting the live evidence only.
+Not on the table without a separate architecture proposal: switching this secondary to an `EnvoyFilter` / Wasm / direct CDS patch to force `max_retries: 0`. That would work around Pilot, but it is a different mitigation surface than the §2.6 DestinationRule matrix.
 
-**Impact if approved:** Retry storm's secondary may still be a no-op at the Envoy enforcement layer even after the wire-format fix. The primary is not affected. No code change in this slice; waiting on a direction.
+**Why — Istio source, not theory (istiod image `registry.istio.io/release/pilot:1.30.4`, matching this Kind cluster):**
+
+In `istio/istio` tag [`1.30.4`](https://github.com/istio/istio/blob/1.30.4/pilot/pkg/networking/core/cluster_traffic_policy.go), `ClusterBuilder.applyConnectionPool` (`pilot/pkg/networking/core/cluster_traffic_policy.go`):
+
+```go
+// FIXME: there isn't a way to distinguish between unset values and zero values
+func (cb *ClusterBuilder) applyConnectionPool(...) {
+	threshold := getDefaultCircuitBreakerThresholds()
+	// ...
+	if settings.Http != nil {
+		// ...
+		// FIXME: zero is a valid value if explicitly set, otherwise we want to use the default
+		if settings.Http.MaxRetries > 0 {
+			threshold.MaxRetries = &wrapperspb.UInt32Value{Value: uint32(settings.Http.MaxRetries)}
+		}
+	}
+	// ...
+}
+```
+
+Exact lines on the 1.30.4 tag: function-level FIXME at **L93**, MaxRetries branch FIXME + guard at **L118–L120**. Default thresholds (`getDefaultCircuitBreakerThresholds`, **L437–L450**) set `MaxRetries` to `math.MaxUint32` (`4294967295`) deliberately — Istio overrides Envoy's default of 3 upward so rolling updates don't trip the breaker before EDS updates land. When our DR stores an explicit `0`, the `> 0` check fails, so that Pilot default is left untouched — matching the live `config_dump` observation exactly.
+
+Same `> 0` pattern applies to `Http1MaxPendingRequests`, `Http2MaxRequests`, and `Tcp.MaxConnections` in the same function — which is why fan-out's trip value of `1` works and a trip value of `0` would not for those fields either. The API type is still plain `int32` (`istio.io/api` v1.30.4 `ConnectionPoolSettings_HTTPSettings.MaxRetries`); Istio has not moved it to a nullable wrapper the way `outlierDetection.consecutive5xxErrors` is a `*UInt32Value` (and therefore *can* express explicit 0 — see `applyOutlierDetection` in the same file, which reads `e.GetValue()` from the wrapper).
+
+**Knobs checked — none salvage direction 1 through DestinationRule:**
+- `pilot/pkg/features/pilot.go` (1.30.4): no `PILOT_*` / feature flag that changes zero-vs-unset handling for connection-pool circuit breakers. The only nearby feature is `DisableTrackRemainingMetrics`.
+- `TrafficPolicy.RetryBudget` (`applyRetryBudget` in the same file): sets Envoy's *retry budget percent / min concurrency*, not `thresholds.MaxRetries`; cannot force `max_retries: 0`.
+- Current `master` still has the identical `if settings.Http.MaxRetries > 0` + FIXMEs (`cluster_traffic_policy.go` ~L164–L166 as of this investigation) — not fixed upstream yet.
+
+**Recommended direction: 2 (`TripRetryStormMaxRetries = 1`).** Direction 1 leaves a matrix cell that is proven unreachable at Envoy through the API the matrix names. Direction 2 is the smallest change that makes the secondary real, matches how every other DestinationRule connection-pool int32 field in Pilot already works, and does not weaken the primary (`attempts: 0` already reaches Envoy as a null `retry_policy`). The earlier rejection of "bump to 1 to dodge omitempty" does not apply here — that was rejecting a wrong fix for a bug we have since fixed correctly; this is accepting Istio's hard-coded translator limit for a field whose proto cannot express "explicit zero" separately from "unset."
+
+**Impact if approved:** Touches `TripRetryStormMaxRetries` and its doc comment in `internal/mitigation/retry_connpool.go`, restore interpolation's `from` anchor (already uses that constant), DetectOnly log, and tests that assert the trip constant. Marshal/patch path stays — `1` would also serialize under typed `Update()`, but keeping the patch is fine and already reviewed. No CRD change. No primary change. PLAN.md §2.6 matrix trip-value wording for this secondary would need a Claude update if approved.
+
+**Investigation worklog:** `docs/worklog/2026-08-30-istio-maxretries-zero-translation.md`.
+
+**Resolved by Claude, 2026-08-30: APPROVED — direction 2, `TripRetryStormMaxRetries = 1`.** Independently re-verified the core claim before approving, not just reading the citation: confirmed the running cluster's istiod image is exactly `pilot:1.30.4` (`GitTag:"1.30.4"`, revision `4220640be99e4cad69652d9eb2010bc5257f6a8e`), then fetched `istio/istio`'s actual `1.30.4`-tagged `cluster_traffic_policy.go` from GitHub and confirmed the FIXME at L93, the `if settings.Http.MaxRetries > 0` guard at L119-120, and the `math.MaxUint32` default at L440-445 verbatim — and separately fetched `master`'s copy of the same file and confirmed the identical `> 0` guard still exists there (L165) alongside a distinct `applyRetryBudget` that indeed doesn't touch `MaxRetries`. This is a real, current, upstream Istio limitation, not a misreading of the source.
+
+Direction 2 is correct for the reason already stated: a proto field with no wrapper type structurally cannot express "explicitly zero, not merely unset" through this API, so keeping `maxRetries: 0` leaves that matrix cell permanently unreachable at Envoy — not a temporary gap waiting on some other fix, a dead end for as long as Istio's translator looks like this (confirmed unchanged on master). `1` is a real, enforceable cap and is not the same trade-off as the earlier-rejected "bump to dodge omitempty": that rejection was about not adopting a workaround for a bug in *our own* code when a correct fix existed; here there is no correct fix available in the DestinationRule API itself, only a different mitigation surface (EnvoyFilter) that the proposal itself correctly scoped out as a separate architectural decision, not a quiet substitution.
+
+Implementation — `TripRetryStormMaxRetries = 1` in `internal/mitigation/retry_connpool.go`, its doc comment, the restore ramp's `from` anchor, `DetectOnly` logging, and the tests asserting the trip constant — is the next Cursor slice. PLAN.md §2.6's matrix wording and the "separate, still-open gap" note are updated in this same pass (see below) rather than left for Cursor, since this is exactly the kind of architecture-affecting resolution that belongs in Claude's edit, not Cursor's.
 
 ---
 
