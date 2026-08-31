@@ -184,15 +184,15 @@ func (r *CascadePolicyReconciler) forceCompleteOutgoingRestore(
 		log.Info("Signature handoff: force-completing outgoing restore", "outgoing", outgoing, "vsEdges", len(vsEdges), "drEdges", len(drEdges))
 		return r.completeRetryStormRestore(ctx, policy, vsEdges, drEdges)
 	case cascadev1alpha1.SignatureFanOutAmplification:
-		edges, err := r.listManagedDestinationRuleEdges(ctx, policy)
+		has, err := r.mitigator().HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureFanOutAmplification)
 		if err != nil {
 			return err
 		}
-		if len(edges) == 0 {
+		if !has {
 			return nil
 		}
-		log.Info("Signature handoff: force-completing outgoing restore", "outgoing", outgoing, "edges", len(edges))
-		return r.completeFanOutRestore(ctx, policy, edges)
+		log.Info("Signature handoff: force-completing outgoing restore", "outgoing", outgoing)
+		return r.completeFanOutRestore(ctx, policy)
 	default:
 		return nil
 	}
