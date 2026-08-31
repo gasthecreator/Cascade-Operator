@@ -57,6 +57,12 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-31 — Phase 7: visual cascade replay](2026-08-31-phase7-visual-cascade-replay.md)
+- [2026-08-31 — Phase 11: eBPF/Tetragon corroboration — environment spike (real, but partial)](2026-08-31-phase11-tetragon-spike.md)
+- [2026-08-31 — Phase 6.1/6.2: mesh adapter interface (QueryBuilder) + spec.mesh field](2026-08-31-phase6-mesh-query-builder.md)
+- [2026-08-31 — errorRateQuery missing sum() aggregation, fixed](2026-08-31-error-rate-query-sum-fix.md)
+- [2026-08-31 — Phase 9: quantified resilience benchmark](2026-08-31-phase9-resilience-benchmark.md)
+- [2026-08-31 — Phase 8: postmortem generator (cmd/postmortem)](2026-08-31-phase8-postmortem-generator.md)
 - [2026-08-31 — Phase 10: property-based state-machine verification (pgregory.net/rapid)](2026-08-31-phase10-property-based-verification.md)
 - [2026-08-31 — Phase 5 (4/4): per-edge threshold overrides — additive, not breaking](2026-08-31-phase5-per-edge-threshold-overrides.md)
 - [2026-08-31 — Phase 5 (3/4): security threat-model doc](2026-08-31-phase5-security-threat-model.md)

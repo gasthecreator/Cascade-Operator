@@ -96,8 +96,15 @@ hack/demo-port-forward.sh
 **Terminal 2 — the operator**, pointed at the port-forwarded Prometheus:
 
 ```bash
-go run ./cmd/main.go --prometheus-url=http://127.0.0.1:19090
+ENABLE_WEBHOOKS=false go run ./cmd/main.go --prometheus-url=http://127.0.0.1:19090
 ```
+
+`ENABLE_WEBHOOKS=false` is required here since PLAN.md §5 Phase 3: this dev
+cluster has no cert-manager (or any webhook TLS cert) installed, and the
+manager only tries to load one if something registers a webhook handler on
+it — skipping registration is sufficient, not just a workaround. Without
+this, `go run` fails immediately with `open .../k8s-webhook-server/
+serving-certs/tls.crt: no such file or directory`.
 
 **Terminal 3 — watch the policy's status transitions**, the actual
 evidence this slice exists to produce:

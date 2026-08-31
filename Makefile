@@ -153,6 +153,14 @@ demo-deploy: ## Build, load, and deploy the §2.7 demo topology (checkout -> {pa
 demo-undeploy: ## Remove the demo topology from the cluster.
 	kubectl delete -n default -f demo/k8s/ --ignore-not-found
 
+.PHONY: benchmark
+benchmark: ## Run each signature's k6 scenario in DetectOnly vs Mitigate mode against the live dev cluster; writes docs/benchmark-results.md.
+	hack/run-benchmark.sh
+
+.PHONY: tetragon-install
+tetragon-install: ## Install Tetragon (eBPF observability) + the tcp_retransmit_skb TracingPolicy on the current kube context. Requires Helm.
+	hack/install-tetragon.sh
+
 ##@ Build
 
 .PHONY: build

@@ -42,6 +42,19 @@ const (
 	PolicyPhaseRestoring PolicyPhase = "Restoring"
 )
 
+// MeshType selects which service mesh's queries/mitigation this policy
+// uses (PLAN.md §5 Phase 6.2). Additive: existing v1alpha1 objects have no
+// spec.mesh value, default to Istio (this project's only implementation
+// until Phase 6's Linkerd backend lands — internal/mesh, internal/mesh/istio),
+// and are completely unaffected by this field's existence.
+// +kubebuilder:validation:Enum=Istio;Linkerd
+type MeshType string
+
+const (
+	MeshIstio   MeshType = "Istio"
+	MeshLinkerd MeshType = "Linkerd"
+)
+
 // SignatureType is a detected cascade-failure signature.
 // +kubebuilder:validation:Enum=LatencyErrorCascade;RetryStorm;FanOutAmplification
 type SignatureType string
@@ -130,6 +143,15 @@ type CascadePolicySpec struct {
 	// +optional
 	// +kubebuilder:default=Mitigate
 	Mode PolicyMode `json:"mode,omitempty"`
+
+	// mesh selects which service mesh's detection queries and mitigation
+	// this policy uses. Defaults to Istio — the only implementation this
+	// project has today (PLAN.md §5 Phase 6; Linkerd support is still in
+	// progress, see internal/mesh's own doc comment for exactly what's
+	// wired so far).
+	// +optional
+	// +kubebuilder:default=Istio
+	Mesh MeshType `json:"mesh,omitempty"`
 }
 
 // ThresholdOverrides overrides individual Thresholds fields for one

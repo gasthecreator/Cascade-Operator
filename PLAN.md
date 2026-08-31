@@ -193,6 +193,22 @@ reporter × 4 = 140 total 503s at the destination, matching a
 `retries.attempts: 3` policy exactly). The retry-storm detector should key
 off `URX` and/or the destination:source request-count ratio, not `UR`.
 
+**`ErrorRateQuery` missing `sum()` (found and fixed 2026-08-31):** unlike the
+p99 query, the error-rate query (`rate(...response_code=~"5.."...) /
+rate(...)`) had no `sum()` on either side, so it relied on Prometheus's
+default one-to-one vector matching (both sides must share an identical
+label set, `response_code` included, to pair up). Verified live against the
+dev cluster's real traffic: this produced either `NaN` (no matching label
+sets — silently swallowed by `signatures.DetectLatencyError`'s `finite()`
+check as "incomplete readings," a false negative) or, when traffic narrowed
+to one response code, an exact `1.0` (that code's rate divided by its own
+identical-label rate — a false positive that trips on any single 5xx
+regardless of `errorRateThreshold`) — never the true error fraction either
+way. A live `sum()`-wrapped query against the same traffic returned the
+correct aggregate (~0.47). Fixed by wrapping both sides in `sum()`, same as
+the p99 query's `sum by (le)`. See
+`docs/worklog/2026-08-31-error-rate-query-sum-fix.md`.
+
 ### 2.5 Detection engine: decoupled from the reconciler
 
 `internal/signatures/` holds one detector per failure type, each a pure
@@ -555,45 +571,72 @@ live-cluster claim before checking an item here.
   implementer for the rest of this initiative) specifically to lock in
   these invariants before Phase 6 extends the same state machine to a
   second mesh. `go test ./... -race` and `make lint` both clean.
-- [ ] Phase 9 — Quantified resilience benchmark: run each signature's chaos
-  scenario twice — `Mitigate` vs. the CRD's existing `DetectOnly` mode as
-  the real baseline — and publish time-to-detect / blast-radius /
-  time-to-restore numbers side by side (`make benchmark`,
-  `docs/benchmark-results.md`). Converts "it works" into a falsifiable,
-  measured claim; builds entirely on existing k6 scripts and PromQL.
-- [ ] Phase 7 — Visual cascade replay: capture a real trip→mitigate→restore
-  episode per signature as a JSON trace (reusing `demo/k6/*.js`, no new live
-  infra to *view* it) and build a self-contained page that animates the
-  topology graph, live metrics, the actual JSON patch appearing at trip
-  time, and the status timeline. This is the portfolio's actual distribution
-  problem being solved, not a feature for the operator itself — most
-  reviewers will never `kubectl apply` this repo, but will click a link.
-- [ ] Phase 8 — Postmortem generator: render a real incident postmortem
-  document (timeline, root cause/evidence, impact, remediation, resolution
-  timing) from `CascadePolicy.status` and the operator's own Prometheus
-  metrics after an episode. On-demand CLI first; auto-trigger on
-  `Tripped → Normal` (via Phase 4's notifier) as a stretch add-on, not the
-  first version.
-- [ ] Phase 6 — Multi-mesh (Linkerd) support, full attempt: mesh-adapter
-  interface (spike/design proposal first), Linkerd detection (PromQL
-  equivalent, metric names confirmed live not assumed), Linkerd mitigation
-  for latency/error-cascade + retry storm (these two are **mutually
-  exclusive per Service on Linkerd** — failure accrual vs. ServiceProfile —
-  extending the existing signature-handoff machinery to arbitrate which
-  owns a given Service), fan-out is explicit detect-only-on-Linkerd (status
-  condition, not a silent skip), explicit `spec.mesh` field, Linkerd dev
-  environment, integration coverage. Largest item by far — expect several
-  independently-reviewed slices, not one.
-- [ ] Phase 11 — eBPF-level kernel-signal corroboration: deploy Cilium's
-  **Tetragon** (not hand-written eBPF/CO-RE — too deep a separate
-  discipline for the payoff) as a DaemonSet exporting kernel-level TCP
-  signals (retransmits, resets) as a fourth, independent, *corroborating*
-  input alongside the existing Envoy-metric-based detection — never a
-  replacement, and detection works identically with Tetragon absent.
-  Highest-risk phase here (privileged DaemonSet, kernel/BPF compatibility
-  inside the Kind/Docker Desktop VM needs confirming) — starts with a spike
-  confirming Tetragon actually runs cleanly in this exact dev environment,
-  same discipline as Phase 6's Linkerd spike.
+- [x] Phase 9 — Quantified resilience benchmark: `hack/run-benchmark.sh`
+  (`make benchmark`) runs each signature's k6 scenario twice — `DetectOnly`
+  vs. `Mitigate` — against the live dev cluster and writes
+  `docs/benchmark-results.md` (time-to-detect / blast-radius /
+  time-to-restore, plus an honest "Notes and caveats" section covering
+  retry-storm's expected-small error-rate delta, fan-out's boundary-blip
+  noise, and the errorRateQuery fix's timing relative to this run).
+  Surfaced two real bugs while building it, both fixed: `go run
+  ./cmd/main.go` needs `ENABLE_WEBHOOKS=false` locally (no cert-manager on
+  this dev cluster — traced into controller-runtime's own source to
+  confirm), and a k6 scenario's single unretried `/control/heal` call can
+  itself land on the fault's own error injection and never heal — fixed
+  with a `force_heal_all()` safety net.
+- [x] Phase 7 — Visual cascade replay: `demo/replay/index.html`
+  (self-contained, no build step, no external CDN) animates a captured
+  trip→mitigate→restore trace — topology graph, metric sparkline,
+  phase/signature/restore-step readout, and the live object's raw JSON
+  spec with changed-since-baseline fields highlighted. `hack/capture-
+  episode.sh <scenario>` captures a real trace from the live cluster into
+  `demo/replay/traces/`. Verified in-browser (play/scrub/topology-
+  coloring/diff-highlighting all confirmed working against a real
+  captured trace, not just the synthetic one used to first verify the
+  rendering logic).
+- [x] Phase 8 — Postmortem generator: `cmd/postmortem` renders a real
+  incident postmortem (timeline, root cause reconstructed from Prometheus
+  history at the trip timestamp via PromQL's `@<unix>` modifier, blast
+  radius, restoration status) from one `CascadePolicy`'s live status —
+  not from operator logs, since `Verdict.Evidence` is only ever logged,
+  never persisted to status (stated plainly, not glossed over). Verified
+  live against the dev cluster mid-benchmark-run. Every generated report
+  includes its own "Known limitations" section (host attribution,
+  restore-timing precision).
+- [ ] Phase 6 — Multi-mesh (Linkerd) support: **6.1/6.2 done, 6.3–6.6 not
+  started.** Live-researched Linkerd's actual current mechanisms first
+  (not assumed): failure-accrual `Service` annotations
+  (`balancer.linkerd.io/failure-accrual*`) vs. `ServiceProfile`
+  retry budgets are confirmed mutually exclusive per Service (Linkerd's
+  own docs, quoted in the approved plan); Gateway API's own retry-budget
+  proposal is confirmed still experimental, so `ServiceProfile` remains
+  the only production-viable retry mechanism today despite being feature-
+  frozen. Built: `internal/mesh.QueryBuilder` interface +
+  `internal/mesh/istio` reference implementation (moved from
+  `internal/controller/promql.go`), and the additive `spec.mesh`
+  CRD field (`Istio | Linkerd`, default `Istio`). **Not done**: the
+  `Mitigator` interface (trip/restore patch application — the larger of
+  the two interfaces, still embedded directly in `internal/mitigation`'s
+  10 Istio-typed files and ~6 controller files), Linkerd's actual
+  `QueryBuilder`/`Mitigator` implementations, the failure-accrual/
+  ServiceProfile arbitration logic, a Linkerd dev environment, and
+  integration coverage. See its worklog for the exact line.
+- [ ] Phase 11 — eBPF-level kernel-signal corroboration: **spike done and
+  passed; corroboration integration not done.** Confirmed live on this
+  exact dev environment (Docker Desktop 29.7.2, kernel 7.0.12-linuxkit,
+  BTF present) — installed Tetragon for real via Helm, confirmed its base
+  sensor loads and captures real `process_exec` events, applied a real
+  `tcp_retransmit_skb` `TracingPolicy` and confirmed its sensor loads too.
+  **Real, honestly-stated gap**: `demo/internal/depsvc`'s fault injection
+  is entirely HTTP-layer (500s, `time.Sleep`) — it never actually disrupts
+  a TCP connection, so the retransmit signal, while genuinely working,
+  has not fired during an induced incident, and no detection-pipeline
+  integration was written against zero real captured events — doing so
+  would mean designing against fabricated data, which this project has
+  avoided doing for every other signal. Needs either a new TCP-layer
+  fault-injection mechanism in the demo topology or a different choice of
+  Tetragon signal, decided deliberately before any Go code is written
+  against it. See its worklog for the exact accounting.
 
 **Sequencing note (revised 2026-08-31 — Cursor no longer available, Claude
 sole implementer for Phases 6–11):** re-sequenced to **10 → 9 → 7 → 8 → 6 →
