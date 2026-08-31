@@ -28,10 +28,12 @@ import (
 )
 
 const (
-	testVSName     = "payments-service"
-	testVSNS       = "default"
-	testVSHost     = "payments-service.default.svc.cluster.local"
-	testRetryOn5xx = "5xx"
+	testVSName        = "payments-service"
+	testVSNS          = "default"
+	testVSHost        = "payments-service.default.svc.cluster.local"
+	testRetryOn5xx    = "5xx"
+	testRedirectURI   = "/elsewhere"
+	testKeepMeRouteID = "keep-me"
 )
 
 func destRoute() []*apinet.HTTPRouteDestination {
@@ -68,7 +70,7 @@ func TestApplyRetryStormTripMultiRoute(t *testing.T) {
 				{
 					// Redirect-only: no destination, retries meaningless.
 					Name:     "redirect-only",
-					Redirect: &apinet.HTTPRedirect{Uri: "/elsewhere"},
+					Redirect: &apinet.HTTPRedirect{Uri: testRedirectURI},
 				},
 			},
 		},

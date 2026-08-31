@@ -49,7 +49,7 @@ func managedVS(original string) *networkingv1.VirtualService {
 				// actually produces.
 				{Route: destRoute(), Retries: &apinet.HTTPRetry{Attempts: TripRetryAttempts}},
 				{Route: destRoute(), Retries: &apinet.HTTPRetry{Attempts: TripRetryAttempts, RetryOn: testRetryOn5xx}},
-				{Redirect: &apinet.HTTPRedirect{Uri: "/elsewhere"}},
+				{Redirect: &apinet.HTTPRedirect{Uri: testRedirectURI}},
 			},
 		},
 	}
@@ -169,7 +169,7 @@ func TestCompleteRetryStormRestorePreservesUnrelatedRouteFields(t *testing.T) {
 			Hosts: []string{testVSHost},
 			Http: []*apinet.HTTPRoute{
 				{
-					Name:    "keep-me",
+					Name:    testKeepMeRouteID,
 					Route:   destRoute(),
 					Retries: &apinet.HTTPRetry{Attempts: TripRetryAttempts},
 					Timeout: durationpb.New(3 * time.Second),
@@ -181,7 +181,7 @@ func TestCompleteRetryStormRestorePreservesUnrelatedRouteFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	route := vs.Spec.Http[0]
-	if route.Name != "keep-me" {
+	if route.Name != testKeepMeRouteID {
 		t.Error("route name clobbered")
 	}
 	if route.Timeout.AsDuration() != 3*time.Second {

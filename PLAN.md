@@ -15,8 +15,13 @@ gap that reasoning surfaced (a same-host signature handoff mid-Tripped/
 Restoring could orphan the outgoing signature's fields) is resolved: see
 §2.6's "Signature handoff on a shared object" and `PROPOSALS.md`'s approved
 entry — `Reconcile` now synchronously force-completes the outgoing
-signature's restore before adopting a handoff on the same tick. The §2.7
-demo topology
+signature's restore before adopting a handoff on the same tick.
+Latency/error-cascade also now patches a `VirtualService` `timeout`
+secondary alongside its `DestinationRule` primary — the first signature to
+manage two object kinds on one trip, with `VirtualService` now itself
+shared between retry storm (`retries.attempts`) and latency/error-cascade
+(`timeout`), on disjoint fields; the two-object-kind trip/restore shape is
+in §2.6. The §2.7 demo topology
 (`checkout → {payments, inventory}`, under `demo/`) is built and deployed,
 and its live-scrape evidence (a clean 1:1:1 healthy ratio; a 3× ratio when
 `payments` fails and `checkout`'s own retry loop kicks in) is what the
@@ -202,9 +207,44 @@ on the callee is the only lever that does.
 
 All three primaries are now built: latency/error cascade (outlier
 detection), retry storm (`retries.attempts`), and fan-out amplification
-(`connectionPool.http`). No secondaries are built for any signature yet
-(latency/error's `VirtualService` timeout; retry storm's `connectionPool`
-cap) — those remain contract, not built.
+(`connectionPool.http`). Latency/error-cascade's secondary
+(`VirtualService` `timeout`, capped at `thresholds.latencyP99Ms`) is now
+also built — the first case of a single signature managing two different
+Istio object kinds on the same trip. Retry storm's `connectionPool`
+secondary remains contract, not built.
+
+**Two-object-kind trip/restore shape (locked 2026-08-30):** with
+latency/error-cascade now patching both `DestinationRule` (primary) and
+`VirtualService` (secondary) for the same edge, the two objects are treated
+as fully independent, not a joint precondition:
+
+- The primary applies even if the secondary's `VirtualService` is missing,
+  and symmetrically the secondary applies even if the primary's
+  `DestinationRule` is missing. "Secondary" in the matrix above means
+  additive to the primary, not a co-requirement — nothing in this section
+  says the mitigation should no-op entirely just because one of the two
+  backstop objects isn't resolvable for that edge.
+- `DependencyObjectMissing` stays a single boolean and stays scoped to the
+  primary (`DestinationRule`) only. A missing secondary is logged and
+  separately observable via `mitigationPatchesAppliedTotal{kind="VirtualService"}`
+  simply not incrementing that tick, but does not flip the condition — with
+  two independent objects, a missing secondary while the primary is present
+  still means real mitigation is happening for that edge, so flipping a
+  generic "this edge is broken" condition there would overstate the
+  problem. A missing primary still flips the condition exactly as before.
+- Restoration (`beginRestoreLatencyError`/`advanceRestoreLatencyError`/
+  `completeLatencyErrorRestore`) independently gathers and restores managed
+  `DestinationRule` edges and managed `VirtualService` edges; an edge with
+  only one object kind managed restores just that one, both restore
+  together when both are managed, and only "neither managed" snaps straight
+  to `Normal`. `forceCompleteOutgoingRestore`'s handoff path (above) forces
+  both object kinds to true original when latency/error-cascade is the
+  outgoing signature.
+
+This was implemented as documented judgment (per `PROPOSALS.md`'s own
+rule, it doesn't need review: it's carrying out what "secondary" already
+meant in the matrix above, not changing it), not filed as a proposal — see
+the worklog entry for the full reasoning.
 
 **Signature handoff on a shared object (locked 2026-08-30):** latency/error
 cascade and fan-out amplification both patch `DestinationRule` (disjoint
@@ -319,8 +359,9 @@ live Kind cluster (unreachable — see the worklog).
 - [x] Istio patch layer — `DestinationRule` outlierDetection primary (latency/error cascade), annotations
 - [x] Istio patch layer — `VirtualService` retries.attempts primary (retry storm), annotations
 - [x] Istio patch layer — `DestinationRule` connectionPool.http primary (fan-out amplification), annotations
-- [ ] Istio patch layer — remaining secondaries (`VirtualService` timeout for latency/error cascade; `DestinationRule` connectionPool for retry storm)
-- [x] Gradual restoration state machine (signature-dispatched: `DestinationRule` for latency/error cascade and fan-out amplification, on disjoint field sets; `VirtualService` for retry storm)
+- [x] Istio patch layer — `VirtualService` timeout secondary (latency/error cascade), annotations, two-object-kind trip + restore
+- [ ] Istio patch layer — remaining secondary (`DestinationRule` connectionPool for retry storm)
+- [x] Gradual restoration state machine (signature-dispatched: `DestinationRule` for latency/error cascade and fan-out amplification, on disjoint field sets; `VirtualService` for retry storm and, now, latency/error cascade's own timeout secondary)
 - [x] Force-complete outgoing signature's restore on a same-object signature handoff (§2.6)
 - [x] Operator's own Prometheus metrics (signatures detected, patches applied, restorations completed/regressed)
 - [x] Kind + Istio local dev environment docs/scripts

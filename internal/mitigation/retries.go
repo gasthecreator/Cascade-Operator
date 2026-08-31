@@ -76,16 +76,30 @@ type originalRouteRetriesJSON struct {
 // captured block, not just attempts, at completion. Every http[] route gets
 // an explicit retries block — including routes that had none — because
 // Istio's implicit default (attempts=2) would otherwise keep retrying
-// unmitigated on exactly the routes this patch is meant to stop. The
-// original annotation is written only when managed-by is not already set.
+// unmitigated on exactly the routes this patch is meant to stop.
+//
+// Captured via this annotation's own presence, not managed-by's
+// (originally written the other way; fixed in the same slice that added
+// latency/error-cascade's VirtualService secondary, timeout.go). VS is now
+// a shared object kind across two signatures — retry storm's own retries
+// here, latency/error-cascade's timeout there, disjoint fields — the same
+// shape ApplyLatencyErrorOutlierTrip's doc comment already worked through
+// for DestinationRule. Keying off managed-by alone would treat "already
+// managed by a *different* signature's own secondary" as "already managed
+// by me, skip capture", losing the true pre-trip retries block. Safe in
+// practice today because Reconcile's signature-handoff force-complete
+// always fully strips the outgoing signature's own annotations before a
+// different signature's trip ever runs against the same object (PLAN.md
+// §2.6) — but that safety depends on force-complete always running
+// correctly, and this check should hold on its own regardless.
 func ApplyRetryStormTrip(vs *networkingv1.VirtualService) {
 	if vs.Annotations == nil {
 		vs.Annotations = map[string]string{}
 	}
-	if vs.Annotations[AnnotationManagedBy] != ManagedByValue {
+	if _, captured := vs.Annotations[AnnotationOriginalRetries]; !captured {
 		vs.Annotations[AnnotationOriginalRetries] = snapshotRoutesRetriesJSON(vs)
-		vs.Annotations[AnnotationManagedBy] = ManagedByValue
 	}
+	vs.Annotations[AnnotationManagedBy] = ManagedByValue
 
 	for _, route := range vs.Spec.GetHttp() {
 		if len(route.GetRoute()) == 0 {

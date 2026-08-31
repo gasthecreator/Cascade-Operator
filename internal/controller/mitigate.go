@@ -40,9 +40,35 @@ const (
 	reasonDependencyObjectFound    = "DependencyObjectFound"
 )
 
-// applyLatencyErrorMitigation resolves the DestinationRule for host by
-// convention and, in Mitigate mode, patches outlierDetection. Missing objects
-// set DependencyObjectMissing and skip the edge; they do not fail Reconcile.
+// applyLatencyErrorMitigation resolves both the DestinationRule primary
+// and the VirtualService secondary for host by convention (PLAN.md §2.6)
+// and, in Mitigate mode, patches whichever exists — independently, not as a
+// joint precondition. This is the first signature to manage two object
+// kinds on a single trip, so the two-object-kind shape was worked through
+// deliberately rather than defaulted:
+//
+//   - The primary applies even if the secondary's VirtualService is
+//     missing. §2.6 calls the timeout a *secondary* — additive to outlier
+//     detection, not a co-requirement — so a missing backstop object must
+//     not silently disable the mitigation this project actually claims as
+//     its gap vs. hand-tuned Istio circuit breaking.
+//   - Symmetrically, the secondary applies even if the primary's
+//     DestinationRule is missing: there's no principled reason to
+//     withhold the fail-fast timeout backstop just because the
+//     outlier-detection object happens not to exist for this dependency.
+//   - DependencyObjectMissing stays a single boolean, and stays scoped to
+//     the primary only (see applyLatencyErrorOutlierPrimary /
+//     applyLatencyErrorTimeoutSecondary below). A missing secondary is
+//     logged at info level and is separately observable via
+//     mitigationPatchesAppliedTotal{kind="VirtualService"} simply not
+//     incrementing that tick — but it does not flip the condition. With
+//     two independent objects, a missing *secondary* while the primary is
+//     present still means real mitigation is happening for this edge;
+//     flipping a generic "this edge is broken" condition there would
+//     overstate the problem. A missing *primary* still flips the
+//     condition exactly as before (unchanged behavior for that case) —
+//     the primary not applying does mean this edge isn't getting the
+//     mitigation this project claims.
 func (r *CascadePolicyReconciler) applyLatencyErrorMitigation(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
@@ -52,15 +78,32 @@ func (r *CascadePolicyReconciler) applyLatencyErrorMitigation(
 
 	name, ns, err := mitigation.ParseServiceFQDN(host)
 	if err != nil {
-		log.Error(err, "cannot resolve DestinationRule from dependsOn FQDN", "host", host)
+		log.Error(err, "cannot resolve dependsOn FQDN", "host", host)
 		setDependencyMissing(policy, fmt.Sprintf("cannot parse dependsOn FQDN %q", host))
 		return nil
 	}
 
+	if err := r.applyLatencyErrorOutlierPrimary(ctx, policy, host, name, ns); err != nil {
+		return err
+	}
+	return r.applyLatencyErrorTimeoutSecondary(ctx, policy, name, ns)
+}
+
+// applyLatencyErrorOutlierPrimary patches DestinationRule outlierDetection —
+// unchanged behavior from before this signature grew a secondary, still the
+// sole driver of DependencyObjectMissing (see applyLatencyErrorMitigation's
+// doc comment above for why the secondary's own absence doesn't also set it).
+func (r *CascadePolicyReconciler) applyLatencyErrorOutlierPrimary(
+	ctx context.Context,
+	policy *cascadev1alpha1.CascadePolicy,
+	host, name, ns string,
+) error {
+	log := logf.FromContext(ctx)
+
 	dr := &networkingv1.DestinationRule{}
-	err = r.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, dr)
+	err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, dr)
 	if isAbsent(err) {
-		log.Info("DestinationRule missing; skipping patch", "name", name, "namespace", ns)
+		log.Info("DestinationRule missing; skipping primary patch", "name", name, "namespace", ns)
 		setDependencyMissing(policy, fmt.Sprintf("DestinationRule %s/%s not found for dependsOn %q", ns, name, host))
 		return nil
 	}
@@ -86,6 +129,48 @@ func (r *CascadePolicyReconciler) applyLatencyErrorMitigation(
 	}
 	mitigationPatchesAppliedTotal.WithLabelValues(string(cascadev1alpha1.SignatureLatencyErrorCascade), kindDestinationRule).Inc()
 	log.Info("patched DestinationRule outlierDetection", "name", name, "namespace", ns)
+	return nil
+}
+
+// applyLatencyErrorTimeoutSecondary patches VirtualService route timeout
+// down to the policy's own latencyP99Ms threshold (PLAN.md §2.6's
+// secondary). Deliberately never touches DependencyObjectMissing either
+// way — see applyLatencyErrorMitigation's doc comment: a missing
+// VirtualService here is logged but does not flag the edge, and a present
+// one must not incorrectly clear a condition the primary's own absence may
+// have correctly set.
+func (r *CascadePolicyReconciler) applyLatencyErrorTimeoutSecondary(
+	ctx context.Context,
+	policy *cascadev1alpha1.CascadePolicy,
+	name, ns string,
+) error {
+	log := logf.FromContext(ctx)
+
+	vs := &networkingv1.VirtualService{}
+	err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, vs)
+	if isAbsent(err) {
+		log.Info("VirtualService missing; skipping secondary patch", "name", name, "namespace", ns)
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("get VirtualService %s/%s: %w", ns, name, err)
+	}
+
+	if policy.Spec.Mode == cascadev1alpha1.PolicyModeDetectOnly {
+		log.Info("DetectOnly: would cap VirtualService route timeout",
+			"name", name,
+			"namespace", ns,
+			"timeoutMs", policy.Spec.Thresholds.LatencyP99Ms,
+		)
+		return nil
+	}
+
+	mitigation.ApplyLatencyErrorTimeoutTrip(vs, policy.Spec.Thresholds.LatencyP99Ms)
+	if err := r.Update(ctx, vs); err != nil {
+		return fmt.Errorf("update VirtualService %s/%s: %w", ns, name, err)
+	}
+	mitigationPatchesAppliedTotal.WithLabelValues(string(cascadev1alpha1.SignatureLatencyErrorCascade), kindVirtualService).Inc()
+	log.Info("patched VirtualService timeout", "name", name, "namespace", ns)
 	return nil
 }
 

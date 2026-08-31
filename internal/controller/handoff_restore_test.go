@@ -21,6 +21,12 @@ import (
 	"testing"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+
+	apinet "istio.io/api/networking/v1alpha3"
+	networkingv1 "istio.io/client-go/pkg/apis/networking/v1"
+
 	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
 	"github.com/gasthecreator/Cascade-Operator/internal/mitigation"
 )
@@ -148,6 +154,162 @@ func TestSignatureHandoffFanOutToLatencyErrorForceCompletesOutgoing(t *testing.T
 	}
 	if got.Annotations[mitigation.AnnotationManagedBy] != mitigation.ManagedByValue {
 		t.Error("managed-by not (re-)set by the incoming signature's trip")
+	}
+}
+
+func singleRouteVSFor(host string) *networkingv1.VirtualService {
+	return &networkingv1.VirtualService{
+		ObjectMeta: metav1.ObjectMeta{Name: patchDepName, Namespace: patchPolicyNS},
+		Spec: apinet.VirtualService{
+			Hosts: []string{host},
+			Http: []*apinet.HTTPRoute{
+				{Route: []*apinet.HTTPRouteDestination{{Destination: &apinet.Destination{Host: host}}}},
+			},
+		},
+	}
+}
+
+// TestSignatureHandoffLatencyErrorToFanOutForceCompletesBothObjectKinds
+// extends TestSignatureHandoffLatencyErrorToFanOutForceCompletesOutgoing
+// (above) for the object kind this slice added: latency/error-cascade is
+// now mid-Restoring on *both* a DestinationRule (outlierDetection primary)
+// and a VirtualService (timeout secondary, PLAN.md §2.6) when fan-out trips
+// on the same host, same tick. forceCompleteOutgoingRestore's
+// LatencyErrorCascade case must force-complete both, not just the
+// DestinationRule — a VirtualService left mid-ramp (or annotated at all)
+// after this handoff would be exactly the "orphaned outgoing signature
+// state" bug PROPOSALS.md's handoff entry already resolved for the single-
+// object-kind case, just on the object kind fan-out never touches (so
+// nothing else would ever clean it up).
+func TestSignatureHandoffLatencyErrorToFanOutForceCompletesBothObjectKinds(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const originalOutlier = `{"consecutive5xxErrors":7,"interval":"10s"}`
+	dr := trippedManagedDR()
+	dr.Annotations[mitigation.AnnotationOriginalOutlier] = originalOutlier
+	if err := mitigation.ApplyLatencyErrorOutlierRestoreStep(dr, 2); err != nil {
+		t.Fatal(err)
+	}
+
+	const originalTimeout = `[{"timeout":"4s"}]`
+	vs := singleRouteVSFor(patchDepHost)
+	mitigation.ApplyLatencyErrorTimeoutTrip(vs, 500)
+	vs.Annotations[mitigation.AnnotationOriginalTimeout] = originalTimeout
+	if err := mitigation.ApplyLatencyErrorTimeoutRestoreStep(vs, 2, 500); err != nil {
+		t.Fatal(err)
+	}
+
+	policy := seededPolicy(cascadev1alpha1.PolicyPhaseRestoring, 2)
+	r, c := patchReconcileWith(t, fanOutOnlyQuerier(), policy, dr, vs)
+
+	if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {
+		t.Fatal(err)
+	}
+	p, gotDR := getPolicyAndDR(t, c)
+
+	if p.Status.LastSignature != cascadev1alpha1.SignatureFanOutAmplification {
+		t.Errorf("lastSignature = %s, want FanOutAmplification", p.Status.LastSignature)
+	}
+	if p.Status.Phase != cascadev1alpha1.PolicyPhaseTripped {
+		t.Errorf("phase = %s, want Tripped", p.Status.Phase)
+	}
+
+	// Outgoing signature's DestinationRule side: true original, not the
+	// step-2 interpolated value; incoming signature's own trip applied
+	// fresh — same assertions as the single-object-kind test above.
+	od := gotDR.Spec.GetTrafficPolicy().GetOutlierDetection()
+	if od.GetConsecutive_5XxErrors().GetValue() != 7 {
+		t.Errorf("consecutive5xx = %d, want true original 7", od.GetConsecutive_5XxErrors().GetValue())
+	}
+	http := gotDR.Spec.GetTrafficPolicy().GetConnectionPool().GetHttp()
+	if http.GetHttp1MaxPendingRequests() != mitigation.TripHTTP1MaxPendingRequests {
+		t.Errorf("http1MaxPendingRequests = %d, want fan-out's trip value %d", http.GetHttp1MaxPendingRequests(), mitigation.TripHTTP1MaxPendingRequests)
+	}
+
+	// Outgoing signature's VirtualService side: the object fan-out never
+	// touches, so it must land on the true original with *both* operator
+	// annotations gone entirely — nothing else claims this object this
+	// tick, so nothing should be left managed on it at all.
+	gotVS := &networkingv1.VirtualService{}
+	if err := c.Get(ctx, types.NamespacedName{Name: patchDepName, Namespace: patchPolicyNS}, gotVS); err != nil {
+		t.Fatal(err)
+	}
+	if gotVS.Spec.Http[0].Timeout.AsDuration() != 4*time.Second {
+		t.Errorf("VirtualService timeout = %s, want true original 4s (not mid-ramp interpolated)", gotVS.Spec.Http[0].Timeout.AsDuration())
+	}
+	if gotVS.Annotations[mitigation.AnnotationManagedBy] != "" {
+		t.Error("VirtualService managed-by left behind after handoff to a signature that doesn't manage VirtualService")
+	}
+	if _, present := gotVS.Annotations[mitigation.AnnotationOriginalTimeout]; present {
+		t.Error("VirtualService original-timeout annotation left behind after handoff")
+	}
+}
+
+// TestSignatureHandoffFanOutToLatencyErrorPatchesFreshVirtualServiceSecondary
+// mirrors the test above in the other direction: fan-out mid-Restoring
+// (DestinationRule only — fan-out never manages a VirtualService) hands off
+// to latency/error-cascade on the same host/tick. The DestinationRule side
+// is the existing single-object-kind scenario
+// (TestSignatureHandoffFanOutToLatencyErrorForceCompletesOutgoing); this
+// adds the new part: latency/error's incoming trip must also patch its
+// VirtualService secondary fresh, from a completely unmanaged object, on
+// this same tick — a handoff is not a special case that should suppress
+// the secondary.
+func TestSignatureHandoffFanOutToLatencyErrorPatchesFreshVirtualServiceSecondary(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const originalPool = `{"http1MaxPendingRequests":64,"http2MaxRequests":128}`
+	dr := trippedFanOutManagedDR()
+	dr.Annotations[mitigation.AnnotationOriginalConnectionPool] = originalPool
+	if err := mitigation.ApplyFanOutConnectionPoolRestoreStep(dr, 2); err != nil {
+		t.Fatal(err)
+	}
+	vs := singleRouteVSFor(patchDepHost) // unmanaged — no prior annotations at all
+
+	policy := seededFanOutPolicy(cascadev1alpha1.PolicyPhaseRestoring, 2)
+	r, c := patchReconcileWith(t, &fakeQuerier{p99: 900, errorRate: 0.2}, policy, dr, vs)
+
+	if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {
+		t.Fatal(err)
+	}
+	p, gotDR := getPolicyAndDR(t, c)
+
+	if p.Status.LastSignature != cascadev1alpha1.SignatureLatencyErrorCascade {
+		t.Errorf("lastSignature = %s, want LatencyErrorCascade", p.Status.LastSignature)
+	}
+	if p.Status.Phase != cascadev1alpha1.PolicyPhaseTripped {
+		t.Errorf("phase = %s, want Tripped", p.Status.Phase)
+	}
+
+	// Outgoing signature's DestinationRule side: unchanged from the
+	// existing single-object-kind test — true original connectionPool,
+	// incoming signature's fresh outlierDetection trip.
+	http := gotDR.Spec.GetTrafficPolicy().GetConnectionPool().GetHttp()
+	if http.GetHttp1MaxPendingRequests() != 64 {
+		t.Errorf("http1MaxPendingRequests = %d, want true original 64", http.GetHttp1MaxPendingRequests())
+	}
+	od := gotDR.Spec.GetTrafficPolicy().GetOutlierDetection()
+	if od.GetConsecutive_5XxErrors().GetValue() != mitigation.TripConsecutive5xx {
+		t.Errorf("consecutive5xx = %d, want trip value %d", od.GetConsecutive_5XxErrors().GetValue(), mitigation.TripConsecutive5xx)
+	}
+
+	// Incoming signature's VirtualService secondary: patched fresh on this
+	// same tick, even though the object was never previously managed by
+	// anyone.
+	gotVS := &networkingv1.VirtualService{}
+	if err := c.Get(ctx, types.NamespacedName{Name: patchDepName, Namespace: patchPolicyNS}, gotVS); err != nil {
+		t.Fatal(err)
+	}
+	if gotVS.Spec.Http[0].Timeout.AsDuration() != 500*time.Millisecond {
+		t.Errorf("VirtualService timeout = %s, want fresh trip value 500ms", gotVS.Spec.Http[0].Timeout.AsDuration())
+	}
+	if gotVS.Annotations[mitigation.AnnotationManagedBy] != mitigation.ManagedByValue {
+		t.Error("VirtualService not marked managed by the incoming signature's secondary")
+	}
+	if _, present := gotVS.Annotations[mitigation.AnnotationOriginalTimeout]; !present {
+		t.Error("VirtualService missing a fresh original-timeout capture")
 	}
 }
 

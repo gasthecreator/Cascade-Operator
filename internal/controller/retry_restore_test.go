@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/types/known/durationpb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -60,6 +61,31 @@ func multiRouteTestVS() *networkingv1.VirtualService {
 func trippedManagedVS() *networkingv1.VirtualService {
 	vs := multiRouteTestVS()
 	mitigation.ApplyRetryStormTrip(vs)
+	return vs
+}
+
+// dualManagedVS is trippedManagedVS's two-signature twin — the VirtualService
+// analog of fanout_restore_test.go's dualManagedDR. VirtualService became a
+// shared object kind in the same slice that added latency/error-cascade's
+// timeout secondary (retry storm already owned retries.attempts on it): a
+// real handoff always force-completes the outgoing signature before the
+// incoming one's own trip touches the object (PLAN.md §2.6), so "managed-by
+// true but only *one* signature's own annotation present" is the only
+// reachable state in production — but the dispatch-isolation tests below
+// seed Restoring directly, bypassing that handoff sequence, so a fixture
+// that skips latency/error-cascade's own trip on the VS would make
+// ApplyLatencyErrorTimeoutRestoreStep error on a missing annotation instead
+// of testing what it's meant to test: that dispatch only ever advances its
+// own field/annotation, leaving the other signature's alone, exactly as
+// dualManagedDR already established for the DestinationRule side.
+func dualManagedVS() *networkingv1.VirtualService {
+	vs := multiRouteTestVS()
+	mitigation.ApplyRetryStormTrip(vs)
+	// Give route[1] an explicit pre-trip timeout before latency/error's own
+	// trip captures its baseline, so the restore-ramp test below exercises
+	// a real captured original rather than the Unset -> 15s-default path.
+	vs.Spec.Http[1].Timeout = durationpb.New(2 * time.Second)
+	mitigation.ApplyLatencyErrorTimeoutTrip(vs, 500)
 	return vs
 }
 
@@ -276,18 +302,25 @@ func TestRetryStormQueryErrorWhileTrippedDoesNotRestore(t *testing.T) {
 	}
 }
 
-// TestRestoreDispatchTouchesOnlyDestinationRuleForLatencyError and
+// TestRestoreDispatchAdvancesLatencyErrorsOwnFieldsOnBothObjectKinds and
 // TestRestoreDispatchTouchesOnlyVirtualServiceForRetryStorm both seed a
 // managed DestinationRule *and* a managed VirtualService, then trip a
 // specific signature — the point is to catch beginRestore/advanceRestore's
-// switch routing to the wrong object kind, not just that each path works
-// checked in isolation (which the tests above and restore_test.go already
-// cover individually).
-func TestRestoreDispatchTouchesOnlyDestinationRuleForLatencyError(t *testing.T) {
+// switch routing to the wrong object (kind or field), not just that each
+// path works checked in isolation (which the tests above and
+// restore_test.go already cover individually). Latency/error-cascade now
+// legitimately manages *both* object kinds (DestinationRule primary,
+// VirtualService secondary — PLAN.md §2.6), so unlike before this slice,
+// "touches only the DestinationRule" is no longer the right thing to
+// assert; the VirtualService fixture is dual-managed (dualManagedVS) so
+// this test can assert the sharper claim: latency/error-cascade's dispatch
+// advances its own timeout field on the VirtualService while leaving retry
+// storm's own retries field (and annotation) on that same object alone.
+func TestRestoreDispatchAdvancesLatencyErrorsOwnFieldsOnBothObjectKinds(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	r, c := patchReconcileWith(t, healthyQuerier(),
-		seededPolicy(cascadev1alpha1.PolicyPhaseTripped, 0), trippedManagedDR(), trippedManagedVS())
+		seededPolicy(cascadev1alpha1.PolicyPhaseTripped, 0), trippedManagedDR(), dualManagedVS())
 
 	if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {
 		t.Fatal(err)
@@ -307,11 +340,21 @@ func TestRestoreDispatchTouchesOnlyDestinationRuleForLatencyError(t *testing.T) 
 		t.Fatal(err)
 	}
 	if vs.Spec.Http[1].Retries.GetAttempts() != mitigation.TripRetryAttempts {
-		t.Errorf("VirtualService touched by LatencyErrorCascade dispatch: route[1] attempts = %d, want unchanged trip value %d",
+		t.Errorf("retry storm's own field touched by LatencyErrorCascade dispatch: route[1] attempts = %d, want unchanged trip value %d",
 			vs.Spec.Http[1].Retries.GetAttempts(), mitigation.TripRetryAttempts)
 	}
+	if vs.Annotations[mitigation.AnnotationOriginalRetries] == "" {
+		t.Error("retry storm's own original-retries annotation disturbed by LatencyErrorCascade dispatch")
+	}
+	// latency/error-cascade's own secondary *should* advance: route[1]'s
+	// timeout ramps from the 500ms trip value toward its true 2s original.
+	wantTimeout := 500*time.Millisecond + (2*time.Second-500*time.Millisecond)/5
+	if vs.Spec.Http[1].Timeout.AsDuration() != wantTimeout {
+		t.Errorf("latency/error's own timeout not advanced by dispatch: route[1] timeout = %s, want %s",
+			vs.Spec.Http[1].Timeout.AsDuration(), wantTimeout)
+	}
 	if vs.Annotations[mitigation.AnnotationManagedBy] != mitigation.ManagedByValue {
-		t.Error("VirtualService annotations disturbed by LatencyErrorCascade dispatch")
+		t.Error("managed-by disturbed by LatencyErrorCascade dispatch")
 	}
 }
 

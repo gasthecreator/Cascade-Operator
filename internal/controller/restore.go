@@ -142,15 +142,26 @@ func (r *CascadePolicyReconciler) forceCompleteOutgoingRestore(
 	log := logf.FromContext(ctx)
 	switch outgoing {
 	case cascadev1alpha1.SignatureLatencyErrorCascade:
-		edges, err := r.listManagedDestinationRuleEdges(ctx, policy)
+		// Both object kinds this signature manages (DestinationRule primary,
+		// VirtualService secondary) must be force-completed together — an
+		// incoming signature adopting this host's DestinationRule (e.g.
+		// fan-out) must never find a lingering timeout on its VirtualService
+		// either, since the whole point of force-complete is leaving a
+		// clean, fully-original object state behind for whatever claims it
+		// next.
+		drEdges, err := r.listManagedDestinationRuleEdges(ctx, policy)
 		if err != nil {
 			return err
 		}
-		if len(edges) == 0 {
+		vsEdges, err := r.listManagedVirtualServiceEdges(ctx, policy)
+		if err != nil {
+			return err
+		}
+		if len(drEdges) == 0 && len(vsEdges) == 0 {
 			return nil
 		}
-		log.Info("Signature handoff: force-completing outgoing restore", "outgoing", outgoing, "edges", len(edges))
-		return r.completeLatencyErrorRestore(ctx, policy, edges)
+		log.Info("Signature handoff: force-completing outgoing restore", "outgoing", outgoing, "drEdges", len(drEdges), "vsEdges", len(vsEdges))
+		return r.completeLatencyErrorRestore(ctx, policy, drEdges, vsEdges)
 	case cascadev1alpha1.SignatureRetryStorm:
 		edges, err := r.listManagedVirtualServiceEdges(ctx, policy)
 		if err != nil {
@@ -190,39 +201,59 @@ func (r *CascadePolicyReconciler) snapToNormalNoRestore(ctx context.Context, pol
 	return nil
 }
 
+// beginRestoreLatencyError, advanceRestoreLatencyError,
+// applyLatencyErrorRestoreStep, and completeLatencyErrorRestore all gather
+// and act on *both* object kinds this signature now manages — the
+// DestinationRule primary (outlierDetection) and the VirtualService
+// secondary (route timeout, PLAN.md §2.6) — independently of each other,
+// mirroring applyLatencyErrorMitigation's own independence: an edge with
+// only one of the two objects managed still restores that one correctly, an
+// edge with both restores both, and "nothing managed at all" (both lists
+// empty) is the only case that snaps straight to Normal. A single
+// restorationsCompletedTotal increment covers a completion touching either
+// or both object kinds — "this signature's restoration completed" is one
+// event per episode, not one per object kind.
 func (r *CascadePolicyReconciler) beginRestoreLatencyError(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
 	log := logf.FromContext(ctx)
-	edges, err := r.listManagedDestinationRuleEdges(ctx, policy)
+	drEdges, err := r.listManagedDestinationRuleEdges(ctx, policy)
 	if err != nil {
 		return err
 	}
-	if len(edges) == 0 {
-		log.Info("No managed DestinationRule to restore; returning to Normal")
+	vsEdges, err := r.listManagedVirtualServiceEdges(ctx, policy)
+	if err != nil {
+		return err
+	}
+	if len(drEdges) == 0 && len(vsEdges) == 0 {
+		log.Info("No managed DestinationRule or VirtualService to restore; returning to Normal")
 		policy.Status.Phase = cascadev1alpha1.PolicyPhaseNormal
 		policy.Status.RestoreStep = 0
 		return nil
 	}
 	policy.Status.Phase = cascadev1alpha1.PolicyPhaseRestoring
 	policy.Status.RestoreStep = 0
-	log.Info("Entered restoration ramp", "restoreStep", policy.Status.RestoreStep, "edges", len(edges))
-	return r.applyLatencyErrorRestoreStep(ctx, policy, edges, 0)
+	log.Info("Entered restoration ramp", "restoreStep", policy.Status.RestoreStep, "drEdges", len(drEdges), "vsEdges", len(vsEdges))
+	return r.applyLatencyErrorRestoreStep(ctx, policy, drEdges, vsEdges, 0)
 }
 
 func (r *CascadePolicyReconciler) advanceRestoreLatencyError(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
 	log := logf.FromContext(ctx)
-	edges, err := r.listManagedDestinationRuleEdges(ctx, policy)
+	drEdges, err := r.listManagedDestinationRuleEdges(ctx, policy)
 	if err != nil {
 		return err
 	}
-	if len(edges) == 0 {
-		log.Info("Managed DestinationRule gone during restore; returning to Normal")
+	vsEdges, err := r.listManagedVirtualServiceEdges(ctx, policy)
+	if err != nil {
+		return err
+	}
+	if len(drEdges) == 0 && len(vsEdges) == 0 {
+		log.Info("Managed DestinationRule and VirtualService both gone during restore; returning to Normal")
 		policy.Status.Phase = cascadev1alpha1.PolicyPhaseNormal
 		policy.Status.RestoreStep = 0
 		return nil
 	}
 
 	if policy.Status.RestoreStep >= mitigation.RestoreFinalStep {
-		if err := r.completeLatencyErrorRestore(ctx, policy, edges); err != nil {
+		if err := r.completeLatencyErrorRestore(ctx, policy, drEdges, vsEdges); err != nil {
 			return err
 		}
 		policy.Status.Phase = cascadev1alpha1.PolicyPhaseNormal
@@ -234,29 +265,39 @@ func (r *CascadePolicyReconciler) advanceRestoreLatencyError(ctx context.Context
 	next := policy.Status.RestoreStep + 1
 	policy.Status.RestoreStep = next
 	log.Info("Advanced restoration step", "restoreStep", next)
-	return r.applyLatencyErrorRestoreStep(ctx, policy, edges, next)
+	return r.applyLatencyErrorRestoreStep(ctx, policy, drEdges, vsEdges, next)
 }
 
 func (r *CascadePolicyReconciler) applyLatencyErrorRestoreStep(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
-	edges []managedDREdge,
+	drEdges []managedDREdge,
+	vsEdges []managedVSEdge,
 	step int32,
 ) error {
 	log := logf.FromContext(ctx)
 	if policy.Spec.Mode == cascadev1alpha1.PolicyModeDetectOnly {
-		log.Info("DetectOnly: would loosen DestinationRule outlierDetection",
+		log.Info("DetectOnly: would loosen DestinationRule outlierDetection and VirtualService timeout",
 			"restoreStep", step,
-			"edges", len(edges),
+			"drEdges", len(drEdges),
+			"vsEdges", len(vsEdges),
 		)
 		return nil
 	}
-	for _, e := range edges {
+	for _, e := range drEdges {
 		if err := mitigation.ApplyLatencyErrorOutlierRestoreStep(e.dr, step); err != nil {
 			return fmt.Errorf("restore step %d on %s: %w", step, e.host, err)
 		}
 		if err := r.Update(ctx, e.dr); err != nil {
 			return fmt.Errorf("update DestinationRule during restore %s: %w", e.host, err)
+		}
+	}
+	for _, e := range vsEdges {
+		if err := mitigation.ApplyLatencyErrorTimeoutRestoreStep(e.vs, step, policy.Spec.Thresholds.LatencyP99Ms); err != nil {
+			return fmt.Errorf("restore step %d on %s: %w", step, e.host, err)
+		}
+		if err := r.Update(ctx, e.vs); err != nil {
+			return fmt.Errorf("update VirtualService during restore %s: %w", e.host, err)
 		}
 	}
 	return nil
@@ -265,21 +306,31 @@ func (r *CascadePolicyReconciler) applyLatencyErrorRestoreStep(
 func (r *CascadePolicyReconciler) completeLatencyErrorRestore(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
-	edges []managedDREdge,
+	drEdges []managedDREdge,
+	vsEdges []managedVSEdge,
 ) error {
 	log := logf.FromContext(ctx)
 	if policy.Spec.Mode == cascadev1alpha1.PolicyModeDetectOnly {
-		log.Info("DetectOnly: would restore original outlierDetection and drop annotations",
-			"edges", len(edges),
+		log.Info("DetectOnly: would restore original outlierDetection/timeout and drop annotations",
+			"drEdges", len(drEdges),
+			"vsEdges", len(vsEdges),
 		)
 		return nil
 	}
-	for _, e := range edges {
+	for _, e := range drEdges {
 		if err := mitigation.CompleteLatencyErrorOutlierRestore(e.dr); err != nil {
 			return fmt.Errorf("complete restore on %s: %w", e.host, err)
 		}
 		if err := r.Update(ctx, e.dr); err != nil {
 			return fmt.Errorf("update DestinationRule completing restore %s: %w", e.host, err)
+		}
+	}
+	for _, e := range vsEdges {
+		if err := mitigation.CompleteLatencyErrorTimeoutRestore(e.vs); err != nil {
+			return fmt.Errorf("complete restore on %s: %w", e.host, err)
+		}
+		if err := r.Update(ctx, e.vs); err != nil {
+			return fmt.Errorf("update VirtualService completing restore %s: %w", e.host, err)
 		}
 	}
 	restorationsCompletedTotal.WithLabelValues(string(cascadev1alpha1.SignatureLatencyErrorCascade)).Inc()
