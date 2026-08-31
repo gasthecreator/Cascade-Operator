@@ -494,7 +494,7 @@ live-cluster claim before checking an item here.
   same gap noted for the original operator-metrics slice), so the full
   scrape→Grafana pipeline with live cascade_* data is not yet demonstrated
   end-to-end — noted honestly, not silently assumed.
-- Phase 5 — Production hardening:
+- [x] Phase 5 — Production hardening (all four sub-items complete):
   - [x] Fixed the known zero-value bug in retry storm's *restore-completion*
     path — but investigation found it was narrower and different in shape
     than originally assumed: the VirtualService side's `retries.attempts`
@@ -519,8 +519,20 @@ live-cluster claim before checking an item here.
     replica) plus a preferred (not required — so a single-node dev cluster
     doesn't leave the second replica permanently `Pending`) pod anti-affinity
     so the two replicas land on different nodes when more than one exists
-  - [ ] Per-edge threshold overrides (**breaking v1alpha1 CRD change** —
-    needs its own PROPOSALS.md entry, not routine)
+  - [x] Per-edge threshold overrides — **not** the breaking CRD change
+    originally assumed. Investigated first (PROPOSALS.md, approved
+    2026-08-31): a purely additive `spec.thresholdOverrides` map, keyed by
+    dependency FQDN, with every field a pointer (so "unset" and
+    "explicitly 0" are genuinely distinguishable — this CRD is one this
+    project owns, unlike the vendored Istio proto types that ambiguity
+    thread was actually about). Existing v1alpha1 `CascadePolicy` objects
+    with no `thresholdOverrides` key are completely unaffected. A new
+    `effectiveThresholds(policy, host)` helper (`internal/controller/thresholds.go`)
+    merges the override at every per-host threshold read site. Webhook
+    validates override keys reference a real `dependsOn` entry. Verified
+    live: the updated CRD schema applied to the dev cluster, a sample with
+    a real override dry-run-validated against it, full integration suite
+    still passes.
   - [x] Security threat-model doc (`docs/security-threat-model.md`, linked
     from `SECURITY.md`) — RBAC grants and trust boundaries verified
     against the actual generated manifests, not assumed; known gaps

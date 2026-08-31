@@ -86,7 +86,8 @@ func (r *CascadePolicyReconciler) applyLatencyErrorMitigation(
 	if err := r.applyLatencyErrorOutlierPrimary(ctx, policy, host, name, ns); err != nil {
 		return err
 	}
-	return r.applyLatencyErrorTimeoutSecondary(ctx, policy, name, ns)
+	th := effectiveThresholds(policy, host)
+	return r.applyLatencyErrorTimeoutSecondary(ctx, policy, th, name, ns)
 }
 
 // applyLatencyErrorOutlierPrimary patches DestinationRule outlierDetection —
@@ -142,6 +143,7 @@ func (r *CascadePolicyReconciler) applyLatencyErrorOutlierPrimary(
 func (r *CascadePolicyReconciler) applyLatencyErrorTimeoutSecondary(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
+	th cascadev1alpha1.Thresholds,
 	name, ns string,
 ) error {
 	log := logf.FromContext(ctx)
@@ -160,12 +162,12 @@ func (r *CascadePolicyReconciler) applyLatencyErrorTimeoutSecondary(
 		log.Info("DetectOnly: would cap VirtualService route timeout",
 			"name", name,
 			"namespace", ns,
-			"timeoutMs", policy.Spec.Thresholds.LatencyP99Ms,
+			"timeoutMs", th.LatencyP99Ms,
 		)
 		return nil
 	}
 
-	mitigation.ApplyLatencyErrorTimeoutTrip(vs, policy.Spec.Thresholds.LatencyP99Ms)
+	mitigation.ApplyLatencyErrorTimeoutTrip(vs, th.LatencyP99Ms)
 	if err := r.Update(ctx, vs); err != nil {
 		return fmt.Errorf("update VirtualService %s/%s: %w", ns, name, err)
 	}

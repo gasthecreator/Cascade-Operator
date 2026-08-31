@@ -174,11 +174,12 @@ func (r *CascadePolicyReconciler) detectSignatures(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
 ) (string, signatures.Verdict, cascadev1alpha1.SignatureType, bool, int) {
-	window := windowOrDefault(policy.Spec.Thresholds.WindowSeconds)
-
 	evaluated := 0
 	for _, host := range policy.Spec.DependsOn {
-		latV, latOK := r.evalLatencyError(ctx, policy, host, window)
+		th := effectiveThresholds(policy, host)
+		window := windowOrDefault(th.WindowSeconds)
+
+		latV, latOK := r.evalLatencyError(ctx, th, host, window)
 		if latOK {
 			evaluated++
 			if latV.Tripped {
@@ -186,7 +187,7 @@ func (r *CascadePolicyReconciler) detectSignatures(
 			}
 		}
 
-		rsV, rsOK := r.evalRetryStorm(ctx, policy, host, window)
+		rsV, rsOK := r.evalRetryStorm(ctx, th, host, window)
 		if rsOK {
 			if !latOK {
 				evaluated++
@@ -196,7 +197,7 @@ func (r *CascadePolicyReconciler) detectSignatures(
 			}
 		}
 
-		foV, foOK := r.evalFanOut(ctx, policy, host, window)
+		foV, foOK := r.evalFanOut(ctx, policy, th, host, window)
 		if foOK {
 			if !latOK && !rsOK {
 				evaluated++
@@ -211,12 +212,11 @@ func (r *CascadePolicyReconciler) detectSignatures(
 
 func (r *CascadePolicyReconciler) evalLatencyError(
 	ctx context.Context,
-	policy *cascadev1alpha1.CascadePolicy,
+	th cascadev1alpha1.Thresholds,
 	host string,
 	window int32,
 ) (signatures.Verdict, bool) {
 	log := logf.FromContext(ctx)
-	th := policy.Spec.Thresholds
 
 	latSnap, err := r.Metrics.Query(ctx, latencyP99Query(host, window))
 	if err != nil {
@@ -258,7 +258,7 @@ func (r *CascadePolicyReconciler) evalLatencyError(
 
 func (r *CascadePolicyReconciler) evalRetryStorm(
 	ctx context.Context,
-	policy *cascadev1alpha1.CascadePolicy,
+	th cascadev1alpha1.Thresholds,
 	host string,
 	window int32,
 ) (signatures.Verdict, bool) {
@@ -280,7 +280,7 @@ func (r *CascadePolicyReconciler) evalRetryStorm(
 	v := signatures.DetectRetryStorm(signatures.RetryStormInput{
 		Dependency:      host,
 		DestSourceRatio: ratio,
-		Multiplier:      policy.Spec.Thresholds.RetryStormMultiplier,
+		Multiplier:      th.RetryStormMultiplier,
 	})
 	log.Info("retry storm evaluation",
 		"dependency", host,
@@ -294,6 +294,7 @@ func (r *CascadePolicyReconciler) evalRetryStorm(
 func (r *CascadePolicyReconciler) evalFanOut(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
+	th cascadev1alpha1.Thresholds,
 	host string,
 	window int32,
 ) (signatures.Verdict, bool) {
@@ -315,7 +316,7 @@ func (r *CascadePolicyReconciler) evalFanOut(
 	v := signatures.DetectFanOut(signatures.FanOutInput{
 		Dependency:            host,
 		DependencyCallerRatio: ratio,
-		Multiplier:            policy.Spec.Thresholds.FanOutMultiplier,
+		Multiplier:            th.FanOutMultiplier,
 	})
 	log.Info("fan-out evaluation",
 		"dependency", host,

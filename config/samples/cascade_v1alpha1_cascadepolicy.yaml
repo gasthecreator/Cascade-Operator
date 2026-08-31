@@ -17,4 +17,13 @@ spec:
     windowSeconds: 30
     retryStormMultiplier: 3.0
     fanOutMultiplier: 5.0
+  # thresholdOverrides (PLAN.md §5): optional, keyed by a dependsOn FQDN.
+  # Unset fields on an override fall back to thresholds' own value — here,
+  # payments-service gets a stricter latency threshold (it's on the
+  # request path for every checkout, so a slower cascade tolerance makes
+  # sense there) while every other threshold and every other dependency
+  # still uses the policy-wide thresholds above unmodified.
+  thresholdOverrides:
+    payments-service.default.svc.cluster.local:
+      latencyP99Ms: 300
   mode: Mitigate

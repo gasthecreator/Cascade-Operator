@@ -115,6 +115,18 @@ func validateCascadePolicy(obj *cascadev1alpha1.CascadePolicy) error {
 		seen[dep] = i
 	}
 
+	// thresholdOverrides keys must reference a real dependsOn entry — the
+	// OpenAPI schema can't express this cross-field constraint (PLAN.md
+	// §5, PROPOSALS.md 2026-08-31: additive per-edge overrides).
+	for key := range obj.Spec.ThresholdOverrides {
+		if _, ok := seen[key]; !ok {
+			errs = append(errs, field.Invalid(
+				specPath.Child("thresholdOverrides").Key(key), key,
+				"must match an entry in spec.dependsOn",
+			))
+		}
+	}
+
 	if len(errs) == 0 {
 		return nil
 	}

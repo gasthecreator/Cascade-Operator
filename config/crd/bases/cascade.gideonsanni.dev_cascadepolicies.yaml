@@ -82,9 +82,50 @@ spec:
                   the dependency graph).
                 minLength: 1
                 type: string
+              thresholdOverrides:
+                additionalProperties:
+                  description: |-
+                    ThresholdOverrides overrides individual Thresholds fields for one
+                    dependsOn edge. Every field is a pointer, not a plain scalar — this CRD
+                    is one this project owns outright, so unlike the vendored Istio proto
+                    types this project's retry-storm bug thread spent an entire session
+                    working around, there's no reason to repeat "0 is ambiguous with unset"
+                    here: a pointer field makes "explicitly zero" and "not overridden"
+                    genuinely distinguishable, in both the OpenAPI schema and the Go struct.
+                  properties:
+                    errorRateFraction:
+                      maximum: 1
+                      minimum: 0
+                      type: number
+                    fanOutMultiplier:
+                      minimum: 1
+                      type: number
+                    latencyP99Ms:
+                      format: int32
+                      minimum: 1
+                      type: integer
+                    retryStormMultiplier:
+                      minimum: 1
+                      type: number
+                    windowSeconds:
+                      format: int32
+                      minimum: 1
+                      type: integer
+                  type: object
+                description: |-
+                  thresholdOverrides overrides individual thresholds fields for
+                  specific dependsOn edges, keyed by the dependency's FQDN — each key
+                  must match an entry in dependsOn (enforced by the validating
+                  webhook, not the OpenAPI schema, since cross-field references
+                  aren't expressible there). A field left unset on an override falls
+                  back to thresholds' own value for that field; an edge with no entry
+                  here uses thresholds unmodified (PLAN.md §5, PROPOSALS.md 2026-08-31
+                  — purely additive, existing v1alpha1 objects are unaffected).
+                type: object
               thresholds:
-                description: thresholds are detection cutoffs applied to every dependsOn
-                  edge.
+                description: |-
+                  thresholds are detection cutoffs applied to every dependsOn edge,
+                  unless a specific edge has a thresholdOverrides entry.
                 properties:
                   errorRateFraction:
                     default: 0.05

@@ -109,6 +109,28 @@ var _ = Describe("CascadePolicy Webhook", func() {
 			Expect(err.Error()).To(ContainSubstring("Duplicate"))
 		})
 
+		It("admits a thresholdOverrides entry keyed by a real dependsOn host", func() {
+			obj := validPolicy()
+			latency := int32(200)
+			obj.Spec.ThresholdOverrides = map[string]cascadev1alpha1.ThresholdOverrides{
+				testPaymentsFQDN: {LatencyP99Ms: &latency},
+			}
+			_, err := validator.ValidateCreate(ctx, obj)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("rejects a thresholdOverrides key not present in dependsOn", func() {
+			obj := validPolicy()
+			latency := int32(200)
+			obj.Spec.ThresholdOverrides = map[string]cascadev1alpha1.ThresholdOverrides{
+				"not-a-dependency.default.svc.cluster.local": {LatencyP99Ms: &latency},
+			}
+			_, err := validator.ValidateCreate(ctx, obj)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("thresholdOverrides"))
+			Expect(err.Error()).To(ContainSubstring("must match an entry in spec.dependsOn"))
+		})
+
 		It("reports every violation at once, not just the first", func() {
 			obj := validPolicy()
 			obj.Spec.Service = "not-an-fqdn"

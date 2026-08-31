@@ -37,10 +37,12 @@ import (
 )
 
 const (
-	patchPolicyName = "checkout-service"
-	patchPolicyNS   = "default"
-	patchDepName    = "payments-service"
-	patchDepHost    = "payments-service.default.svc.cluster.local"
+	patchPolicyName  = "checkout-service"
+	patchPolicyNS    = "default"
+	patchDepName     = "payments-service"
+	patchDepHost     = "payments-service.default.svc.cluster.local"
+	patchServiceFQDN = "checkout-service.default.svc.cluster.local"
+	inventoryDepHost = "inventory-service.default.svc.cluster.local"
 )
 
 func patchTestScheme(t *testing.T) *runtime.Scheme {
@@ -59,7 +61,7 @@ func patchTestPolicy(mode cascadev1alpha1.PolicyMode) *cascadev1alpha1.CascadePo
 	return &cascadev1alpha1.CascadePolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: patchPolicyName, Namespace: patchPolicyNS},
 		Spec: cascadev1alpha1.CascadePolicySpec{
-			Service:   "checkout-service.default.svc.cluster.local",
+			Service:   patchServiceFQDN,
 			DependsOn: []string{patchDepHost},
 			Thresholds: cascadev1alpha1.Thresholds{
 				LatencyP99Ms:         500,

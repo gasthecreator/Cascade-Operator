@@ -304,7 +304,8 @@ func (r *CascadePolicyReconciler) applyLatencyErrorRestoreStep(
 		}
 	}
 	for _, e := range vsEdges {
-		if err := mitigation.ApplyLatencyErrorTimeoutRestoreStep(e.vs, step, policy.Spec.Thresholds.LatencyP99Ms); err != nil {
+		latencyP99Ms := effectiveThresholds(policy, e.host).LatencyP99Ms
+		if err := mitigation.ApplyLatencyErrorTimeoutRestoreStep(e.vs, step, latencyP99Ms); err != nil {
 			return fmt.Errorf("restore step %d on %s: %w", step, e.host, err)
 		}
 		if err := r.Update(ctx, e.vs); err != nil {
