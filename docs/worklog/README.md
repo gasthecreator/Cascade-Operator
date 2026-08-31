@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-31 — Phase 5 (1/4): retry storm's restore-completion zero-value bug — VirtualService fixed, DestinationRule found not applicable](2026-08-31-phase5-retry-storm-restore-zero-value.md)
 - [2026-08-31 — Phase 4: Grafana dashboard + trip/restore webhook notifier](2026-08-31-phase4-observability.md)
 - [2026-08-31 — Phase 3: CascadePolicy admission webhook](2026-08-31-phase3-admission-webhook.md)
 - [2026-08-31 — Phase 2: integration coverage for latency/error-cascade and fan-out amplification](2026-08-31-phase2-integration-coverage.md)

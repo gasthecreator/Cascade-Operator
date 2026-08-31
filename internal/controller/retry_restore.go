@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	networkingv1 "istio.io/client-go/pkg/apis/networking/v1"
@@ -153,8 +154,9 @@ func (r *CascadePolicyReconciler) applyRetryStormRestoreStep(
 		if err := mitigation.ApplyRetryStormRestoreStep(e.vs, step); err != nil {
 			return fmt.Errorf("restore step %d on %s: %w", step, e.host, err)
 		}
-		if err := r.Update(ctx, e.vs); err != nil {
-			return fmt.Errorf("update VirtualService during restore %s: %w", e.host, err)
+		patch := client.RawPatch(types.MergePatchType, mitigation.RetryStormRestoreStepMergePatch(e.vs))
+		if err := r.Patch(ctx, e.vs, patch); err != nil {
+			return fmt.Errorf("patch VirtualService during restore %s: %w", e.host, err)
 		}
 	}
 	for _, e := range drEdges {
@@ -186,10 +188,23 @@ func (r *CascadePolicyReconciler) completeRetryStormRestore(
 		if err := mitigation.CompleteRetryStormRestore(e.vs); err != nil {
 			return fmt.Errorf("complete restore on %s: %w", e.host, err)
 		}
-		if err := r.Update(ctx, e.vs); err != nil {
-			return fmt.Errorf("update VirtualService completing restore %s: %w", e.host, err)
+		patch := client.RawPatch(types.MergePatchType, mitigation.RetryStormRestoreCompleteJSONPatch(e.vs))
+		if err := r.Patch(ctx, e.vs, patch); err != nil {
+			return fmt.Errorf("patch VirtualService completing restore %s: %w", e.host, err)
 		}
 	}
+	// Deliberately still a typed Update, not a patch (unlike the VirtualService
+	// loop above) — investigated for PLAN.md §5 Phase 5 and found not to be
+	// the same bug. originalRetryConnectionPoolJSON.MaxRetries itself has
+	// omitempty, so a true original of exactly 0 is already indistinguishable
+	// from "was never set" at annotation-capture time, before this write is
+	// ever reached — applyOriginalRetryConnectionPool's own doc comment
+	// already treats a restored 0 as "go back to absent" on purpose. Writing
+	// an explicit 0 here via patch would both contradict that documented
+	// intent and accomplish nothing at Envoy anyway: Istio Pilot's own
+	// DestinationRule->CDS translation ignores an explicit MaxRetries of 0
+	// regardless of how it's written (PROPOSALS.md, approved 2026-08-30,
+	// direction 2 — the reason this signature's trip value is 1, not 0).
 	for _, e := range drEdges {
 		if err := mitigation.CompleteRetryStormConnectionPoolRestore(e.dr); err != nil {
 			return fmt.Errorf("complete restore on %s: %w", e.host, err)
