@@ -14,12 +14,12 @@
 // Envoy-level retry policy on top of it would compound the two).
 //
 // Run alongside `kubectl get cascadepolicy -w` to watch status transition.
-// Detect -> Tripped is confirmed live-working; the mitigation patch itself
-// is not (Istio's validating webhook rejects attempts:0 alongside this
-// fixture's retryOn/perTryTimeout) — so the observed transition today is
-// Normal -> Tripped -> Normal (restoration's "nothing was ever actually
-// patched" fallback), not the full ramp the other two scripts show. See
-// demo/k6/README.md's "Known gap" section and PROPOSALS.md.
+// Mitigation is confirmed working as of 2026-08-30 (webhook rejection fix,
+// zero-value patch path, maxRetries trip value 1) — see demo/k6/README.md
+// and docs/worklog/2026-08-30-retry-storm-mitigation-webhook-fix.md,
+// docs/worklog/2026-08-30-retry-storm-zero-value-patch.md,
+// docs/worklog/2026-08-30-retry-storm-maxretries-one.md. Wire-format
+// assertions also live in test/integration (make test-integration).
 import http from 'k6/http';
 import { check } from 'k6';
 

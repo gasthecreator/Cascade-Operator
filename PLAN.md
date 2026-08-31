@@ -429,9 +429,9 @@ live Kind cluster (unreachable — see the worklog).
 - [x] Operator's own Prometheus metrics (signatures detected, patches applied, restorations completed/regressed)
 - [x] Kind + Istio local dev environment docs/scripts
 - [x] Demo microservice topology for fault injection (`demo/` — checkout, payments, inventory)
-- [x] k6 cascade-simulation test scripts (latency spike, retry storm, fan-out) — live evidence for all three; retry-storm's *mitigation patch* found broken against a realistic fixture, see `PROPOSALS.md`
+- [x] k6 cascade-simulation test scripts (latency spike, retry storm, fan-out) — live evidence for all three; retry-storm mitigation fixed (webhook, zero-value patch, maxRetries=1), see worklogs
 - [x] Unit test suite for detectors (no cluster required)
-- [ ] Integration test suite (Kind-based, exercises real reconcile loop)
+- [x] Integration test suite (Kind-based, exercises real reconcile loop) — `test/integration/` via `make test-integration` against dev Kind cluster; stub PromQL, real apiserver patches, unstructured JSON assertions
 - [x] golangci-lint + gofmt CI gate
 - [x] README (setup, architecture summary, demo instructions)
 

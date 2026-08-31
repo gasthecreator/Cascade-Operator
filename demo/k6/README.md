@@ -136,24 +136,28 @@ down (k6's VUs ramping to zero over the last few seconds skews the
 self-corrects within one reconcile tick back to `Normal` and is not a bug —
 see the worklog for the live evidence.
 
-## Resolved: retry-storm's mitigation patch used to fail against this exact fixture
+## Retry storm: mitigation confirmed (2026-08-30)
 
-`retry-storm.js` drives `RetryStorm` to `Tripped` (confirmed live) and, as of
-2026-08-30, the mitigation *patch* now actually applies: `ApplyRetryStormTrip`
-(`internal/mitigation/retries.go`) clears `retryOn`/`perTryTimeout`/`backoff`
-on the route alongside setting `retries.attempts: 0`, rather than leaving
-them set. Previously, leaving them set alongside `attempts: 0` is a
-combination Istio's validating webhook rejects outright (`configuration is
-invalid: http retry policy configured when attempts are set to 0
-(disabled)`) — every reconcile during an active retry storm on this fixture
-errored and retried, and the `VirtualService` was never actually patched.
-See `PROPOSALS.md`'s resolved entry and
-`docs/worklog/2026-08-30-retry-storm-mitigation-webhook-fix.md` for the fix
-and its fake-client test coverage. **Not yet re-confirmed live against this
-exact fixture after the fix** — the fix session hit an unrelated Kind
-cluster resource-pressure issue (see that worklog's Testing section) — so
-if you run `retry-storm.js` and still see an admission rejection in the
-operator's logs, that's worth flagging, not assuming already covered.
+`retry-storm.js` drives `RetryStorm` to `Tripped` and the mitigation patches
+now apply end-to-end on this fixture. Three bugs were fixed in sequence:
+
+1. **Webhook rejection** — trip must clear `retryOn`/`perTryTimeout`/`backoff`
+   alongside `attempts: 0`. See
+   [`docs/worklog/2026-08-30-retry-storm-mitigation-webhook-fix.md`](../../docs/worklog/2026-08-30-retry-storm-mitigation-webhook-fix.md).
+2. **Zero-value serialization** — `attempts: 0` / `maxRetries: 0` must use
+   patch-based writes so `omitempty` does not strip them from stored JSON.
+   See
+   [`docs/worklog/2026-08-30-retry-storm-zero-value-patch.md`](../../docs/worklog/2026-08-30-retry-storm-zero-value-patch.md).
+3. **Istio Pilot translation** — explicit `maxRetries: 0` never reaches Envoy;
+   trip value is now `1`. See
+   [`docs/worklog/2026-08-30-retry-storm-maxretries-one.md`](../../docs/worklog/2026-08-30-retry-storm-maxretries-one.md).
+
+Automated wire-format checks (raw apiserver JSON for `"attempts":0` and
+`"maxRetries":1`, plus full restore) live in `test/integration/` — run
+`make test-integration` against the dev Kind cluster (`kind-cascade-operator`
+context). Organic k6 + operator runs remain the manual demo path; Prometheus
+port-forward stability is the usual operational footgun (name it if trips
+fail to fire while patches look correct in isolation).
 
 ## Custom ports/URLs
 

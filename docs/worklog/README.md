@@ -57,7 +57,10 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-31 — Review: Kind integration test suite — approved, one broken-link fix](2026-08-31-review-kind-integration-tests.md)
+- [2026-08-31 — Kind integration tests: real reconcile loop, unstructured wire-format assertions](2026-08-31-kind-integration-tests.md)
 - [2026-08-31 — Review: retry storm's maxRetries=1 fix — approved, organic trip gap filled](2026-08-30-review-retry-storm-maxretries-one.md)
+- [2026-08-31 — Kind integration tests: real reconcile loop, unstructured wire-format assertions](2026-08-31-kind-integration-tests.md)
 - [2026-08-30 — Retry storm's connectionPool secondary trips `maxRetries` to 1, not 0](2026-08-30-retry-storm-maxretries-one.md)
 - [2026-08-30 — Review: Istio maxRetries-zero translation investigation — approved, direction 2](2026-08-30-review-istio-maxretries-zero-translation.md)
 - [2026-08-30 — Istio does not push DestinationRule `maxRetries: 0` into Envoy CDS](2026-08-30-istio-maxretries-zero-translation.md)
