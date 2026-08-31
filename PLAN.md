@@ -521,7 +521,12 @@ live-cluster claim before checking an item here.
     so the two replicas land on different nodes when more than one exists
   - [ ] Per-edge threshold overrides (**breaking v1alpha1 CRD change** —
     needs its own PROPOSALS.md entry, not routine)
-  - [ ] Security threat-model doc
+  - [x] Security threat-model doc (`docs/security-threat-model.md`, linked
+    from `SECURITY.md`) — RBAC grants and trust boundaries verified
+    against the actual generated manifests, not assumed; known gaps
+    (cluster-scoped `ClusterRole`, webhook not deployed to the persistent
+    dev cluster, no egress `NetworkPolicy`, no image signing) stated
+    plainly
 - [ ] Phase 6 — Multi-mesh (Linkerd) support, full attempt: mesh-adapter
   interface (spike/design proposal first), Linkerd detection (PromQL
   equivalent, metric names confirmed live not assumed), Linkerd mitigation
