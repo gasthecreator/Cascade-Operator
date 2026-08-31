@@ -93,7 +93,7 @@ func TestRetryStormConnPoolRestoreZeroRampsTowardEnvoyDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	http := dr.Spec.TrafficPolicy.ConnectionPool.Http
-	// lerp(0, 3, 1/5) = round(0 + 3*0.2) = round(0.6) = 1.
+	// lerp(TripRetryStormMaxRetries=1, 3, 1/5) = round(1 + 2*0.2) = round(1.4) = 1.
 	if got := http.GetMaxRetries(); got != 1 {
 		t.Errorf("step 0 maxRetries = %d, want 1 (ramping toward Envoy default 3)", got)
 	}

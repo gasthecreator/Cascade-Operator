@@ -95,10 +95,19 @@ func dualManagedVS() *networkingv1.VirtualService {
 // connectionPool.http MaxRetries secondary, PLAN.md §2.6) alongside
 // latency/error-cascade's outlierDetection primary. The two field sets
 // don't share a sub-message at all, so applying both trips back-to-back
-// here still captures each signature's true pre-trip baseline.
+// here still captures each signature's true pre-trip baseline. Seeds a
+// non-zero MaxRetries so restore step 0's lerp from TripRetryStormMaxRetries
+// (1) is observably different from the trip value (a zero original would
+// ramp toward Envoy's default 3 and land on 1 at step 0 — same as trip).
 func dualManagedDR() *networkingv1.DestinationRule {
 	dr := patchTestDR()
 	mitigation.ApplyLatencyErrorOutlierTrip(dr)
+	// Seed MaxRetries after outlier (disjoint sub-message) and before
+	// retry storm's capture, so restore step 0 lerps off the trip value.
+	if dr.Spec.TrafficPolicy.ConnectionPool == nil {
+		dr.Spec.TrafficPolicy.ConnectionPool = &apinet.ConnectionPoolSettings{}
+	}
+	dr.Spec.TrafficPolicy.ConnectionPool.Http = &apinet.ConnectionPoolSettings_HTTPSettings{MaxRetries: 10}
 	mitigation.ApplyRetryStormConnectionPoolTrip(dr)
 	return dr
 }

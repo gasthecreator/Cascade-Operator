@@ -76,8 +76,8 @@ func TestRetryStormRestoreAdvancesBothObjectKindsTogetherThenCompletes(t *testin
 	wantStep := []int32{0, 1, 2, 3, 4, 0}
 	// route[1]'s original attempts=5: lerp(0, 5, t) at t=(step+1)/5.
 	wantRoute1Attempts := []int32{1, 2, 3, 4, 5, 5}
-	// maxRetries original 10: lerp(0, 10, t).
-	wantMaxRetries := []int32{2, 4, 6, 8, 10, 10}
+	// maxRetries original 10: lerp(TripRetryStormMaxRetries=1, 10, t).
+	wantMaxRetries := []int32{3, 5, 6, 8, 10, 10}
 
 	for i := range wantPhase {
 		if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {

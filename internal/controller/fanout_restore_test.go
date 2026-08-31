@@ -215,6 +215,9 @@ func tripleManagedDR() *networkingv1.DestinationRule {
 	dr := patchTestDR()
 	mitigation.ApplyLatencyErrorOutlierTrip(dr)
 	mitigation.ApplyFanOutConnectionPoolTrip(dr)
+	// Seed MaxRetries after fan-out's capture (so fan-out still records
+	// Unset) and before retry storm's, so restore step 0 moves off trip.
+	dr.Spec.TrafficPolicy.ConnectionPool.Http.MaxRetries = 10
 	mitigation.ApplyRetryStormConnectionPoolTrip(dr)
 	return dr
 }

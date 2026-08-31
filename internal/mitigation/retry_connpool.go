@@ -31,25 +31,22 @@ import (
 const AnnotationOriginalRetryConnectionPool = "cascade.gideonsanni.dev/original-retry-connection-pool"
 
 // TripRetryStormMaxRetries is the trip-time value for retry storm's
-// connectionPool.http.maxRetries secondary (PLAN.md §2.6). 0, not a
-// tightened-but-nonzero value: Envoy's own circuit-breaker default for
-// max_retries — confirmed against Envoy's actual proto doc
-// (https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/cluster/v3/circuit_breaker.proto,
-// "If not specified, the default is 3"; the vendored istio.io/api v1.30.4
-// DestinationRule field's own comment, "Defaults to 2^32-1", describes a
-// different thing and is not the number this package's restore target
-// should use, same class of doc-comment mismatch the timeout secondary's
-// istioDefaultTimeout already worked through for HTTPRoute.Timeout) —
-// caps the number of *retries* Envoy will allow outstanding to this
-// cluster at once, a narrower, retry-specific circuit breaker, not a
-// general request bulkhead. Retry storm's primary (retries.go) already
-// fully disables retries.attempts on every managed route; capping this
-// field to a nonzero "tightened" value here would be internally
-// inconsistent with that choice — the whole point of this signature's
-// mitigation is eliminating retry-driven amplification, not moderating
-// it, so this secondary backs the primary up with the same all-the-way
-// value rather than contradicting it with a partial one.
-const TripRetryStormMaxRetries = int32(0)
+// connectionPool.http.maxRetries secondary (PLAN.md §2.6). 1, not 0:
+// Istio Pilot's applyConnectionPool (istio/istio 1.30.4
+// pilot/pkg/networking/core/cluster_traffic_policy.go L118–L120) only
+// copies MaxRetries into Envoy's circuit_breakers when the value is > 0 —
+// an explicit DestinationRule 0 is treated as unset and Envoy keeps
+// Pilot's default math.MaxUint32 (4294967295). Confirmed live and in
+// source (PROPOSALS.md, approved 2026-08-30, direction 2). 1 is the
+// smallest value that actually reaches Envoy as a real outstanding-retry
+// circuit-breaker cap. This is not "allow one retry per request" — the
+// primary (retries.go) still fully disables retries.attempts; this
+// secondary caps how many retries Envoy will allow outstanding to the
+// cluster at once if anything is still retrying. Envoy's own unset
+// default for max_retries is 3 (circuit_breaker.proto); Istio's
+// DestinationRule comment ("Defaults to 2^32-1") describes Pilot's CDS
+// default, not Envoy's.
+const TripRetryStormMaxRetries = int32(1)
 
 // originalRetryConnectionPoolJSON captures only MaxRetries, the one field
 // this signature's secondary ever touches. Deliberately has no whole-block
@@ -88,17 +85,17 @@ type originalRetryConnectionPoolJSON struct {
 // With the overlap resolved, MaxRetries is disjoint from every other
 // signature's fields, so capturing "current" is always this field's true
 // original — force-complete-on-handoff is no longer load-bearing for this
-// field's data integrity, only for not leaving a trip-time MaxRetries=0
+// field's data integrity, only for not leaving a trip-time MaxRetries
 // (and the annotation) behind when a different signature adopts the object.
 //
-// The in-memory MaxRetries=0 write is not what reaches the API server:
-// HTTPSettings.MaxRetries is a plain int32 with json:"maxRetries,omitempty",
-// so a typed Update() strips the zero before it hits the wire
-// (PROPOSALS.md, approved 2026-08-30). Callers must apply
-// RetryStormMaxRetriesMergePatch via client.Patch rather than
-// client.Update. This function still mutates the struct so fake-client
-// tests and later restore reads see the trip value; the patch payload is
-// what actually transmits it.
+// Callers must apply RetryStormMaxRetriesMergePatch via client.Patch
+// rather than client.Update — same write path as the primary's attempts:0
+// JSON Patch (PROPOSALS.md, approved 2026-08-30). TripRetryStormMaxRetries
+// is now 1 (non-zero), so a typed Update would serialize it, but the
+// patch path stays: already reviewed, keeps both of this signature's
+// trip writes on one mechanism, and would still be required if the trip
+// value ever returned to a JSON-zero. This function still mutates the
+// struct so fake-client tests and later restore reads see the trip value.
 func ApplyRetryStormConnectionPoolTrip(dr *networkingv1.DestinationRule) {
 	if dr.Annotations == nil {
 		dr.Annotations = map[string]string{}
@@ -112,11 +109,11 @@ func ApplyRetryStormConnectionPoolTrip(dr *networkingv1.DestinationRule) {
 	http.MaxRetries = TripRetryStormMaxRetries
 }
 
-// RetryStormMaxRetriesMergePatch is the JSON merge patch that puts an
-// explicit "maxRetries":0 on connectionPool.http (and writes this
-// signature's annotations). Built from maps, not the typed HTTPSettings
-// struct, so encoding/json cannot strip the zero via omitempty. Merge
-// patch is safe here: trafficPolicy/connectionPool/http are nested
+// RetryStormMaxRetriesMergePatch is the JSON merge patch that puts
+// TripRetryStormMaxRetries on connectionPool.http (and writes this
+// signature's annotations). Built from maps (same mechanism as when the
+// trip value was 0 and omitempty would have stripped a typed Update).
+// Merge patch is safe here: trafficPolicy/connectionPool/http are nested
 // objects, so this merges maxRetries in without replacing sibling fields
 // (fan-out's http1/http2, outlierDetection, TLS).
 func RetryStormMaxRetriesMergePatch(dr *networkingv1.DestinationRule) []byte {

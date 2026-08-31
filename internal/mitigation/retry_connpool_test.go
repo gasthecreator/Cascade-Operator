@@ -19,6 +19,7 @@ package mitigation
 import (
 	"bytes"
 	"encoding/json"
+	"strconv"
 	"testing"
 
 	apinet "istio.io/api/networking/v1alpha3"
@@ -182,11 +183,13 @@ func TestApplyRetryStormConnectionPoolTripLeavesFanOutFieldsAlone(t *testing.T) 
 	}
 }
 
-// TestRetryStormMaxRetriesMergePatchContainsExplicitZero is the regression
-// lock for PROPOSALS.md's omitempty finding: encoding/json of the typed
-// HTTPSettings struct drops maxRetries:0, and the merge patch this package
-// actually sends to the API server must not.
-func TestRetryStormMaxRetriesMergePatchContainsExplicitZero(t *testing.T) {
+// TestRetryStormMaxRetriesMergePatchContainsTripValue locks the merge
+// patch payload this package sends to the API server: it must contain
+// the literal trip maxRetries (TripRetryStormMaxRetries), not rely on a
+// typed Update of the HTTPSettings struct. The patch path stays even
+// though the trip value is now non-zero (PROPOSALS.md, approved
+// 2026-08-30 — Istio MaxRetries>0 direction 2).
+func TestRetryStormMaxRetriesMergePatchContainsTripValue(t *testing.T) {
 	t.Parallel()
 	dr := &networkingv1.DestinationRule{
 		ObjectMeta: metav1.ObjectMeta{Name: testDRName, Namespace: testDRNS},
@@ -194,17 +197,10 @@ func TestRetryStormMaxRetriesMergePatchContainsExplicitZero(t *testing.T) {
 	}
 	ApplyRetryStormConnectionPoolTrip(dr)
 
-	typed, err := json.Marshal(dr.Spec.TrafficPolicy.ConnectionPool.Http)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if bytes.Contains(typed, []byte(`"maxRetries":0`)) {
-		t.Fatalf("typed HTTPSettings marshal kept maxRetries:0 (%s); this test no longer demonstrates the omitempty bug", typed)
-	}
-
 	patch := RetryStormMaxRetriesMergePatch(dr)
-	if !bytes.Contains(patch, []byte(`"maxRetries":0`)) {
-		t.Errorf("merge patch missing explicit maxRetries:0: %s", patch)
+	want := []byte(`"maxRetries":` + strconv.FormatInt(int64(TripRetryStormMaxRetries), 10))
+	if !bytes.Contains(patch, want) {
+		t.Errorf("merge patch missing %s: %s", want, patch)
 	}
 	if !bytes.Contains(patch, []byte(AnnotationOriginalRetryConnectionPool)) {
 		t.Errorf("merge patch missing original annotation: %s", patch)
