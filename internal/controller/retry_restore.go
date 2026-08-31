@@ -199,5 +199,6 @@ func (r *CascadePolicyReconciler) completeRetryStormRestore(
 		}
 	}
 	restorationsCompletedTotal.WithLabelValues(string(cascadev1alpha1.SignatureRetryStorm)).Inc()
+	r.notifyRestore(ctx, policy, cascadev1alpha1.SignatureRetryStorm)
 	return nil
 }

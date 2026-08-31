@@ -482,8 +482,18 @@ live-cluster claim before checking an item here.
   isolation. Not yet deployed to the persistent dev Kind cluster (would need
   cert-manager or a manual cert there) — noted as a follow-up, not silently
   assumed done.
-- [ ] Phase 4 — Grafana dashboard over existing operator metrics; trip/restore
-  webhook notifier
+- [x] Phase 4 — Grafana dashboard (`config/observability/grafana-dashboard.json`,
+  `make grafana-install`) visualizing the four existing `cascade_*` metrics
+  plus controller-runtime reconcile health; `internal/notify` trip/restore
+  webhook notifier (`--notify-webhook-url`, optional, nil-safe, never fails
+  a reconcile). Verified live: real metrics confirmed on the operator's own
+  `/metrics` endpoint during a k6-induced trip+restore, all 8 dashboard
+  PromQL queries confirmed syntactically valid against Prometheus, Grafana
+  confirmed to accept and render the dashboard JSON. Prometheus does not
+  currently scrape a running operator in this dev cluster (pre-existing —
+  same gap noted for the original operator-metrics slice), so the full
+  scrape→Grafana pipeline with live cascade_* data is not yet demonstrated
+  end-to-end — noted honestly, not silently assumed.
 - [ ] Phase 5 — Production hardening: fix the known zero-value bug in retry
   storm's *restore-completion* path (same class as the trip-path bug fixed
   2026-08-30, never applied to restore); HA (`replicas: 2`, leader election

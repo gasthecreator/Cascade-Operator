@@ -345,5 +345,6 @@ func (r *CascadePolicyReconciler) completeLatencyErrorRestore(
 		}
 	}
 	restorationsCompletedTotal.WithLabelValues(string(cascadev1alpha1.SignatureLatencyErrorCascade)).Inc()
+	r.notifyRestore(ctx, policy, cascadev1alpha1.SignatureLatencyErrorCascade)
 	return nil
 }

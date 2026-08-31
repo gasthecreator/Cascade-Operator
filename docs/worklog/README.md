@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-31 — Phase 4: Grafana dashboard + trip/restore webhook notifier](2026-08-31-phase4-observability.md)
 - [2026-08-31 — Phase 3: CascadePolicy admission webhook](2026-08-31-phase3-admission-webhook.md)
 - [2026-08-31 — Phase 2: integration coverage for latency/error-cascade and fan-out amplification](2026-08-31-phase2-integration-coverage.md)
 - [2026-08-31 — Review: Phase 1 CI workflows — approved, verification independently confirmed](2026-08-31-review-phase1-ci-workflows.md)

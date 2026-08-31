@@ -40,6 +40,7 @@ import (
 	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
 	"github.com/gasthecreator/Cascade-Operator/internal/controller"
 	"github.com/gasthecreator/Cascade-Operator/internal/metrics"
+	"github.com/gasthecreator/Cascade-Operator/internal/notify"
 	webhookv1alpha1 "github.com/gasthecreator/Cascade-Operator/internal/webhook/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
@@ -67,6 +68,7 @@ func main() {
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var prometheusURL string
+	var notifyWebhookURL string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -88,6 +90,9 @@ func main() {
 	flag.StringVar(&prometheusURL, "prometheus-url", os.Getenv("PROMETHEUS_URL"),
 		"Base URL of the Prometheus HTTP API (e.g. http://prometheus.istio-system.svc:9090). "+
 			"Also read from PROMETHEUS_URL. Empty disables metrics polling.")
+	flag.StringVar(&notifyWebhookURL, "notify-webhook-url", os.Getenv("NOTIFY_WEBHOOK_URL"),
+		"Slack-compatible incoming webhook URL for trip/restore notifications. "+
+			"Also read from NOTIFY_WEBHOOK_URL. Empty disables notifications.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -201,6 +206,12 @@ func main() {
 		setupLog.Info("Prometheus metrics client configured", "url", prometheusURL)
 	} else {
 		setupLog.Info("Prometheus URL not set; metrics polling disabled")
+	}
+	if notifyWebhookURL != "" {
+		reconciler.Notify = notify.NewWebhookNotifier(notifyWebhookURL)
+		setupLog.Info("Trip/restore notifications configured")
+	} else {
+		setupLog.Info("Notify webhook URL not set; trip/restore notifications disabled")
 	}
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "cascadepolicy")

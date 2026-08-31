@@ -29,6 +29,7 @@ import (
 
 	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
 	"github.com/gasthecreator/Cascade-Operator/internal/metrics"
+	"github.com/gasthecreator/Cascade-Operator/internal/notify"
 	"github.com/gasthecreator/Cascade-Operator/internal/signatures"
 )
 
@@ -42,6 +43,11 @@ type CascadePolicyReconciler struct {
 	Scheme *runtime.Scheme
 	// Metrics is optional. Nil disables polling (no --prometheus-url).
 	Metrics metrics.Querier
+	// Notify is optional. Nil disables trip/restore notifications (no
+	// --notify-webhook-url). A failure to notify is logged, never
+	// propagated as a reconcile error — same reasoning as Metrics being
+	// nil-able: an optional dependency, not a required one.
+	Notify notify.Notifier
 }
 
 // +kubebuilder:rbac:groups=cascade.gideonsanni.dev,resources=cascadepolicies,verbs=get;list;watch;create;update;patch;delete
@@ -125,6 +131,7 @@ func (r *CascadePolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 					"confidence", v.Confidence,
 					"evidence", v.Evidence,
 				)
+				r.notifyTrip(ctx, policy, sig, host, v)
 				switch sig {
 				case cascadev1alpha1.SignatureLatencyErrorCascade:
 					mitErr = r.applyLatencyErrorMitigation(ctx, policy, host)
