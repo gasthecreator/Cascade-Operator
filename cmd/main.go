@@ -40,6 +40,7 @@ import (
 	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
 	"github.com/gasthecreator/Cascade-Operator/internal/controller"
 	"github.com/gasthecreator/Cascade-Operator/internal/metrics"
+	webhookv1alpha1 "github.com/gasthecreator/Cascade-Operator/internal/webhook/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -204,6 +205,13 @@ func main() {
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "cascadepolicy")
 		os.Exit(1)
+	}
+	// nolint:goconst
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err := webhookv1alpha1.SetupCascadePolicyWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "Failed to create webhook", "webhook", "CascadePolicy")
+			os.Exit(1)
+		}
 	}
 	// +kubebuilder:scaffold:builder
 

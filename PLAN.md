@@ -474,8 +474,14 @@ live-cluster claim before checking an item here.
 - [x] Phase 2 — Integration test coverage for latency/error-cascade and
   fan-out amplification, extending `test/integration/` — all three
   signatures now have raw-JSON wire-format trip/restore coverage
-- [ ] Phase 3 — `CascadePolicy` admission webhook (validating; field-level
-  checks only, no live dependency-resolution check)
+- [x] Phase 3 — `CascadePolicy` admission webhook: rejects self-dependency,
+  duplicate `dependsOn` entries, and malformed Service FQDNs — deliberately
+  *not* re-checking thresholds/non-empty fields already enforced by the CRD's
+  own OpenAPI schema. Verified through the real admission path (envtest's
+  wired webhook + TLS + `k8sClient.Create`), not just the Go function in
+  isolation. Not yet deployed to the persistent dev Kind cluster (would need
+  cert-manager or a manual cert there) — noted as a follow-up, not silently
+  assumed done.
 - [ ] Phase 4 — Grafana dashboard over existing operator metrics; trip/restore
   webhook notifier
 - [ ] Phase 5 — Production hardening: fix the known zero-value bug in retry
