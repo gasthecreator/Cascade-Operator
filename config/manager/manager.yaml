@@ -21,7 +21,12 @@ spec:
     matchLabels:
       control-plane: controller-manager
       app.kubernetes.io/name: cascade-operator
-  replicas: 1
+  # PLAN.md §5 Phase 5 (HA): 2, not 1 — leader election (--leader-elect,
+  # already passed below) is what makes this safe: exactly one replica
+  # actively reconciles at a time, the other stands by as a hot spare so a
+  # pod eviction/crash doesn't leave the CascadePolicy watch unattended
+  # until a new pod schedules and image-pulls from cold.
+  replicas: 2
   template:
     metadata:
       annotations:
@@ -50,6 +55,21 @@ spec:
       #             operator: In
       #             values:
       #               - linux
+      # PLAN.md §5 Phase 5 (HA): preferred, not required — two replicas on
+      # different nodes survive a single node loss; "preferred" (not
+      # "required") so this doesn't block scheduling on a single-node dev
+      # cluster (Kind) where a "required" rule would leave the second
+      # replica permanently Pending.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    control-plane: controller-manager
+                    app.kubernetes.io/name: cascade-operator
+                topologyKey: kubernetes.io/hostname
       securityContext:
         # Projects are configured by default to adhere to the "restricted" Pod Security Standards.
         # This ensures that deployments meet the highest security requirements for Kubernetes.
