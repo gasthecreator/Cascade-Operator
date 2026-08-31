@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout-service
+  labels:
+    app: checkout-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: checkout-service
+  template:
+    metadata:
+      labels:
+        app: checkout-service
+    spec:
+      containers:
+        - name: checkout
+          image: cascade-demo-checkout:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PAYMENTS_URL
+              value: http://payments-service.default.svc.cluster.local/
+            - name: INVENTORY_URL
+              value: http://inventory-service.default.svc.cluster.local/
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: checkout-service
+  labels:
+    app: checkout-service
+spec:
+  selector:
+    app: checkout-service
+  ports:
+    - port: 80
+      targetPort: 8080

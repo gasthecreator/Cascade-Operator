@@ -1,0 +1,17 @@
+# Baseline DestinationRule for inventory-service. The retry-storm k6
+# script induces its signature on inventory (see demo/k6/README.md for why
+# inventory hosts retry storm and payments hosts the other two), and the
+# controller's mitigation resolves-by-convention (object name = dependency
+# Service name) but never creates a missing object (PLAN.md §2.3) — without
+# this, retry storm's DestinationRule connectionPool.http secondary would
+# only ever log "DestinationRule missing; skipping secondary patch" and
+# never actually apply. No trafficPolicy set: the first patch treats an
+# absent connectionPool.http as "unset" (zeros in this signature's own
+# snapshot, which does not own the whole block) and restores those fields
+# back to 0.
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: inventory-service
+spec:
+  host: inventory-service.default.svc.cluster.local

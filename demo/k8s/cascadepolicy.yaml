@@ -1,0 +1,35 @@
+# The CascadePolicy watching the §2.7 demo topology (checkout ->
+# {payments, inventory}). Same shape as config/samples/cascade_v1alpha1_
+# cascadepolicy.yaml — that sample already targets these exact service
+# names, so this is a copy co-located with the rest of the demo topology's
+# manifests (kubectl apply -f demo/k8s/ deploys the whole demo, CascadePolicy
+# included, in one step) rather than a divergent fixture.
+#
+# fanOutMultiplier is 2.0 here, not the sample's generic 5.0: the fan-out
+# demo-evidence slice already proved (live scrape) that this exact topology
+# produces a clean 3x ratio when payments fails (checkout's own
+# paymentsMaxAttempts=3 app-level retry loop), confirmed again live by this
+# slice's k6 script (dependency_caller_ratio landed at 2.999-3.013 across
+# several reconcile ticks during the induced-failure window). 5.0 is above
+# that real ratio, so the fan-out k6 script would never actually trip
+# anything against the generic sample's threshold. 2.0 sits comfortably
+# between the healthy baseline (1.0) and the real induced ratio (3.0),
+# the same "clearly on one side of the line, not at it" margin the retry-
+# storm threshold (3.0, against a real 1.0 healthy baseline) already uses.
+apiVersion: cascade.gideonsanni.dev/v1alpha1
+kind: CascadePolicy
+metadata:
+  name: checkout-service
+  namespace: default
+spec:
+  service: checkout-service.default.svc.cluster.local
+  dependsOn:
+    - payments-service.default.svc.cluster.local
+    - inventory-service.default.svc.cluster.local
+  thresholds:
+    latencyP99Ms: 500
+    errorRateFraction: 0.05
+    windowSeconds: 30
+    retryStormMultiplier: 3.0
+    fanOutMultiplier: 2.0
+  mode: Mitigate

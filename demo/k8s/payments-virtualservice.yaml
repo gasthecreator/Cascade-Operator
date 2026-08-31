@@ -1,0 +1,22 @@
+# Baseline VirtualService for payments-service — the VirtualService twin of
+# payments-destinationrule.yaml, added in the same slice that gave latency/
+# error-cascade a VirtualService timeout secondary (PLAN.md §2.6). Same
+# resolve-by-convention/never-create rule applies to the secondary as to
+# every other object this operator patches: without this fixture, the
+# latency/error-cascade k6 script would still trip and patch payments'
+# DestinationRule primary, but the timeout secondary would only ever
+# produce a log line ("VirtualService missing; skipping secondary patch"),
+# never an actual second patch to observe. No explicit route timeout set:
+# the secondary's first patch treats an absent timeout as "unset" and
+# restores back to exactly that (mitigation/timeout.go, timeout_restore.go).
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: payments-service
+spec:
+  hosts:
+    - payments-service.default.svc.cluster.local
+  http:
+    - route:
+        - destination:
+            host: payments-service.default.svc.cluster.local

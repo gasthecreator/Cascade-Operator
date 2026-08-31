@@ -1,0 +1,45 @@
+name: Feature request
+description: Suggest a new capability or an improvement to existing behavior
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem you're trying to solve. If this changes architecture or the CRD shape, it likely belongs in `PROPOSALS.md` first — see [CONTRIBUTING.md](../../CONTRIBUTING.md).
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What gap or pain point does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How should it work? Link to a draft `PROPOSALS.md` entry if you have one.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you thought about and why you rejected them.
+    validations:
+      required: false
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Likely scope
+      options:
+        - Detector / signature
+        - Istio mitigation or restore
+        - CRD / API change
+        - Demo / integration test
+        - CI / tooling / docs
+        - Multi-mesh (Linkerd) — see PLAN.md §5 Phase 6
+        - Other
+    validations:
+      required: true

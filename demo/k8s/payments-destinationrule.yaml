@@ -1,0 +1,16 @@
+# Baseline DestinationRule for payments-service. Both the latency/error-
+# cascade and fan-out amplification k6 scripts induce their signature on
+# payments (see demo/k6/README.md for why payments hosts both and
+# inventory-service hosts retry storm instead), and the controller's
+# mitigation resolves-by-convention (object name = dependency Service name)
+# but never creates a missing object (PLAN.md §2.3) — without this, both
+# scripts would only ever produce a DependencyObjectMissing condition, never
+# an actual trip. No trafficPolicy set: both signatures' first patch treats
+# an absent trafficPolicy.{outlierDetection,connectionPool} as "unset" and
+# restores back to exactly that (mitigation/outlier.go, mitigation/connpool.go).
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: payments-service
+spec:
+  host: payments-service.default.svc.cluster.local

@@ -1,0 +1,52 @@
+name: Bug report
+description: Report incorrect behavior, a regression, or a failed test
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Include steps to reproduce and any operator or Istio version details you have.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What did you expect vs. what actually happened?
+      placeholder: The operator tripped RetryStorm but the DestinationRule never received maxRetries...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Commands, manifests, or k6 script — whatever someone else can follow.
+      placeholder: |
+        1. `make istio-install && make demo-deploy`
+        2. `go run ./cmd/main.go --prometheus-url=...`
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Kubernetes version, Istio version, operator commit or image tag, Prometheus setup.
+      placeholder: Kind 0.24, Istio 1.30.4, commit abc123...
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or raw object JSON
+      description: Operator logs, `kubectl get -o json` output, or Envoy config_dump snippets if wire-format related.
+      placeholder: Paste redacted logs or JSON here.
+    validations:
+      required: false
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and did not find a duplicate
+          required: true

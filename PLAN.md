@@ -1,6 +1,54 @@
 # Cascade Operator — PLAN.md
 
-**Status as of 2026-08-28: repo initialized, zero code written.** This file is the
+**Status as of 2026-08-30: all three signatures now have a full
+detect → mitigate → restore loop.** Restoration dispatches by
+`status.LastSignature`: `DestinationRule` outlierDetection for
+latency/error-cascade, `VirtualService` retries.attempts for retry storm,
+`DestinationRule` connectionPool.http for fan-out amplification, and a
+fail-safe snap-to-Normal fallback for any signature without a wired restore
+path (there is currently none — kept for whatever signature is wired next).
+Latency/error-cascade and fan-out amplification both patch the same object
+kind (`DestinationRule`) on disjoint field sets — see the fan-out
+detect/mitigate/restore worklog for the full reasoning on why that sharing
+is safe under the current one-active-signature status model. The one real
+gap that reasoning surfaced (a same-host signature handoff mid-Tripped/
+Restoring could orphan the outgoing signature's fields) is resolved: see
+§2.6's "Signature handoff on a shared object" and `PROPOSALS.md`'s approved
+entry — `Reconcile` now synchronously force-completes the outgoing
+signature's restore before adopting a handoff on the same tick.
+Latency/error-cascade also now patches a `VirtualService` `timeout`
+secondary alongside its `DestinationRule` primary — the first signature to
+manage two object kinds on one trip, with `VirtualService` now itself
+shared between retry storm (`retries.attempts`) and latency/error-cascade
+(`timeout`), on disjoint fields; the two-object-kind trip/restore shape is
+in §2.6. Retry storm now also patches a `DestinationRule`
+`connectionPool.http` secondary alongside its `VirtualService` primary —
+same two-object-kind shape. Its overlap with fan-out's primary on
+`http1MaxPendingRequests` is resolved (`PROPOSALS.md`, approved 2026-08-30):
+retry storm's secondary keeps only `maxRetries`, restoring field
+disjointness as an invariant rather than depending on force-complete-on-
+handoff for a shared field's data integrity. That drop is now
+implemented. The §2.7 demo topology
+(`checkout → {payments, inventory}`, under `demo/`) is built and deployed,
+and its live-scrape evidence (a clean 1:1:1 healthy ratio; a 3× ratio when
+`payments` fails and `checkout`'s own retry loop kicks in) is what the
+fan-out detector and its cross-host PromQL are built against. Kind cluster
+has Istio 1.30.4 (demo) + Prometheus, the sleep/httpbin validation workload,
+and the demo topology. PromQL `sum by (le)` / `response_flags=URX` findings
+are in PLAN.md §2.4.
+**Resolved:** retry storm's `attempts`/`maxRetries` zero trip values now
+reach the API server as explicit JSON zeros (patch-based writes, not typed
+`Update()`) — confirmed live down to the raw stored object by both Cursor
+and, independently, Claude on review. The primary is also confirmed
+enforced at Envoy (`retry_policy: null`). A **separate gap**, also now
+resolved: Istio's own DestinationRule→Envoy CDS translation renders an
+explicit `maxRetries: 0` as `4294967295` (unlimited) rather than 0 — a
+hard-coded Pilot limitation confirmed against the `1.30.4` source (and
+unchanged on `master`), not a marshaling bug in this codebase. Retry
+storm's secondary trip value is now `1`, not `0`, since the API cannot
+express explicit zero for this field; implementation is the next slice.
+See §2.6.
+This file is the
 single source of truth for goal, architecture, and progress. Read it before
 touching code in any session (Cursor or Claude). Keep it updated as work lands —
 this is a living document, not a one-time spec.
@@ -46,7 +94,7 @@ goal.
 
 ## 2. Architecture Decisions
 
-### 2.1 Language: **Go** (decided, pending your sign-off)
+### 2.1 Language: **Go** (confirmed 2026-08-28)
 
 `controller-runtime` + `kubebuilder` is the de facto standard for Kubernetes
 operators — CRD/deepcopy codegen, informer caching, leader election, and
@@ -63,17 +111,33 @@ Generate the base project (types, controller skeleton, RBAC manifests, CRD
 YAML) with `kubebuilder init` / `kubebuilder create api`. Standard tooling,
 predictable structure Cursor can pattern-match against.
 
-### 2.3 CRD: `CascadePolicy` (name open to change — see Open Questions)
+### 2.3 CRD: `CascadePolicy` (locked 2026-08-28)
 
-One CRD describing a service's dependency edges, detection thresholds, and
-which Istio objects (`VirtualService`/`DestinationRule`) are eligible targets
-for patching. Draft shape (not finalized):
+**Group:** `cascade.gideonsanni.dev`, **version:** `v1alpha1`, **kind:**
+`CascadePolicy`, **namespaced** (not cluster-scoped). This is final — do not
+rename without a new PROPOSALS.md entry, since renaming after codegen means
+regenerating deepcopy and CRD YAML.
+
+The CR describes a service's dependency edges and detection thresholds. It
+does **not** name a specific Istio object to patch. The controller resolves
+the `DestinationRule`/`VirtualService` to patch for each `dependsOn` entry by
+convention: object name = the dependency's Kubernetes Service name, same
+namespace as that Service. This replaced an earlier draft field,
+`spec.targetVirtualService`, which pointed at the *protected* service
+(e.g. `checkout-service`) — but outlier detection, retry budgets, connection
+pools, and timeouts all hang off the *dependency* host, not the caller. A
+policy about checkout failing because of payments patches payments' Istio
+objects, not checkout's. Encoding that as a resolution convention instead of
+a required field keeps the CRD from inviting that mistake. If a resolved
+object is missing, the controller sets a status condition and does not patch
+anything else for that edge — it does not error the whole reconcile.
 
 ```yaml
 apiVersion: cascade.gideonsanni.dev/v1alpha1
 kind: CascadePolicy
 metadata:
   name: checkout-service
+  namespace: default
 spec:
   service: checkout-service.default.svc.cluster.local
   dependsOn:
@@ -83,27 +147,51 @@ spec:
     latencyP99Ms: 500
     errorRateFraction: 0.05
     windowSeconds: 30
-    retryStormMultiplier: 3.0     # retries/sec vs baseline
+    retryStormMultiplier: 3.0     # destination:source request-count ratio;
+                                  # implicit baseline is 1 (no retries) —
+                                  # confirmed on a live scrape (§2.4)
     fanOutMultiplier: 5.0         # downstream calls vs baseline per inbound call
-  targetVirtualService:
-    name: checkout-service
-    namespace: default
+  mode: Mitigate                 # DetectOnly | Mitigate (default Mitigate) —
+                                  # DetectOnly logs/records signatures without
+                                  # patching the mesh; lets a demo show
+                                  # detection without mutating anything live.
 status:
   phase: Normal | Tripped | Restoring
   lastSignature: LatencyErrorCascade | RetryStorm | FanOutAmplification
   lastTrippedAt: ...
   restoreStep: 0-4
+  conditions:
+    - type: DependencyObjectMissing   # e.g. no DestinationRule found for an edge
+      status: "True" | "False"
 ```
 
-### 2.4 Metrics: poll Prometheus HTTP API
+### 2.4 Metrics: poll Prometheus HTTP API (closed 2026-08-28)
 
-Reconciler queries PromQL (`histogram_quantile`, `rate(...)`) on each
-reconcile tick rather than standing up a custom metrics adapter — much less
-infra for a portfolio-scope project, and the PromQL itself is a legible
-interview talking point. Relies on Istio's standard `istio_requests_total` /
-`istio_request_duration_milliseconds` metrics, broken out by
-`destination_service`, `response_code`, and `response_flags` (retries show up
-via `response_flags=UR` and related).
+Reconciler queries PromQL (`histogram_quantile`, `rate(...[30s])`) on each
+reconcile tick rather than standing up a custom metrics adapter (that API
+exists to feed HPA — it's another Deployment, an aggregation-layer
+APIService, and security surface, for no interview-visible gain). Prometheus
+already owns the 30-second window via the range-vector query, so detectors in
+`internal/signatures/` take a plain snapshot struct as input, not a local
+ring buffer — that's what keeps that package unit-testable without a
+cluster. Reconcile is driven by CR watch events **and** `RequeueAfter`
+(10s default), so polling happens without a separate timer controller.
+Prometheus URL is operator-level config (flag/env), not a per-policy CRD
+field. The Prometheus client sits behind a narrow interface
+(`Query(ctx, promql string) → Snapshot`) so the detector package has zero
+Kubernetes or Prometheus client dependency. Relies on Istio's standard
+`istio_requests_total` / `istio_request_duration_milliseconds` metrics,
+broken out by `destination_service`, `response_code`, and `response_flags`.
+The p99 query is `reporter="source"` (client-perceived latency) with
+`sum by (le)` before `histogram_quantile` — confirmed on a live Istio 1.30.4
+scrape that without this, Prometheus returns one series per
+reporter/response_code/etc., and summing both reporters together
+double-counts the same request (see PROPOSALS.md's resolved entries,
+2026-08-29). **Retries show up as `response_flags=URX`** (exhausted retry
+budget), not `UR` — also confirmed on a live scrape (35 `URX` on the source
+reporter × 4 = 140 total 503s at the destination, matching a
+`retries.attempts: 3` policy exactly). The retry-storm detector should key
+off `URX` and/or the destination:source request-count ratio, not `UR`.
 
 ### 2.5 Detection engine: decoupled from the reconciler
 
@@ -114,78 +202,343 @@ this package — takes plain structs in, returns plain structs out. This is the
 part that must be unit-testable without a cluster, and it's the part most
 worth walking an interviewer through.
 
-### 2.6 Mitigation: Istio patching + gradual restoration
+### 2.6 Mitigation: per-signature Istio patch matrix + gradual restoration (locked 2026-08-28)
 
-- On a tripped signature, patch the target `DestinationRule` (outlier
-  detection / connection pool limits) or `VirtualService` (retry budget,
-  timeout) for the offending destination.
+Each signature has a different amplification mechanism, so each gets a
+specific primary patch (and where useful, a secondary one), rather than one
+generic "patch a DestinationRule or a VirtualService" rule:
+
+| Signature | Trip — primary | Trip — secondary | Restore |
+|---|---|---|---|
+| Latency/error cascade | `DestinationRule` `outlierDetection`: lower `consecutive5xxErrors`, shorter `interval`, longer `baseEjectionTime` | `VirtualService` `timeout` on the dependency host, capped at `thresholds.latencyP99Ms` | Stepwise loosen the same fields |
+| Retry storm | `VirtualService` `retries.attempts` → 0 | `DestinationRule` `connectionPool.http.maxRetries` → 1 (not 0 — Istio's Pilot has no way to push an explicit 0 to Envoy for this field; see below) | Stepwise raise attempts / pool limits |
+| Fan-out amplification | `DestinationRule` `connectionPool.http` (`http1MaxPendingRequests`, `http2MaxRequests`) on the downstream host — bulkhead in-flight calls | — (none for v1alpha1) | Stepwise raise pool limits |
+
+Reasoning: a latency/error cascade is service-level, so instance-scoped
+outlier detection (eject bad pods) is the primary — it's also the actual gap
+this project claims vs. hand-tuned Istio circuit breaking. The timeout is the
+fail-fast backstop if every pod is unhealthy and ejection saturates. A retry
+storm is a policy problem — outlier detection does nothing to stop Envoy from
+retrying, so cutting the retry budget directly is the primary, with
+connection-pool caps as the bulkhead. Fan-out is a concurrency problem —
+timeouts and ejection don't reduce call count, so a connection-pool bulkhead
+on the callee is the only lever that does.
+
+All three primaries are now built: latency/error cascade (outlier
+detection), retry storm (`retries.attempts`), and fan-out amplification
+(`connectionPool.http`). Latency/error-cascade's secondary
+(`VirtualService` `timeout`, capped at `thresholds.latencyP99Ms`) is now
+also built — the first case of a single signature managing two different
+Istio object kinds on the same trip. Retry storm's `connectionPool`
+secondary is now built too (same two-object-kind shape).
+
+**Two-object-kind trip/restore shape (locked 2026-08-30):** with
+latency/error-cascade now patching both `DestinationRule` (primary) and
+`VirtualService` (secondary) for the same edge, the two objects are treated
+as fully independent, not a joint precondition:
+
+- The primary applies even if the secondary's `VirtualService` is missing,
+  and symmetrically the secondary applies even if the primary's
+  `DestinationRule` is missing. "Secondary" in the matrix above means
+  additive to the primary, not a co-requirement — nothing in this section
+  says the mitigation should no-op entirely just because one of the two
+  backstop objects isn't resolvable for that edge.
+- `DependencyObjectMissing` stays a single boolean and stays scoped to the
+  primary (`DestinationRule`) only. A missing secondary is logged and
+  separately observable via `mitigationPatchesAppliedTotal{kind="VirtualService"}`
+  simply not incrementing that tick, but does not flip the condition — with
+  two independent objects, a missing secondary while the primary is present
+  still means real mitigation is happening for that edge, so flipping a
+  generic "this edge is broken" condition there would overstate the
+  problem. A missing primary still flips the condition exactly as before.
+- Restoration (`beginRestoreLatencyError`/`advanceRestoreLatencyError`/
+  `completeLatencyErrorRestore`) independently gathers and restores managed
+  `DestinationRule` edges and managed `VirtualService` edges; an edge with
+  only one object kind managed restores just that one, both restore
+  together when both are managed, and only "neither managed" snaps straight
+  to `Normal`. `forceCompleteOutgoingRestore`'s handoff path (above) forces
+  both object kinds to true original when latency/error-cascade is the
+  outgoing signature.
+
+**Note on process:** the paragraphs above were originally written directly
+into this section by Cursor, on the reasoning that they were "carrying out
+what 'secondary' already meant," not a new decision, so review wasn't
+needed. That reasoning doesn't hold up — the original matrix said nothing
+about primary/secondary independence, `DependencyObjectMissing` scoping, or
+partial-edge restoration; those are real decisions, not a restatement of
+one already made. This section is now under Claude's authorship following
+review (2026-08-30) — the content is unchanged because it's correct on the
+merits, not because the original judgment call to skip review was valid.
+See `docs/worklog/2026-08-30-review-latency-error-timeout-secondary.md` for
+the full reasoning on both the design and the process point.
+
+**Signature handoff on a shared object (locked 2026-08-30):** latency/error
+cascade and fan-out amplification both patch `DestinationRule` (disjoint
+field sets — `outlierDetection` vs. `connectionPool.http`), so a policy can
+have its detected signature change from one to the other on the same host
+without an intervening healthy tick. When that happens, `Reconcile` must
+**synchronously force-complete the outgoing signature's restore** (call its
+existing `complete*Restore` function — the same one its gradual ramp already
+calls at the final step) **before** applying the incoming signature's trip.
+This reuses existing, already-tested "restore to true original, strip both
+annotations" logic rather than adding a new status field or a multi-tick
+handoff state machine; it's safe to do eagerly because the outgoing
+signature's own detector just confirmed, this same tick, that its condition
+has cleared — there's no in-progress ramp needing a regression check, only a
+clean object state that needs to be reached before the next signature can
+safely claim it. See `PROPOSALS.md`'s resolved entry for the full reasoning
+and the two rejected alternatives.
+
+**Zero-value wire format (fixed 2026-08-30; secondary still has a separate gap):**
+retry storm's primary (`retries.attempts → 0`) and secondary
+(`connectionPool.http.maxRetries → 0`) are both plain `int32` proto fields
+with `omitempty`, so an explicit trip value of `0` was stripped by JSON
+marshaling before the operator's typed `Update()` call ever reached the API
+server (`docs/worklog/2026-08-30-retry-storm-zero-value-serialization-bug.md`).
+Fixed by switching both writes to patches built from `map[string]any` — a
+JSON Patch for the primary's `VirtualService` (`spec.http` is an array, so
+merge patch would replace the whole list) and a JSON merge patch for the
+secondary's `DestinationRule` (nested objects merge correctly, leaving
+fan-out's fields, outlierDetection, and TLS untouched) — instead of the
+typed struct's `Update()`. Confirmed live, independently, down to the raw
+stored object: both fields now store an explicit `0`
+(`docs/worklog/2026-08-30-retry-storm-zero-value-patch.md`,
+`docs/worklog/2026-08-30-review-retry-storm-zero-value-patch.md`). The
+mitigation *strategy* did not change, only how the zero value is
+transmitted.
+
+That same live check surfaced a **separate gap, now resolved (2026-08-30):**
+the primary is confirmed enforced at Envoy (`retry_policy: null` on the
+outbound route), but the secondary was not — Istio's own DestinationRule→CDS
+translation renders an explicit `maxRetries: 0` as Envoy
+`circuit_breakers.max_retries: 4294967295` (unlimited), not `0`. This is
+Istio's control-plane translation, not a marshaling bug in this codebase:
+Pilot's `applyConnectionPool` (`cluster_traffic_policy.go`, confirmed
+against the exact `pilot:1.30.4` source and unchanged on `master`) guards
+the assignment with `if settings.Http.MaxRetries > 0`, so an explicit API
+`0` is indistinguishable from unset and the `math.MaxUint32` default is
+left in place — the same `int32`-vs-wrapper distinction as the earlier
+serialization bug, but one layer up, inside Istio's own Go code rather
+than this project's JSON marshaling. Resolved (`PROPOSALS.md`, approved
+2026-08-30): the secondary's trip value is `1`, not `0` — the smallest
+change that actually reaches Envoy as a real, enforced circuit-breaker
+cap, given the API has no way to express "explicit zero" for this
+particular field. The primary is unaffected and still trips `attempts: 0`
+exactly as before. Implementation of the `1` value is the next slice.
+
 - Every patch the operator makes is annotated
   (`cascade.gideonsanni.dev/managed-by: cascade-operator`) so reconciliation
   can distinguish operator-applied patches from user-authored config and never
   clobbers the latter.
-- Restoration is a step-function ramp, not an unpatch: e.g. 10% → 25% → 50% →
-  100% traffic weight (or loosened outlier-detection thresholds), with a
-  metrics re-check gate between each step. A regression during ramp re-trips
-  immediately and resets to step 0.
+- **Restoration always ramps the same fields that were tightened on trip** —
+  e.g. stepwise raise `consecutive5xxErrors` back up, shorten
+  `baseEjectionTime` back down — with a metrics re-check gate between each
+  step. It does **not** use a traffic-weight ramp (10%→25%→50%→100% via
+  `VirtualService` route weights). Weighted-route restoration is a different
+  pattern (load-shedding/canary): it needs a dummy destination or abort route,
+  a second state machine, and risks clobbering user-authored routing. One
+  ramp mechanism — loosen what was tightened — is simpler and the more
+  defensible interview story. A regression during ramp re-trips immediately
+  and resets to step 0.
 - State machine per policy: `Normal → Tripped → Restoring(step N) → Normal`,
   tracked in `CascadePolicy.status`.
 
 ### 2.7 Local dev/test environment
 
 - Kind cluster + Istio (demo profile) installed locally.
-- Demo microservice topology to induce failures against — likely Istio's
-  Bookinfo sample extended with a fault-injection sidecar endpoint, unless
-  that proves too limited (see Open Questions).
+- **Demo topology (locked 2026-08-28): a custom 3-service graph** —
+  `checkout → {payments, inventory}`, matching the CRD example, plus a thin
+  frontend/gateway as a single k6 entrypoint if needed. Three small Go
+  services, Dockerfiles, Kubernetes+Istio manifests, under `demo/`. Signatures
+  are induced with Istio fault injection + k6 against this graph, not extra
+  sidecars.
+  Rejected: extending Istio's Bookinfo sample. Bookinfo's graph
+  (productpage → details/reviews → ratings) is built to demo traffic
+  splitting, not these failure modes — reviews→ratings is 1:1 so it can't
+  show disproportionate fan-out, and it has no first-class controllable retry
+  client. A purpose-built graph makes "induce exactly this signature" a
+  script instead of a fight with sample-app defaults, at a bounded cost
+  (~50-line services).
+  **Sequencing:** build this after one signature's full detect→mitigate loop
+  is working end to end, not before — the interview demo is one signature
+  proven through the whole pipeline; the other two detectors are copies of
+  the same interface, and the demo topology should exercise a working loop,
+  not an empty one.
 - k6 (preferred over Locust — single static binary, easy to invoke from CI
   and from Go-based test harnesses without a Python dependency) to simulate
   latency spikes, retry storms, and fan-out load patterns.
+
+### 2.8 CI (locked 2026-08-28)
+
+GitHub Actions from the first scaffold PR, running on PRs and on `main`:
+`gofmt -l` (must be empty), `golangci-lint` (version pinned), `go test ./...`,
+and a `make manifests`/`make generate` drift check (generated CRD YAML and
+deepcopy match what's committed — the usual kubebuilder footgun is a hand-edit
+to a generated file). Go version pinned to whatever `kubebuilder init`
+defaults to (currently expected ~1.24.x — follow the tool, don't fight it).
+Kind/Istio/k6 stay **out** of CI until the integration-test checklist item is
+actually being built — installing Istio in Actions is the expensive, flaky
+part, and there's nothing to integration-test yet.
 
 ---
 
 ## 3. Checklist — Built vs. Not Yet
 
-Everything below is **not started**. Repo was an empty GitHub shell (0 commits)
-until this session.
+**Build order matters here — do not build all three detectors before wiring
+one through the reconciler, and do not stand up the Kind+Istio+demo topology
+before one detect→mitigate loop exists end to end.** One signature proven
+through the full pipeline (metrics → detector → patch → restore) is the
+interview demo; the other two detectors are then copies of the same
+interface. First slice (scaffold + CRD + logging reconciler), Prometheus HTTP
+client, latency/error-cascade detection, Istio primary patch, and the
+restoration ramp are done. **All three signatures are now through the full
+pipeline**: latency/error-cascade (`DestinationRule` outlierDetection),
+retry storm (`VirtualService` retries.attempts), and fan-out amplification
+(`DestinationRule` connectionPool.http) — each detect → mitigate → restore,
+dispatched by `status.LastSignature`. Kind + Istio 1.30.4 is installed
+locally for scrape evidence. **Caveat found 2026-08-30 via live k6 evidence,
+now resolved:** retry storm's detect → trip is confirmed live-working, but
+its mitigate patch wasn't — Istio's validating webhook rejects the trip-time
+`attempts: 0` write whenever the route already has `retryOn`/
+`perTryTimeout` set, which a real retry storm's pre-existing policy always
+would. Confirmed live (independently reproduced the exact rejection, then
+confirmed the fix): **on trip, clear `retryOn`/`perTryTimeout`/`backoff`
+alongside `attempts: 0`** — the full original block is already captured in
+`AnnotationOriginalRetries` and restored exactly at completion, so nothing
+is lost, and a route with retries disabled shouldn't carry retry-behavior
+fields describing retries that will never run. See `PROPOSALS.md`'s
+resolved entry. **Implemented 2026-08-30** in `ApplyRetryStormTrip`
+(`internal/mitigation/retries.go`); fake-client and unit tests confirm the
+new behavior, but this particular pass could not re-confirm against the
+live Kind cluster (unreachable — see the worklog).
 
-- [ ] Repo scaffold (kubebuilder init, go.mod, Makefile, CI skeleton)
-- [ ] `CascadePolicy` CRD types + deepcopy + CRD YAML
-- [ ] Prometheus client + PromQL query layer
-- [ ] Signature detector: latency/error cascade
-- [ ] Signature detector: retry storm
-- [ ] Signature detector: fan-out amplification
-- [ ] Reconciler wiring (metrics → detectors → decision)
-- [ ] Istio patch layer (DestinationRule / VirtualService client + annotations)
-- [ ] Gradual restoration state machine
-- [ ] Operator's own Prometheus metrics (signatures detected, patches applied)
-- [ ] Kind + Istio local dev environment docs/scripts
-- [ ] Demo microservice topology for fault injection
-- [ ] k6 cascade-simulation test scripts (latency spike, retry storm, fan-out)
-- [ ] Unit test suite for detectors (no cluster required)
-- [ ] Integration test suite (Kind-based, exercises real reconcile loop)
-- [ ] golangci-lint + gofmt CI gate
-- [ ] README (setup, architecture summary, demo instructions)
+- [x] Repo scaffold (kubebuilder init, go.mod, Makefile, CI skeleton)
+- [x] `CascadePolicy` CRD types + deepcopy + CRD YAML
+- [x] Prometheus client + PromQL query layer
+- [x] Signature detector: latency/error cascade
+- [x] Signature detector: retry storm
+- [x] Signature detector: fan-out amplification
+- [x] Reconciler wiring (metrics → detectors → decision)
+- [x] Istio patch layer — `DestinationRule` outlierDetection primary (latency/error cascade), annotations
+- [x] Istio patch layer — `VirtualService` retries.attempts primary (retry storm), annotations
+- [x] Istio patch layer — `DestinationRule` connectionPool.http primary (fan-out amplification), annotations
+- [x] Istio patch layer — `VirtualService` timeout secondary (latency/error cascade), annotations, two-object-kind trip + restore
+- [x] Istio patch layer — `DestinationRule` connectionPool.http secondary (retry storm), annotations, two-object-kind trip + restore
+- [x] Gradual restoration state machine (signature-dispatched: `DestinationRule` for latency/error cascade, fan-out amplification, and retry storm's connectionPool secondary; `VirtualService` for retry storm and latency/error cascade's timeout secondary)
+- [x] Force-complete outgoing signature's restore on a same-object signature handoff (§2.6)
+- [x] Operator's own Prometheus metrics (signatures detected, patches applied, restorations completed/regressed)
+- [x] Kind + Istio local dev environment docs/scripts
+- [x] Demo microservice topology for fault injection (`demo/` — checkout, payments, inventory)
+- [x] k6 cascade-simulation test scripts (latency spike, retry storm, fan-out) — live evidence for all three; retry-storm mitigation fixed (webhook, zero-value patch, maxRetries=1), see worklogs
+- [x] Unit test suite for detectors (no cluster required)
+- [x] Integration test suite (Kind-based, exercises real reconcile loop) — `test/integration/` via `make test-integration` against dev Kind cluster; stub PromQL, real apiserver patches, unstructured JSON assertions
+- [x] golangci-lint + gofmt CI gate
+- [x] README (setup, architecture summary, demo instructions)
 
 ---
 
 ## 4. Open Questions
 
-1. **CRD name/group** — `CascadePolicy` under `cascade.gideonsanni.dev/v1alpha1`
-   is a placeholder. Confirm before generating kubebuilder scaffolding, since
-   renaming after codegen means regenerating deepcopy/CRD YAML.
-2. **Demo topology** — extend Istio's Bookinfo sample, or write a minimal
-   custom 3-service app? Bookinfo is faster to stand up; a custom app gives
-   cleaner control over inducing exactly the three signatures on demand.
-3. **Istio patch target** — for the latency/error cascade signature, is the
-   right mitigation an `outlier detection` change on `DestinationRule`, or a
-   timeout/retry-budget change on `VirtualService`, or both depending on
-   signature type? Needs a decision per signature before the mitigation layer
-   is built.
-4. **Custom-metrics API vs. direct Prometheus polling** — current plan is
-   direct polling (2.4). Revisit only if reconcile-loop latency against
-   Prometheus becomes a real bottleneck in testing — unlikely at demo scale.
-5. **CI** — GitHub Actions for lint/test: set up now (empty repo, cheap) or
-   defer until there's code to run against? Leaning toward now, since it's
-   nearly free and enforces the gofmt/golangci-lint standard from commit one.
+**All five original open questions were resolved 2026-08-28** via
+`PROPOSALS.md` (see its Resolved Proposals section for full reasoning) —
+CRD group/kind/shape (2.3), demo topology (2.7), Istio patch matrix (2.6),
+metrics approach (2.4), and CI (2.8) are now locked decisions above, not open.
+
+None currently open. Add new ones here as they come up — don't leave this
+section empty just because it looks tidy; an open question that's actually
+blocking belongs here, not silently assumed in code.
+
+---
+
+## 5. Production-Readiness & Repo Standardization Initiative (started 2026-08-31)
+
+Section 3's checklist covers the original v1alpha1 scope and is fully done.
+This section tracks a second, larger initiative: pushing the project from
+"portfolio-complete" toward genuinely production-grade engineering, plus full
+repo standardization and multi-mesh (Linkerd) support. Full plan and rationale
+— including the ground-truth audit this was built from (RBAC already tight,
+webhook infra plumbed but greenfield, zero standard-repo files existed,
+Linkerd's primitives conflict with this project's model in specific,
+sourced ways) — lives in this session's approved plan; summarized here so it
+survives the session.
+
+Same protocol as section 3: Cursor builds each slice, writes a worklog entry,
+and Claude independently rebuilds/tests/lints and re-verifies any
+live-cluster claim before checking an item here.
+
+- [x] Phase 0 — Repo hygiene: LICENSE, CONTRIBUTING.md, CODE_OF_CONDUCT.md,
+  SECURITY.md, CODEOWNERS, CHANGELOG.md, .editorconfig, issue/PR templates,
+  dependabot.yml, .gitignore additions
+- [x] Phase 1 — CI: Kind+Istio integration workflow (`make test-integration`
+  in Actions), govulncheck, CodeQL
+- [ ] Phase 2 — Integration test coverage for latency/error-cascade and
+  fan-out amplification (retry storm's is done — `test/integration/`)
+- [ ] Phase 3 — `CascadePolicy` admission webhook (validating; field-level
+  checks only, no live dependency-resolution check)
+- [ ] Phase 4 — Grafana dashboard over existing operator metrics; trip/restore
+  webhook notifier
+- [ ] Phase 5 — Production hardening: fix the known zero-value bug in retry
+  storm's *restore-completion* path (same class as the trip-path bug fixed
+  2026-08-30, never applied to restore); HA (`replicas: 2`, leader election
+  already wired); per-edge threshold overrides (**breaking v1alpha1 CRD
+  change** — needs its own PROPOSALS.md entry, not routine); security
+  threat-model doc
+- [ ] Phase 6 — Multi-mesh (Linkerd) support, full attempt: mesh-adapter
+  interface (spike/design proposal first), Linkerd detection (PromQL
+  equivalent, metric names confirmed live not assumed), Linkerd mitigation
+  for latency/error-cascade + retry storm (these two are **mutually
+  exclusive per Service on Linkerd** — failure accrual vs. ServiceProfile —
+  extending the existing signature-handoff machinery to arbitrate which
+  owns a given Service), fan-out is explicit detect-only-on-Linkerd (status
+  condition, not a silent skip), explicit `spec.mesh` field, Linkerd dev
+  environment, integration coverage. Largest item by far — expect several
+  independently-reviewed slices, not one.
+- [ ] Phase 7 — Visual cascade replay: capture a real trip→mitigate→restore
+  episode per signature as a JSON trace (reusing `demo/k6/*.js`, no new live
+  infra to *view* it) and build a self-contained page that animates the
+  topology graph, live metrics, the actual JSON patch appearing at trip
+  time, and the status timeline. This is the portfolio's actual distribution
+  problem being solved, not a feature for the operator itself — most
+  reviewers will never `kubectl apply` this repo, but will click a link.
+- [ ] Phase 8 — Postmortem generator: render a real incident postmortem
+  document (timeline, root cause/evidence, impact, remediation, resolution
+  timing) from `CascadePolicy.status` and the operator's own Prometheus
+  metrics after an episode. On-demand CLI first; auto-trigger on
+  `Tripped → Normal` (via Phase 4's notifier) as a stretch add-on, not the
+  first version.
+- [ ] Phase 9 — Quantified resilience benchmark: run each signature's chaos
+  scenario twice — `Mitigate` vs. the CRD's existing `DetectOnly` mode as
+  the real baseline — and publish time-to-detect / blast-radius /
+  time-to-restore numbers side by side (`make benchmark`,
+  `docs/benchmark-results.md`). Converts "it works" into a falsifiable,
+  measured claim; builds entirely on existing k6 scripts and PromQL.
+- [ ] Phase 10 — Property-based state-machine verification: use
+  `pgregory.net/rapid` to prove real invariants across the
+  Tripped/Restoring/signature-handoff state machine (e.g. "a handoff never
+  leaves a signature's annotation orphaned," "a completed restore always
+  returns every managed field to its true original," "a trip value always
+  survives the patch round-trip") against random generated sequences,
+  rather than only hand-written cases. Test-only; no new runtime behavior.
+- [ ] Phase 11 — eBPF-level kernel-signal corroboration: deploy Cilium's
+  **Tetragon** (not hand-written eBPF/CO-RE — too deep a separate
+  discipline for the payoff) as a DaemonSet exporting kernel-level TCP
+  signals (retransmits, resets) as a fourth, independent, *corroborating*
+  input alongside the existing Envoy-metric-based detection — never a
+  replacement, and detection works identically with Tetragon absent.
+  Highest-risk phase here (privileged DaemonSet, kernel/BPF compatibility
+  inside the Kind/Docker Desktop VM needs confirming) — starts with a spike
+  confirming Tetragon actually runs cleanly in this exact dev environment,
+  same discipline as Phase 6's Linkerd spike.
+
+**Sequencing note (revised after adding Phases 7–11):** 7–9 are the highest
+"someone actually notices this" payoff and don't depend on the webhook,
+observability, or hardening work — reasonable to pull them forward,
+interleaved with or even ahead of Phases 3–5, rather than only after Phase 6.
+Phase 10 (test-only) can happen anytime. Phase 11 is comparable in risk to
+Phase 6 and is sequenced after it deliberately — a kernel-level signal ought
+to corroborate detection across whichever mesh(es) are supported, so it
+benefits from Phase 6 already existing rather than being built against Istio
+alone and redone.
 
 ---
 

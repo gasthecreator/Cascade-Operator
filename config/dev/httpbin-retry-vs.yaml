@@ -1,0 +1,18 @@
+# Retry policy against httpbin so a /status/503 from sleep produces Envoy retries.
+# Used only for the response_flags scrape; not part of the operator itself.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: httpbin
+  namespace: default
+spec:
+  hosts:
+  - httpbin
+  http:
+  - route:
+    - destination:
+        host: httpbin
+    retries:
+      attempts: 3
+      perTryTimeout: 2s
+      retryOn: 5xx,reset,connect-failure,refused-stream
