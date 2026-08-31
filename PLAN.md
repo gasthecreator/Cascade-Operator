@@ -469,7 +469,7 @@ live-cluster claim before checking an item here.
 - [x] Phase 0 — Repo hygiene: LICENSE, CONTRIBUTING.md, CODE_OF_CONDUCT.md,
   SECURITY.md, CODEOWNERS, CHANGELOG.md, .editorconfig, issue/PR templates,
   dependabot.yml, .gitignore additions
-- [ ] Phase 1 — CI: Kind+Istio integration workflow (`make test-integration`
+- [x] Phase 1 — CI: Kind+Istio integration workflow (`make test-integration`
   in Actions), govulncheck, CodeQL
 - [ ] Phase 2 — Integration test coverage for latency/error-cascade and
   fan-out amplification (retry storm's is done — `test/integration/`)

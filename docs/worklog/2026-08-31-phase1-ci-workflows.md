@@ -38,11 +38,31 @@ add lightweight security scanning without slowing the every-push gate.
 - `.github/workflows/integration.yml`
 - `.github/workflows/govulncheck.yml`
 - `.github/workflows/codeql.yml`
+- `go.mod`, `go.sum` — dep bumps required for govulncheck green (no `.go` edits)
 - `docs/worklog/README.md` — index this entry
 - `PLAN.md` — §5 Phase 1 checklist (after verified green run)
 
 ## Testing
-<!-- VERIFICATION SECTION UPDATED AFTER CI RUN -->
+**Verified green in GitHub Actions on PR #1** (`ci/phase1-workflows`), not
+local-only.
+
+| Workflow | Run | Result | Duration |
+|----------|-----|--------|----------|
+| Integration Tests (Kind + Istio 1.30.4) | [33366623351](https://github.com/gasthecreator/Cascade-Operator/actions/runs/33366623351) | pass | 2m42s |
+| govulncheck | [33366623362](https://github.com/gasthecreator/Cascade-Operator/actions/runs/33366623362) | pass | 1m1s |
+| CodeQL | [33366623352](https://github.com/gasthecreator/Cascade-Operator/actions/runs/33366623352) (rerun after transient ECONNRESET on bundle download) | pass | 4m38s |
+| lint / test (existing) | [33366619454](https://github.com/gasthecreator/Cascade-Operator/actions/runs/33366619454) et al. | pass | ~3m |
+
+`gh pr checks 1` — all green after commit `97b48e8`.
+
+**govulncheck note:** Initial runs failed on Go 1.26.0 stdlib CVEs and module
+vulns in `golang.org/x/net`, `x/text`, and `grpc`. Fixed with Go **1.26.6**
+toolchain in the workflow (go.mod stays `1.26.0`) plus `go.mod`/`go.sum` dep
+bumps — no `.go` source edits.
+
+**Integration note:** `demo/k8s/` is applied by `test/integration/cluster.go`
+inside `make test-integration`; the workflow only installs CRDs explicitly
+before the test target runs.
 
 ## Follow-ups / known gaps
 - Integration workflow not on every push (by design — Istio install budget).
