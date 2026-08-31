@@ -108,9 +108,9 @@ func TestRetryStormHealthySnapsToNormalWithoutRestoring(t *testing.T) {
 	trippedAt := metav1.NewTime(time.Now().Add(-time.Hour))
 	policy.Status.LastTrippedAt = &trippedAt
 
-	// Unmanaged DestinationRule and no VirtualService at all: neither
-	// listManagedDestinationRuleEdges nor listManagedVirtualServiceEdges
-	// finds a managed edge, so this must fall straight to Normal.
+	// Unmanaged DestinationRule and no VirtualService at all: the Istio
+	// Mitigator's HasManagedEdges finds nothing managed for either object
+	// kind, so this must fall straight to Normal.
 	r, c := patchReconcileWith(t, healthyQuerier(), policy, patchTestDR())
 	if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {
 		t.Fatal(err)

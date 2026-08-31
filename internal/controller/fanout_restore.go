@@ -26,17 +26,16 @@ import (
 	"github.com/gasthecreator/Cascade-Operator/internal/mitigation"
 )
 
-// Migrated to mesh.Mitigator (PLAN.md §5 Phase 6.3): begin/advance/
-// completeFanOutRestore below now delegate the actual object mutation to
-// r.mitigator(), keeping only the mesh-agnostic status.Phase/RestoreStep
-// transitions, metrics, and notification here — same external shape as
-// before the migration (mirrors restore.go's beginRestoreLatencyError/
-// advanceRestoreLatencyError, still unmigrated), just no longer calling
-// internal/mitigation or r.Get/r.Update directly. The Istio Mitigator's own
-// edge-listing (internal/mesh/istio/mitigator.go's listFanOutEdges) is a
-// temporary, intentional duplicate of this file's own former
-// listManagedDestinationRuleEdges call — see that function's doc comment
-// for why.
+// Migrated to mesh.Mitigator (PLAN.md §5 Phase 6.3, the first of the
+// three signatures migrated): begin/advance/completeFanOutRestore below
+// delegate the actual object mutation to r.mitigator(), keeping only the
+// mesh-agnostic status.Phase/RestoreStep transitions, metrics, and
+// notification here — same shape restore.go's latency/error-cascade and
+// retry_restore.go's retry storm functions were migrated to afterward
+// (Phases 6.4/6.5). The Istio Mitigator's own edge-listing
+// (internal/mesh/istio/mitigator.go's listManagedDREdges/listManagedVSEdges)
+// is now the single canonical implementation — this package's own former
+// copies were deleted once all three signatures no longer needed them.
 func (r *CascadePolicyReconciler) beginRestoreFanOut(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
 	log := logf.FromContext(ctx)
 	has, err := r.mitigator().HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureFanOutAmplification)
