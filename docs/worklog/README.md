@@ -58,6 +58,7 @@ Anything deliberately deferred, and why.
 ## Index (newest first)
 
 - [2026-08-31 — Review: Phase 0 repo hygiene — approved, two small fixes](2026-08-31-review-phase0-repo-hygiene.md)
+- [2026-08-31 — Phase 1 CI: Kind+Istio integration workflow, govulncheck, CodeQL](2026-08-31-phase1-ci-workflows.md)
 - [2026-08-31 — Phase 0 repo hygiene: standard org files (PLAN.md §5)](2026-08-31-phase0-repo-hygiene.md)
 - [2026-08-31 — Review: Kind integration test suite — approved, one broken-link fix](2026-08-31-review-kind-integration-tests.md)
 - [2026-08-31 — Kind integration tests: real reconcile loop, unstructured wire-format assertions](2026-08-31-kind-integration-tests.md)

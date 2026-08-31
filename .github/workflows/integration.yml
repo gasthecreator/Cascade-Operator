@@ -1,0 +1,55 @@
+# Kind + Istio integration tests (PLAN.md §5 Phase 1). Separate from
+# test-e2e.yml — that scaffold targets a plain Kind cluster with no mesh.
+name: Integration Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  integration:
+    permissions:
+      contents: read
+    name: Kind + Istio 1.30.4
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      INTEGRATION_CONTEXT: kind-cascade-operator
+      ISTIO_VERSION: "1.30.4"
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install the latest version of kind
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/latest/kind-linux-$(go env GOARCH)
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+          kind version
+
+      - name: Create Kind cluster
+        run: |
+          kind create cluster --name cascade-operator
+          kubectl cluster-info --context "${INTEGRATION_CONTEXT}"
+
+      - name: Install Istio
+        run: make istio-install
+
+      - name: Install CascadePolicy CRDs
+        run: kubectl apply -f config/crd/bases
+
+      - name: Run integration tests
+        run: |
+          go mod tidy
+          make test-integration
