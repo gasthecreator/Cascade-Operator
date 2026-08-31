@@ -1,0 +1,11 @@
+# Phase 6.6 (PLAN.md §5): a Linkerd-injected copy of the §2.7 demo topology,
+# in its own namespace so it never competes with the Istio-injected
+# `default` namespace's checkout/payments/inventory for the same pod
+# identity. linkerd.io/inject: enabled on the namespace auto-injects every
+# pod created here — no per-Deployment annotation needed.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: linkerd-demo
+  annotations:
+    linkerd.io/inject: enabled

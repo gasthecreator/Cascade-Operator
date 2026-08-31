@@ -635,9 +635,27 @@ live-cluster claim before checking an item here.
   the incoming signature's trip applied.
 - [ ] Phase 6, 6.6 — Linkerd's actual `QueryBuilder`/`Mitigator`
   implementations, the failure-accrual/ServiceProfile arbitration logic,
-  a Linkerd dev environment, and integration coverage. Not started — see
-  the Phase 6 worklogs for the mesh-adapter interface these will
-  implement.
+  a Linkerd dev environment, and integration coverage.
+  **Slice 1 done**: `internal/mesh/linkerd.QueryBuilder`, live-verified
+  against a real Linkerd 2.16 + linkerd-viz install on the dev Kind
+  cluster (a new `linkerd-demo` namespace running an injected copy of the
+  demo topology, `demo/k8s-linkerd/*.yaml`). Two corrections against this
+  plan's own draft text fell out of the live spike: the request counter is
+  `request_total` (not `response_total` — a different, real metric used
+  for `ErrorRateQuery`'s classification label), and the latency histogram
+  is `response_latency_ms_bucket` (not `route_response_latency_ms_bucket`).
+  `RetryStormRatioQuery` needed real investigation beyond a label swap:
+  Linkerd has no reporter=source/destination split — request_total's
+  outbound (caller) and inbound (dependency) views were confirmed live to
+  already amplify equally under retries (same caller proxy performs and is
+  measured for the retries), so neither gives a "logical calls" baseline.
+  The real signal is `route_request_total`/`route_actual_request_total` (a
+  ServiceProfile-route-scoped pair), confirmed live at ~4.3x for the same
+  failing traffic. See
+  `docs/worklog/2026-08-31-phase6.6-linkerd-query-builder.md` for the full
+  live-query accounting. **Not done yet**: `Mitigator`, the arbitration
+  logic, `spec.mesh` reconciler dispatch, a scripted dev-environment
+  install, and integration coverage — next slice(s).
 - [ ] Phase 11 — eBPF-level kernel-signal corroboration: **spike done and
   passed; corroboration integration not done.** Confirmed live on this
   exact dev environment (Docker Desktop 29.7.2, kernel 7.0.12-linuxkit,
