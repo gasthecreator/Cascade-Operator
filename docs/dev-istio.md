@@ -43,6 +43,32 @@ hack/query-prom.sh 'histogram_quantile(0.99, rate(istio_request_duration_millise
 `hack/query-prom.sh` port-forwards `istio-system/prometheus` to localhost:19090
 for one request and prints the JSON.
 
+## Grafana dashboard
+
+```bash
+make grafana-install   # installs Istio's sample Grafana addon, imports the dashboard below
+kubectl -n istio-system port-forward svc/grafana 3000:3000
+# open http://localhost:3000/d/cascade-operator
+```
+
+The dashboard (`config/observability/grafana-dashboard.json`) visualizes the
+operator's own metrics (`internal/controller/metrics.go` —
+`cascade_signatures_detected_total`, `cascade_mitigation_patches_applied_total`,
+`cascade_restorations_completed_total`, `cascade_restoration_regressions_total`)
+plus controller-runtime's standard reconcile-health metrics. No new metrics —
+this is a visualization layer only. Re-running `make grafana-install` re-imports
+the dashboard, so edits to the JSON show up without a full reinstall.
+
+The operator itself needs `--metrics-bind-address=:8080 --metrics-secure=false`
+(or an equivalent in-cluster scrape target) for these metrics to actually reach
+Prometheus — the default `go run ./cmd/main.go` invocation leaves the metrics
+server disabled (`--metrics-bind-address=0`). This project's own dev cluster
+does not currently scrape a running operator via Prometheus (verified instead
+by curling the operator's own `/metrics` endpoint directly, same as the
+`operator-metrics` worklog entries) — wiring that up is a separate,
+larger task (a real in-cluster operator deployment + matching scrape config),
+not part of this dashboard.
+
 ## Retries / `response_flags`
 
 ```bash

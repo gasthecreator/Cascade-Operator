@@ -164,5 +164,6 @@ func (r *CascadePolicyReconciler) completeFanOutRestore(
 		}
 	}
 	restorationsCompletedTotal.WithLabelValues(string(cascadev1alpha1.SignatureFanOutAmplification)).Inc()
+	r.notifyRestore(ctx, policy, cascadev1alpha1.SignatureFanOutAmplification)
 	return nil
 }

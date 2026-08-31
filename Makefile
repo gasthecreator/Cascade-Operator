@@ -136,6 +136,10 @@ istio-install: ## Install pinned Istio (demo profile) + Prometheus on the curren
 istio-samples: ## Deploy sleep + httpbin (sidecar-injected). Not the §2.7 demo topology.
 	ISTIO_VERSION="$(ISTIO_VERSION)" hack/deploy-istio-samples.sh
 
+.PHONY: grafana-install
+grafana-install: ## Install Grafana (Istio sample addon) and import config/observability/grafana-dashboard.json.
+	ISTIO_VERSION="$(ISTIO_VERSION)" hack/install-grafana.sh
+
 .PHONY: query-prom
 query-prom: ## Instant-query in-cluster Prometheus. Usage: make query-prom QUERY='up'
 	@test -n "$(QUERY)" || { echo "QUERY is required"; exit 1; }
