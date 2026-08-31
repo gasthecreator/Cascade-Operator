@@ -24,6 +24,14 @@ import (
 	networkingv1 "istio.io/client-go/pkg/apis/networking/v1"
 )
 
+// JSON key names shared by every merge-patch builder in this package
+// (this file and retry_connpool.go) — package-level so the same literal
+// isn't repeated often enough to trip goconst across the two files.
+const (
+	jsonKeySpec = "spec"
+	jsonKeyHTTP = "http"
+)
+
 // AnnotationOriginalRetries is VirtualService-specific: the outlier-detection
 // original annotation only makes sense for a DestinationRule, and a
 // VirtualService can have several http[] routes, so this stores a JSON array
@@ -156,6 +164,135 @@ func RetryStormAttemptsJSONPatch(vs *networkingv1.VirtualService) []byte {
 	b, err := json.Marshal(ops)
 	if err != nil {
 		return []byte("[]")
+	}
+	return b
+}
+
+// RetryStormRestoreCompleteJSONPatch is the JSON *merge* patch (RFC 7396,
+// not the trip path's RFC 6902 JSON Patch) for restoring retries.attempts
+// to its true original — whatever applyOriginalRetries already wrote in
+// memory per route (nil for an Unset route, the full original HTTPRetry
+// otherwise) — so a true original Attempts of exactly 0 survives the same
+// way the trip-time 0 does (PROPOSALS.md, approved 2026-08-30):
+// HTTPRetry.Attempts carries the identical plain-int32-with-omitempty
+// shape as the trip path's field, so a route whose pre-trip config already
+// had explicit "attempts: 0" set (unusual, but real — PLAN.md §5 Phase 5)
+// would otherwise silently restore to "no retries configured" instead.
+//
+// Merge patch, not JSON Patch, deliberately: this same restore-to-original
+// logic runs at two call sites (the ramp's own final step,
+// ApplyRetryStormRestoreStep at step >= RestoreFinalStep, and
+// CompleteRetryStormRestore on the tick that actually transitions the
+// policy to Normal) — both reach the *identical* final in-memory state,
+// so this patch must be safe to apply more than once. A JSON Patch
+// "remove" on a path already absent (route.Retries already nil from the
+// first call) errors — confirmed live via this project's own fake-client
+// test suite catching exactly this on the second call — whereas a merge
+// patch's "replace this array wholesale, this key's null means delete"
+// semantics tolerate re-applying the same target state harmlessly. Since
+// spec.http is an array, a merge patch necessarily replaces the whole
+// array value (RFC 7396 does not merge arrays by index the way it merges
+// objects), which is why the array is rebuilt here from the typed
+// struct's own marshal (correct for every field except the one this
+// function exists to fix) rather than only touching one route's retries
+// path the way the trip path's JSON Patch could.
+//
+// Call this *after* applyOriginalRetries/CompleteRetryStormRestore has
+// already mutated vs — this function only reads the resulting in-memory
+// state. Deletes this signature's two annotations via merge patch's own
+// null-means-delete rule (recursive object merge, so any *other*
+// annotation on the object is left untouched) rather than JSON Patch's
+// per-key remove, for the same idempotency reason.
+// retryStormRouteValuesFixedUp marshals vs's current spec.http (whatever
+// the caller — ApplyRetryStormRestoreStep or applyOriginalRetries — has
+// already set in memory) and fixes up the one field omitempty can drop:
+// each non-nil route's explicit "attempts", present whether it's 0 or not.
+func retryStormRouteValuesFixedUp(vs *networkingv1.VirtualService) []map[string]any {
+	routes := vs.Spec.GetHttp()
+	rawRoutes, err := json.Marshal(routes)
+	var routeValues []map[string]any
+	if err == nil {
+		_ = json.Unmarshal(rawRoutes, &routeValues)
+	}
+	for i, route := range routes {
+		if route.Retries == nil || i >= len(routeValues) || routeValues[i] == nil {
+			continue
+		}
+		retriesVal, _ := routeValues[i]["retries"].(map[string]any)
+		if retriesVal == nil {
+			retriesVal = map[string]any{}
+			routeValues[i]["retries"] = retriesVal
+		}
+		retriesVal["attempts"] = route.Retries.GetAttempts()
+	}
+	return routeValues
+}
+
+// RetryStormRestoreStepMergePatch is the intermediate-ramp-step twin of
+// RetryStormRestoreCompleteJSONPatch — every restore tick (not only the
+// final one) can legitimately interpolate Attempts down to exactly 0 for a
+// route with a small restore target (lerp toward a low original at an
+// early step), so every write in the ramp needs the same merge-patch fix,
+// not just the tick that happens to finish it. Touches only spec.http —
+// annotations stay present until RetryStormRestoreCompleteJSONPatch
+// actually completes the restore.
+func RetryStormRestoreStepMergePatch(vs *networkingv1.VirtualService) []byte {
+	patch := map[string]any{jsonKeySpec: map[string]any{jsonKeyHTTP: retryStormRouteValuesFixedUp(vs)}}
+	b, err := json.Marshal(patch)
+	if err != nil {
+		return []byte("{}")
+	}
+	return b
+}
+
+// RetryStormRestoreCompleteJSONPatch is the JSON *merge* patch (RFC 7396,
+// not the trip path's RFC 6902 JSON Patch) for restoring retries.attempts
+// to its true original — whatever applyOriginalRetries already wrote in
+// memory per route (nil for an Unset route, the full original HTTPRetry
+// otherwise) — so a true original Attempts of exactly 0 survives the same
+// way the trip-time 0 does (PROPOSALS.md, approved 2026-08-30):
+// HTTPRetry.Attempts carries the identical plain-int32-with-omitempty
+// shape as the trip path's field, so a route whose pre-trip config already
+// had explicit "attempts: 0" set (unusual, but real — PLAN.md §5 Phase 5)
+// would otherwise silently restore to "no retries configured" instead.
+//
+// Merge patch, not JSON Patch, deliberately: this same restore-to-original
+// logic runs at two call sites (the ramp's own final step,
+// ApplyRetryStormRestoreStep at step >= RestoreFinalStep, and
+// CompleteRetryStormRestore on the tick that actually transitions the
+// policy to Normal) — both reach the *identical* final in-memory state,
+// so this patch must be safe to apply more than once. A JSON Patch
+// "remove" on a path already absent (route.Retries already nil from the
+// first call) errors — confirmed live via this project's own fake-client
+// test suite catching exactly this on the second call — whereas a merge
+// patch's "replace this array wholesale, this key's null means delete"
+// semantics tolerate re-applying the same target state harmlessly. Since
+// spec.http is an array, a merge patch necessarily replaces the whole
+// array value (RFC 7396 does not merge arrays by index the way it merges
+// objects), which is why the array is rebuilt (retryStormRouteValuesFixedUp)
+// from the typed struct's own marshal (correct for every field except the
+// one this function exists to fix) rather than only touching one route's
+// retries path the way the trip path's JSON Patch could.
+//
+// Call this *after* CompleteRetryStormRestore has already mutated vs —
+// this function only reads the resulting in-memory state. Deletes this
+// signature's two annotations via merge patch's own null-means-delete rule
+// (recursive object merge, so any *other* annotation on the object is left
+// untouched) rather than JSON Patch's per-key remove, for the same
+// idempotency reason.
+func RetryStormRestoreCompleteJSONPatch(vs *networkingv1.VirtualService) []byte {
+	patch := map[string]any{
+		"metadata": map[string]any{
+			"annotations": map[string]any{
+				AnnotationManagedBy:       nil,
+				AnnotationOriginalRetries: nil,
+			},
+		},
+		jsonKeySpec: map[string]any{jsonKeyHTTP: retryStormRouteValuesFixedUp(vs)},
+	}
+	b, err := json.Marshal(patch)
+	if err != nil {
+		return []byte("{}")
 	}
 	return b
 }

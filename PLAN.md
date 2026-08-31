@@ -494,12 +494,30 @@ live-cluster claim before checking an item here.
   same gap noted for the original operator-metrics slice), so the full
   scrape→Grafana pipeline with live cascade_* data is not yet demonstrated
   end-to-end — noted honestly, not silently assumed.
-- [ ] Phase 5 — Production hardening: fix the known zero-value bug in retry
-  storm's *restore-completion* path (same class as the trip-path bug fixed
-  2026-08-30, never applied to restore); HA (`replicas: 2`, leader election
-  already wired); per-edge threshold overrides (**breaking v1alpha1 CRD
-  change** — needs its own PROPOSALS.md entry, not routine); security
-  threat-model doc
+- Phase 5 — Production hardening:
+  - [x] Fixed the known zero-value bug in retry storm's *restore-completion*
+    path — but investigation found it was narrower and different in shape
+    than originally assumed: the VirtualService side's `retries.attempts`
+    restore-completion genuinely had the same omitempty class of bug as the
+    trip path (fixed via a JSON *merge* patch, not the trip path's JSON
+    Patch — a JSON Patch "remove" on an already-cleared route errored the
+    *second* time the identical final-state write ran, since the ramp's
+    own final step and the actual completion tick both reach it; merge
+    patch's null-means-delete/whole-array-replace semantics are naturally
+    idempotent). The DestinationRule side's `connectionPool.http.maxRetries`
+    restore-completion is **not** the same bug and was deliberately left
+    as typed `Update()` — its own annotation-capture struct already has
+    `omitempty` on `MaxRetries`, so a true original of 0 is indistinguishable
+    from "never set" before the write is ever reached, and the existing
+    restore-to-absent behavior is documented as intentional; writing an
+    explicit 0 there would also accomplish nothing at Envoy regardless,
+    per the Istio Pilot translation limit already resolved for this same
+    field (§2.6, PROPOSALS.md). See the dated worklog entry for the full
+    investigation.
+  - [ ] HA (`replicas: 2`, leader election already wired)
+  - [ ] Per-edge threshold overrides (**breaking v1alpha1 CRD change** —
+    needs its own PROPOSALS.md entry, not routine)
+  - [ ] Security threat-model doc
 - [ ] Phase 6 — Multi-mesh (Linkerd) support, full attempt: mesh-adapter
   interface (spike/design proposal first), Linkerd detection (PromQL
   equivalent, metric names confirmed live not assumed), Linkerd mitigation

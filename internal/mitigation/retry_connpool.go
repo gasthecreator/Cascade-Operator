@@ -128,10 +128,10 @@ func RetryStormMaxRetriesMergePatch(dr *networkingv1.DestinationRule) []byte {
 	}
 	patch := map[string]any{
 		"metadata": map[string]any{"annotations": anns},
-		"spec": map[string]any{
+		jsonKeySpec: map[string]any{
 			"trafficPolicy": map[string]any{
 				"connectionPool": map[string]any{
-					"http": map[string]any{
+					jsonKeyHTTP: map[string]any{
 						"maxRetries": TripRetryStormMaxRetries,
 					},
 				},
