@@ -57,6 +57,8 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-30 — Review: retry storm's zero-value patch fix — approved, Envoy-level check confirmed independently](2026-08-30-review-retry-storm-zero-value-patch.md)
+- [2026-08-30 — Retry storm's zero trip values now cross the wire as explicit JSON zeros](2026-08-30-retry-storm-zero-value-patch.md)
 - [2026-08-30 — Retry storm's zero-value trip fields never actually reach the API server](2026-08-30-retry-storm-zero-value-serialization-bug.md)
 - [2026-08-30 — Review: drop http1MaxPendingRequests — approved; investigation surfaced a much bigger finding](2026-08-30-review-retry-storm-drop-pending-requests.md)
 - [2026-08-30 — Retry storm's connectionPool secondary drops `http1MaxPendingRequests`](2026-08-30-retry-storm-drop-pending-requests.md)

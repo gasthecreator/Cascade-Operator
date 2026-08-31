@@ -17,6 +17,7 @@ limitations under the License.
 package mitigation
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 
@@ -178,5 +179,34 @@ func TestApplyRetryStormConnectionPoolTripLeavesFanOutFieldsAlone(t *testing.T) 
 	}
 	if http.GetMaxRetries() != TripRetryStormMaxRetries {
 		t.Error("retry storm's own MaxRetries was not applied")
+	}
+}
+
+// TestRetryStormMaxRetriesMergePatchContainsExplicitZero is the regression
+// lock for PROPOSALS.md's omitempty finding: encoding/json of the typed
+// HTTPSettings struct drops maxRetries:0, and the merge patch this package
+// actually sends to the API server must not.
+func TestRetryStormMaxRetriesMergePatchContainsExplicitZero(t *testing.T) {
+	t.Parallel()
+	dr := &networkingv1.DestinationRule{
+		ObjectMeta: metav1.ObjectMeta{Name: testDRName, Namespace: testDRNS},
+		Spec:       apinet.DestinationRule{Host: testDRHost},
+	}
+	ApplyRetryStormConnectionPoolTrip(dr)
+
+	typed, err := json.Marshal(dr.Spec.TrafficPolicy.ConnectionPool.Http)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(typed, []byte(`"maxRetries":0`)) {
+		t.Fatalf("typed HTTPSettings marshal kept maxRetries:0 (%s); this test no longer demonstrates the omitempty bug", typed)
+	}
+
+	patch := RetryStormMaxRetriesMergePatch(dr)
+	if !bytes.Contains(patch, []byte(`"maxRetries":0`)) {
+		t.Errorf("merge patch missing explicit maxRetries:0: %s", patch)
+	}
+	if !bytes.Contains(patch, []byte(AnnotationOriginalRetryConnectionPool)) {
+		t.Errorf("merge patch missing original annotation: %s", patch)
 	}
 }

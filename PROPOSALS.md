@@ -51,7 +51,20 @@ constraint, error, API limitation, or test result — not a general preference.
 
 ## Pending Proposals
 
-_(none — resolved below)_
+### [PENDING] Istio does not translate an explicit `DestinationRule` `maxRetries: 0` into Envoy `circuit_breakers.max_retries: 0`
+**Proposed by:** Cursor
+**Date:** 2026-08-30
+**Affects:** 2.6 Mitigation (retry-storm `connectionPool.http.maxRetries` secondary only)
+
+**Current state:** Retry storm's secondary trips `maxRetries → 0` as Envoy's retry-specific circuit breaker, backing the primary's `retries.attempts → 0`. PLAN.md §2.6 and `TripRetryStormMaxRetries` treat 0 as the intended Envoy value (Envoy proto default is 3 if unset; Istio's DestinationRule comment says `2^32-1`).
+
+**Proposed change:** Not proposing a specific fix yet — flagging a control-plane translation gap found while live-verifying the omitempty patch fix. Two directions that would need a decision:
+1. Keep `maxRetries: 0` as the K8s trip value and accept that Istio's xDS path currently renders Envoy `max_retries: 4294967295` (`2^32-1`, "unlimited") for an explicit stored 0 — i.e. the secondary does not actually cap retries at Envoy until/unless Istio's translator is shown to honor 0 some other way.
+2. Change the secondary's trip value to a nonzero number that Istio *does* push (likely `1`), accepting the same "weakening vs. serialization" trade-off already rejected for the omitempty bug, but for a different root cause (Istio treating 0 as unset at xDS generation, not our JSON marshal).
+
+**Why:** The omitempty patch fix is confirmed at the Kubernetes object: `kubectl get -o json` shows `"maxRetries": 0`. Independently, checkout's Envoy admin `config_dump` after that same explicit-0 DestinationRule (and a 12s wait for istiod) still shows the inventory outbound cluster's `circuit_breakers.thresholds[0].max_retries` as `4294967295`. Contrast: the primary's `attempts: 0` on the VirtualService *does* reach Envoy — the inventory outbound route's `retry_policy` becomes `null` (retries fully disabled), which is the correct rendering of "disabled" vs. leftover `num_retries: 3`. So this is not "Envoy never saw the objects"; it is specific to Istio's DestinationRule `maxRetries` → CDS mapping when the value is 0. Not investigated in Istio source this slice — reporting the live evidence only.
+
+**Impact if approved:** Retry storm's secondary may still be a no-op at the Envoy enforcement layer even after the wire-format fix. The primary is not affected. No code change in this slice; waiting on a direction.
 
 ---
 

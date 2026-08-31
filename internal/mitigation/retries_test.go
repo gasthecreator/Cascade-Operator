@@ -17,6 +17,7 @@ limitations under the License.
 package mitigation
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 	"time"
@@ -28,12 +29,13 @@ import (
 )
 
 const (
-	testVSName        = "payments-service"
-	testVSNS          = "default"
-	testVSHost        = "payments-service.default.svc.cluster.local"
-	testRetryOn5xx    = "5xx"
-	testRedirectURI   = "/elsewhere"
-	testKeepMeRouteID = "keep-me"
+	testVSName            = "payments-service"
+	testVSNS              = "default"
+	testVSHost            = "payments-service.default.svc.cluster.local"
+	testRetryOn5xx        = "5xx"
+	testRedirectURI       = "/elsewhere"
+	testKeepMeRouteID     = "keep-me"
+	testRedirectOnlyRoute = "redirect-only"
 )
 
 func destRoute() []*apinet.HTTPRouteDestination {
@@ -69,7 +71,7 @@ func TestApplyRetryStormTripMultiRoute(t *testing.T) {
 				},
 				{
 					// Redirect-only: no destination, retries meaningless.
-					Name:     "redirect-only",
+					Name:     testRedirectOnlyRoute,
 					Redirect: &apinet.HTTPRedirect{Uri: testRedirectURI},
 				},
 			},
@@ -103,7 +105,7 @@ func TestApplyRetryStormTripMultiRoute(t *testing.T) {
 		t.Errorf("route[1] backoff not cleared: %s", routes[1].Retries.GetBackoff().AsDuration())
 	}
 	if routes[2].Retries != nil {
-		t.Error("redirect-only route should never get a retries block")
+		t.Error("skipped (no destination) route should never get a retries block")
 	}
 
 	var snaps []originalRouteRetriesJSON
@@ -164,5 +166,64 @@ func TestApplyRetryStormTripEmptyHttpList(t *testing.T) {
 	ApplyRetryStormTrip(vs)
 	if vs.Annotations[AnnotationOriginalRetries] != "[]" {
 		t.Errorf("original = %s, want empty array", vs.Annotations[AnnotationOriginalRetries])
+	}
+}
+
+// TestRetryStormAttemptsJSONPatchContainsExplicitZero is the regression
+// lock for PROPOSALS.md's omitempty finding: encoding/json of the typed
+// HTTPRetry struct drops attempts:0, and the JSON Patch this package
+// actually sends to the API server must not.
+func TestRetryStormAttemptsJSONPatchContainsExplicitZero(t *testing.T) {
+	t.Parallel()
+	vs := &networkingv1.VirtualService{
+		ObjectMeta: metav1.ObjectMeta{Name: testVSName, Namespace: testVSNS},
+		Spec: apinet.VirtualService{
+			Hosts: []string{testVSHost},
+			Http: []*apinet.HTTPRoute{
+				{
+					Name:  "no-explicit-retries",
+					Route: destRoute(),
+				},
+				{
+					Name:  "explicit-retries",
+					Route: destRoute(),
+					Retries: &apinet.HTTPRetry{
+						Attempts:      5,
+						RetryOn:       testRetryOn5xx,
+						PerTryTimeout: durationpb.New(2 * time.Second),
+					},
+				},
+				{
+					Name:     testRedirectOnlyRoute,
+					Redirect: &apinet.HTTPRedirect{Uri: testRedirectURI},
+				},
+			},
+		},
+	}
+	ApplyRetryStormTrip(vs)
+
+	typed, err := json.Marshal(vs.Spec.Http[1].Retries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(typed, []byte(`"attempts":0`)) {
+		t.Fatalf("typed HTTPRetry marshal kept attempts:0 (%s); this test no longer demonstrates the omitempty bug", typed)
+	}
+
+	patch := RetryStormAttemptsJSONPatch(vs)
+	if !bytes.Contains(patch, []byte(`"attempts":0`)) {
+		t.Errorf("JSON Patch missing explicit attempts:0: %s", patch)
+	}
+	if !bytes.Contains(patch, []byte(`"/spec/http/0/retries"`)) {
+		t.Errorf("JSON Patch missing route[0] retries path: %s", patch)
+	}
+	if !bytes.Contains(patch, []byte(`"/spec/http/1/retries"`)) {
+		t.Errorf("JSON Patch missing route[1] retries path: %s", patch)
+	}
+	if bytes.Contains(patch, []byte(`"/spec/http/2/retries"`)) {
+		t.Errorf("JSON Patch touched skipped route %q: %s", testRedirectOnlyRoute, patch)
+	}
+	if bytes.Contains(patch, []byte(`"retryOn"`)) {
+		t.Errorf("JSON Patch left retryOn on the wire (webhook would reject): %s", patch)
 	}
 }

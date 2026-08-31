@@ -18,6 +18,7 @@ package mitigation
 
 import (
 	"encoding/json"
+	"fmt"
 
 	apinet "istio.io/api/networking/v1alpha3"
 	networkingv1 "istio.io/client-go/pkg/apis/networking/v1"
@@ -92,6 +93,14 @@ type originalRouteRetriesJSON struct {
 // different signature's trip ever runs against the same object (PLAN.md
 // §2.6) — but that safety depends on force-complete always running
 // correctly, and this check should hold on its own regardless.
+//
+// The in-memory Attempts=0 write is not what reaches the API server:
+// HTTPRetry.Attempts is a plain int32 with json:"attempts,omitempty", so a
+// typed Update() strips the zero before it hits the wire (PROPOSALS.md,
+// approved 2026-08-30). Callers must apply RetryStormAttemptsJSONPatch
+// via client.Patch rather than client.Update. This function still mutates
+// the struct so fake-client tests and later restore reads see the trip
+// values; the patch payload is what actually transmits them.
 func ApplyRetryStormTrip(vs *networkingv1.VirtualService) {
 	if vs.Annotations == nil {
 		vs.Annotations = map[string]string{}
@@ -113,6 +122,42 @@ func ApplyRetryStormTrip(vs *networkingv1.VirtualService) {
 		route.Retries.PerTryTimeout = nil
 		route.Retries.Backoff = nil
 	}
+}
+
+// RetryStormAttemptsJSONPatch is the RFC 6902 JSON Patch that puts an
+// explicit "attempts":0 on every forwarding route (and writes this
+// signature's annotations). Built from maps, not the typed HTTPRetry
+// struct, so encoding/json cannot strip the zero via omitempty. JSON
+// Patch rather than merge-patch: spec.http is an array, and a JSON merge
+// patch would replace the whole list. Each retries op replaces that
+// route's retries object with {attempts:0}, which is also what clears
+// retryOn/perTryTimeout/backoff for the webhook.
+func RetryStormAttemptsJSONPatch(vs *networkingv1.VirtualService) []byte {
+	ops := make([]map[string]any, 0, 1+len(vs.Spec.GetHttp()))
+	if vs.Annotations != nil {
+		ops = append(ops, map[string]any{
+			"op":    "add",
+			"path":  "/metadata/annotations",
+			"value": vs.Annotations,
+		})
+	}
+	for i, route := range vs.Spec.GetHttp() {
+		if len(route.GetRoute()) == 0 {
+			continue
+		}
+		ops = append(ops, map[string]any{
+			"op":   "add",
+			"path": fmt.Sprintf("/spec/http/%d/retries", i),
+			"value": map[string]any{
+				"attempts": TripRetryAttempts,
+			},
+		})
+	}
+	b, err := json.Marshal(ops)
+	if err != nil {
+		return []byte("[]")
+	}
+	return b
 }
 
 func snapshotRoutesRetriesJSON(vs *networkingv1.VirtualService) string {

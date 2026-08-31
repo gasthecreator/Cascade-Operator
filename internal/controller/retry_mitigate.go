@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	networkingv1 "istio.io/client-go/pkg/apis/networking/v1"
@@ -104,8 +105,8 @@ func (r *CascadePolicyReconciler) applyRetryStormRetriesPrimary(
 	}
 
 	mitigation.ApplyRetryStormTrip(vs)
-	if err := r.Update(ctx, vs); err != nil {
-		return fmt.Errorf("update VirtualService %s/%s: %w", ns, name, err)
+	if err := r.Patch(ctx, vs, client.RawPatch(types.JSONPatchType, mitigation.RetryStormAttemptsJSONPatch(vs))); err != nil {
+		return fmt.Errorf("patch VirtualService %s/%s: %w", ns, name, err)
 	}
 	mitigationPatchesAppliedTotal.WithLabelValues(string(cascadev1alpha1.SignatureRetryStorm), kindVirtualService).Inc()
 	log.Info("patched VirtualService retries.attempts", "name", name, "namespace", ns)
@@ -146,8 +147,8 @@ func (r *CascadePolicyReconciler) applyRetryStormConnectionPoolSecondary(
 	}
 
 	mitigation.ApplyRetryStormConnectionPoolTrip(dr)
-	if err := r.Update(ctx, dr); err != nil {
-		return fmt.Errorf("update DestinationRule %s/%s: %w", ns, name, err)
+	if err := r.Patch(ctx, dr, client.RawPatch(types.MergePatchType, mitigation.RetryStormMaxRetriesMergePatch(dr))); err != nil {
+		return fmt.Errorf("patch DestinationRule %s/%s: %w", ns, name, err)
 	}
 	mitigationPatchesAppliedTotal.WithLabelValues(string(cascadev1alpha1.SignatureRetryStorm), kindDestinationRule).Inc()
 	log.Info("patched DestinationRule connectionPool.http (retry storm secondary)", "name", name, "namespace", ns)

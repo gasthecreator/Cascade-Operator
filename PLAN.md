@@ -36,10 +36,17 @@ fan-out detector and its cross-host PromQL are built against. Kind cluster
 has Istio 1.30.4 (demo) + Prometheus, the sleep/httpbin validation workload,
 and the demo topology. PromQL `sum by (le)` / `response_flags=URX` findings
 are in PLAN.md §2.4.
-**Known gap, fix in progress:** retry storm's `attempts`/`maxRetries` zero
-trip values never actually reach the API server (plain `int32` +
-`omitempty` strips them) — see §2.6's "Known gap, fix in progress" note and
-`PROPOSALS.md`. Top priority for the next slice.
+**Resolved:** retry storm's `attempts`/`maxRetries` zero trip values now
+reach the API server as explicit JSON zeros (patch-based writes, not typed
+`Update()`) — confirmed live down to the raw stored object by both Cursor
+and, independently, Claude on review. The primary is also confirmed
+enforced at Envoy (`retry_policy: null`). A **separate, new gap** surfaced
+during that same live check: Istio's own DestinationRule→Envoy CDS
+translation renders an explicit `maxRetries: 0` as `4294967295` (unlimited)
+rather than 0, so retry storm's *secondary* is still a no-op at the Envoy
+enforcement layer — this is Istio's control-plane translation, not a
+marshaling bug in this codebase, and is tracked as its own pending
+`PROPOSALS.md` entry, undecided. See §2.6.
 This file is the
 single source of truth for goal, architecture, and progress. Read it before
 touching code in any session (Cursor or Claude). Keep it updated as work lands —
@@ -281,19 +288,35 @@ clean object state that needs to be reached before the next signature can
 safely claim it. See `PROPOSALS.md`'s resolved entry for the full reasoning
 and the two rejected alternatives.
 
-**Known gap, fix in progress (flagged 2026-08-30):** retry storm's primary
-(`retries.attempts → 0`) and secondary (`connectionPool.http.maxRetries → 0`)
-are both plain `int32` proto fields with `omitempty`, so an explicit trip
-value of `0` is stripped by JSON marshaling before the operator's typed
-`Update()` call ever reaches the API server — confirmed live, down to the
-raw stored object, not just reasoned about (see
-`docs/worklog/2026-08-30-retry-storm-zero-value-serialization-bug.md`).
-Retry storm's mitigation has likely never actually reduced retries at the
-Envoy enforcement level. This does not change the matrix or the trip values
-above — the mitigation *strategy* is unaffected, only *how* the zero value
-is transmitted needs to change (patch-based write instead of typed
-`Update()`, per `PROPOSALS.md`'s resolved entry). Not yet implemented; top
-priority for the next slice, ahead of any other unfinished work.
+**Zero-value wire format (fixed 2026-08-30; secondary still has a separate gap):**
+retry storm's primary (`retries.attempts → 0`) and secondary
+(`connectionPool.http.maxRetries → 0`) are both plain `int32` proto fields
+with `omitempty`, so an explicit trip value of `0` was stripped by JSON
+marshaling before the operator's typed `Update()` call ever reached the API
+server (`docs/worklog/2026-08-30-retry-storm-zero-value-serialization-bug.md`).
+Fixed by switching both writes to patches built from `map[string]any` — a
+JSON Patch for the primary's `VirtualService` (`spec.http` is an array, so
+merge patch would replace the whole list) and a JSON merge patch for the
+secondary's `DestinationRule` (nested objects merge correctly, leaving
+fan-out's fields, outlierDetection, and TLS untouched) — instead of the
+typed struct's `Update()`. Confirmed live, independently, down to the raw
+stored object: both fields now store an explicit `0`
+(`docs/worklog/2026-08-30-retry-storm-zero-value-patch.md`,
+`docs/worklog/2026-08-30-review-retry-storm-zero-value-patch.md`). The
+mitigation *strategy* did not change, only how the zero value is
+transmitted.
+
+That same live check surfaced a **separate, still-open gap**: the primary
+is confirmed enforced at Envoy (`retry_policy: null` on the outbound
+route), but the secondary is not — Istio's own DestinationRule→CDS
+translation renders an explicit `maxRetries: 0` as Envoy
+`circuit_breakers.max_retries: 4294967295` (unlimited), not `0`. This is
+Istio's control-plane translation layer, not a marshaling bug in this
+codebase, and is a different root cause from the one just fixed even
+though the symptom (secondary doesn't actually cap retries at Envoy) looks
+similar. Tracked as a pending, undecided `PROPOSALS.md` entry — retry
+storm's secondary should be considered **not yet proven effective at
+Envoy** until that's resolved.
 
 - Every patch the operator makes is annotated
   (`cascade.gideonsanni.dev/managed-by: cascade-operator`) so reconciliation

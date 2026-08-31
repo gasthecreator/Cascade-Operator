@@ -90,6 +90,15 @@ type originalRetryConnectionPoolJSON struct {
 // original — force-complete-on-handoff is no longer load-bearing for this
 // field's data integrity, only for not leaving a trip-time MaxRetries=0
 // (and the annotation) behind when a different signature adopts the object.
+//
+// The in-memory MaxRetries=0 write is not what reaches the API server:
+// HTTPSettings.MaxRetries is a plain int32 with json:"maxRetries,omitempty",
+// so a typed Update() strips the zero before it hits the wire
+// (PROPOSALS.md, approved 2026-08-30). Callers must apply
+// RetryStormMaxRetriesMergePatch via client.Patch rather than
+// client.Update. This function still mutates the struct so fake-client
+// tests and later restore reads see the trip value; the patch payload is
+// what actually transmits it.
 func ApplyRetryStormConnectionPoolTrip(dr *networkingv1.DestinationRule) {
 	if dr.Annotations == nil {
 		dr.Annotations = map[string]string{}
@@ -101,6 +110,42 @@ func ApplyRetryStormConnectionPoolTrip(dr *networkingv1.DestinationRule) {
 
 	http := ensureConnectionPoolHTTP(dr)
 	http.MaxRetries = TripRetryStormMaxRetries
+}
+
+// RetryStormMaxRetriesMergePatch is the JSON merge patch that puts an
+// explicit "maxRetries":0 on connectionPool.http (and writes this
+// signature's annotations). Built from maps, not the typed HTTPSettings
+// struct, so encoding/json cannot strip the zero via omitempty. Merge
+// patch is safe here: trafficPolicy/connectionPool/http are nested
+// objects, so this merges maxRetries in without replacing sibling fields
+// (fan-out's http1/http2, outlierDetection, TLS).
+func RetryStormMaxRetriesMergePatch(dr *networkingv1.DestinationRule) []byte {
+	anns := map[string]string{}
+	if dr.Annotations != nil {
+		if v, ok := dr.Annotations[AnnotationManagedBy]; ok {
+			anns[AnnotationManagedBy] = v
+		}
+		if v, ok := dr.Annotations[AnnotationOriginalRetryConnectionPool]; ok {
+			anns[AnnotationOriginalRetryConnectionPool] = v
+		}
+	}
+	patch := map[string]any{
+		"metadata": map[string]any{"annotations": anns},
+		"spec": map[string]any{
+			"trafficPolicy": map[string]any{
+				"connectionPool": map[string]any{
+					"http": map[string]any{
+						"maxRetries": TripRetryStormMaxRetries,
+					},
+				},
+			},
+		},
+	}
+	b, err := json.Marshal(patch)
+	if err != nil {
+		return []byte("{}")
+	}
+	return b
 }
 
 func snapshotRetryConnectionPoolJSON(dr *networkingv1.DestinationRule) string {
