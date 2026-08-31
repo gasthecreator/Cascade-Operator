@@ -6,7 +6,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.27.4
 	github.com/onsi/gomega v1.39.0
 	github.com/prometheus/client_golang v1.23.2
-	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
+	google.golang.org/protobuf v1.36.12
 	istio.io/api v1.30.4-0.20260824163423-69099aec2678
 	istio.io/client-go v1.30.4
 	k8s.io/apimachinery v0.36.0
