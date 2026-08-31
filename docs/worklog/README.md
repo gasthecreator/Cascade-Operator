@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-31 — Review: Phase 1 CI workflows — approved, verification independently confirmed](2026-08-31-review-phase1-ci-workflows.md)
 - [2026-08-31 — Review: Phase 0 repo hygiene — approved, two small fixes](2026-08-31-review-phase0-repo-hygiene.md)
 - [2026-08-31 — Phase 1 CI: Kind+Istio integration workflow, govulncheck, CodeQL](2026-08-31-phase1-ci-workflows.md)
 - [2026-08-31 — Phase 0 repo hygiene: standard org files (PLAN.md §5)](2026-08-31-phase0-repo-hygiene.md)
