@@ -514,7 +514,11 @@ live-cluster claim before checking an item here.
     per the Istio Pilot translation limit already resolved for this same
     field (§2.6, PROPOSALS.md). See the dated worklog entry for the full
     investigation.
-  - [ ] HA (`replicas: 2`, leader election already wired)
+  - [x] HA: `config/manager/manager.yaml` bumped to `replicas: 2` (leader
+    election was already wired via `--leader-elect`, just running at 1
+    replica) plus a preferred (not required — so a single-node dev cluster
+    doesn't leave the second replica permanently `Pending`) pod anti-affinity
+    so the two replicas land on different nodes when more than one exists
   - [ ] Per-edge threshold overrides (**breaking v1alpha1 CRD change** —
     needs its own PROPOSALS.md entry, not routine)
   - [ ] Security threat-model doc
