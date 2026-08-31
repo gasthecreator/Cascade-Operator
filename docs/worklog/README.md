@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-30 — Review: operator self-metrics — live confirmation completed](2026-08-30-review-operator-metrics.md)
 - [2026-08-30 — Operator self-metrics: signatures detected, patches applied, restorations completed/regressed](2026-08-30-operator-metrics.md)
 - [2026-08-30 — Review: root README](2026-08-30-review-root-readme.md)
 - [2026-08-30 — Root README: the front door this repo has needed since the first checklist](2026-08-30-root-readme.md)
