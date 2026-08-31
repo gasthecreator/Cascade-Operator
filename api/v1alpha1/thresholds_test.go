@@ -14,20 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package v1alpha1
 
-import (
-	"testing"
+import "testing"
 
-	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
+const (
+	testPatchDepHost     = "payments-service.default.svc.cluster.local"
+	testInventoryDepHost = "inventory-service.default.svc.cluster.local"
 )
 
-func basePolicyForThresholds() *cascadev1alpha1.CascadePolicy {
-	return &cascadev1alpha1.CascadePolicy{
-		Spec: cascadev1alpha1.CascadePolicySpec{
-			Service:   patchServiceFQDN,
-			DependsOn: []string{patchDepHost, inventoryDepHost},
-			Thresholds: cascadev1alpha1.Thresholds{
+func basePolicyForThresholds() *CascadePolicy {
+	return &CascadePolicy{
+		Spec: CascadePolicySpec{
+			Service:   "checkout-service.default.svc.cluster.local",
+			DependsOn: []string{testPatchDepHost, testInventoryDepHost},
+			Thresholds: Thresholds{
 				LatencyP99Ms:         500,
 				ErrorRateFraction:    0.05,
 				WindowSeconds:        30,
@@ -41,9 +42,9 @@ func basePolicyForThresholds() *cascadev1alpha1.CascadePolicy {
 func TestEffectiveThresholdsReturnsPolicyWideWhenNoOverridesExist(t *testing.T) {
 	t.Parallel()
 	policy := basePolicyForThresholds()
-	got := effectiveThresholds(policy, patchDepHost)
+	got := EffectiveThresholds(policy, testPatchDepHost)
 	if got != policy.Spec.Thresholds {
-		t.Fatalf("effectiveThresholds = %+v, want unchanged policy.Spec.Thresholds %+v", got, policy.Spec.Thresholds)
+		t.Fatalf("EffectiveThresholds = %+v, want unchanged policy.Spec.Thresholds %+v", got, policy.Spec.Thresholds)
 	}
 }
 
@@ -51,14 +52,14 @@ func TestEffectiveThresholdsReturnsPolicyWideForHostWithNoOverrideEntry(t *testi
 	t.Parallel()
 	policy := basePolicyForThresholds()
 	latency := int32(100)
-	policy.Spec.ThresholdOverrides = map[string]cascadev1alpha1.ThresholdOverrides{
-		inventoryDepHost: {LatencyP99Ms: &latency},
+	policy.Spec.ThresholdOverrides = map[string]ThresholdOverrides{
+		testInventoryDepHost: {LatencyP99Ms: &latency},
 	}
-	// patchDepHost has no entry of its own — must be unaffected by the
+	// testPatchDepHost has no entry of its own — must be unaffected by the
 	// override that exists for a *different* host.
-	got := effectiveThresholds(policy, patchDepHost)
+	got := EffectiveThresholds(policy, testPatchDepHost)
 	if got != policy.Spec.Thresholds {
-		t.Fatalf("effectiveThresholds for unrelated host = %+v, want unchanged %+v", got, policy.Spec.Thresholds)
+		t.Fatalf("EffectiveThresholds for unrelated host = %+v, want unchanged %+v", got, policy.Spec.Thresholds)
 	}
 }
 
@@ -67,11 +68,11 @@ func TestEffectiveThresholdsAppliesOnlyOverriddenFields(t *testing.T) {
 	policy := basePolicyForThresholds()
 	latency := int32(100)
 	fanOut := 2.0
-	policy.Spec.ThresholdOverrides = map[string]cascadev1alpha1.ThresholdOverrides{
-		patchDepHost: {LatencyP99Ms: &latency, FanOutMultiplier: &fanOut},
+	policy.Spec.ThresholdOverrides = map[string]ThresholdOverrides{
+		testPatchDepHost: {LatencyP99Ms: &latency, FanOutMultiplier: &fanOut},
 	}
 
-	got := effectiveThresholds(policy, patchDepHost)
+	got := EffectiveThresholds(policy, testPatchDepHost)
 	if got.LatencyP99Ms != 100 {
 		t.Errorf("LatencyP99Ms = %d, want overridden 100", got.LatencyP99Ms)
 	}
@@ -100,11 +101,11 @@ func TestEffectiveThresholdsDistinguishesExplicitZeroFromUnset(t *testing.T) {
 	t.Parallel()
 	policy := basePolicyForThresholds()
 	explicitZero := 0.0
-	policy.Spec.ThresholdOverrides = map[string]cascadev1alpha1.ThresholdOverrides{
-		patchDepHost: {ErrorRateFraction: &explicitZero},
+	policy.Spec.ThresholdOverrides = map[string]ThresholdOverrides{
+		testPatchDepHost: {ErrorRateFraction: &explicitZero},
 	}
 
-	got := effectiveThresholds(policy, patchDepHost)
+	got := EffectiveThresholds(policy, testPatchDepHost)
 	if got.ErrorRateFraction != 0 {
 		t.Fatalf("ErrorRateFraction = %v, want explicit override 0", got.ErrorRateFraction)
 	}

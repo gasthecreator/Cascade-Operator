@@ -14,13 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package v1alpha1
 
-import (
-	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
-)
-
-// effectiveThresholds merges spec.thresholds with host's entry in
+// EffectiveThresholds merges spec.thresholds with host's entry in
 // spec.thresholdOverrides, if any (PLAN.md §5, PROPOSALS.md 2026-08-31 —
 // purely additive: a policy with no thresholdOverrides, or a host with no
 // entry in it, gets spec.thresholds back completely unchanged). Every
@@ -29,7 +25,14 @@ import (
 // vendored Istio proto types the retry-storm bug thread spent a whole
 // session working around, this project owns this CRD outright, so there's
 // no reason to repeat that ambiguity here.
-func effectiveThresholds(policy *cascadev1alpha1.CascadePolicy, host string) cascadev1alpha1.Thresholds {
+//
+// Moved here from internal/controller (PLAN.md §5 Phase 6.4) so both
+// internal/controller and internal/mesh/istio can call it without an
+// import cycle — the Istio Mitigator's latency/error-cascade restore path
+// needs the same per-host effective threshold the controller's own
+// detection loop already computed, and this package is the shared
+// ancestor both already import.
+func EffectiveThresholds(policy *CascadePolicy, host string) Thresholds {
 	th := policy.Spec.Thresholds
 	override, ok := policy.Spec.ThresholdOverrides[host]
 	if !ok {

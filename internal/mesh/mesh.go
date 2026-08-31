@@ -71,6 +71,29 @@ type QueryBuilder interface {
 	FanOutRatioQuery(dependencyHost, callerHost string, windowSeconds int32) string
 }
 
+// TripOutcome is ApplyTrip's result.
+type TripOutcome struct {
+	// PrimaryFound reports whether the signature's primary mesh object was
+	// resolvable for the requested host — false means "nothing to patch,"
+	// not an error; the caller decides what that means for
+	// DependencyObjectMissing. A signature with only one managed object
+	// kind (e.g. fan-out amplification) has no secondary at all, so this
+	// is simply "was the object found."
+	PrimaryFound bool
+	// AppliedKinds lists the Kubernetes Kind (or mesh-equivalent object
+	// type name, e.g. a future Linkerd implementation might report
+	// "Service" or "ServiceProfile") of every object actually patched this
+	// call, in Mitigate mode only — DetectOnly leaves this empty. Purely
+	// informational: the caller uses it only to increment its own per-kind
+	// Prometheus counter with whatever label value this implementation
+	// reports, never interprets or validates the strings itself. A
+	// signature with two managed object kinds (e.g. latency/error-cascade:
+	// DestinationRule primary, VirtualService secondary) can report
+	// either, both, or neither, independently — the two are patched
+	// independently, not as a joint precondition (PLAN.md §2.6).
+	AppliedKinds []string
+}
+
 // Mitigator applies and restores one signature's mesh-level mitigation.
 // Unlike QueryBuilder (a pure string builder), a Mitigator needs a
 // Kubernetes client to resolve and patch objects — implementations are
@@ -80,18 +103,16 @@ type QueryBuilder interface {
 // object mutation (which object(s) exist for a host, how to patch them,
 // how to capture/restore their pre-trip originals). It does not own
 // DependencyObjectMissing (a CascadePolicy-status concern identical
-// regardless of mesh — the caller sets/clears it from ApplyTrip's found
-// return value), Prometheus metrics, trip/restore notifications, or
+// regardless of mesh — the caller sets/clears it from ApplyTrip's
+// PrimaryFound return value), Prometheus metrics (AppliedKinds only
+// supplies the label value), trip/restore notifications, or
 // status.Phase/RestoreStep transitions — all of those stay in
 // internal/controller, called once per reconcile regardless of which
 // Mitigator is wired in.
 type Mitigator interface {
 	// ApplyTrip mitigates sig on host, per policy.Spec.Mode (DetectOnly:
-	// logs what it would do, writes nothing). found reports whether the
-	// signature's primary mesh object was resolvable for host — false
-	// means "nothing to patch," not an error; the caller decides what
-	// that means for DependencyObjectMissing.
-	ApplyTrip(ctx context.Context, policy *cascadev1alpha1.CascadePolicy, sig cascadev1alpha1.SignatureType, host string) (found bool, err error)
+	// logs what it would do, writes nothing).
+	ApplyTrip(ctx context.Context, policy *cascadev1alpha1.CascadePolicy, sig cascadev1alpha1.SignatureType, host string) (TripOutcome, error)
 
 	// HasManagedEdges reports whether sig has any previously-mitigated
 	// edge left to restore, across every policy.Spec.DependsOn host — the
