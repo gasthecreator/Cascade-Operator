@@ -539,16 +539,28 @@ live-cluster claim before checking an item here.
     (cluster-scoped `ClusterRole`, webhook not deployed to the persistent
     dev cluster, no egress `NetworkPolicy`, no image signing) stated
     plainly
-- [ ] Phase 6 — Multi-mesh (Linkerd) support, full attempt: mesh-adapter
-  interface (spike/design proposal first), Linkerd detection (PromQL
-  equivalent, metric names confirmed live not assumed), Linkerd mitigation
-  for latency/error-cascade + retry storm (these two are **mutually
-  exclusive per Service on Linkerd** — failure accrual vs. ServiceProfile —
-  extending the existing signature-handoff machinery to arbitrate which
-  owns a given Service), fan-out is explicit detect-only-on-Linkerd (status
-  condition, not a silent skip), explicit `spec.mesh` field, Linkerd dev
-  environment, integration coverage. Largest item by far — expect several
-  independently-reviewed slices, not one.
+- [x] Phase 10 — Property-based state-machine verification: added
+  `pgregory.net/rapid` and two property-test files generalizing existing
+  fixed-fixture regression tests into properties across generated input
+  spaces: `internal/controller/statemachine_rapid_test.go` (random
+  healthy/latency-error/fan-out sequences through the real `Reconcile`
+  path — `RestoreStep` bounds/monotonicity, no orphaned `original-*`
+  annotation on a same-object signature handoff, no lingering annotation
+  at `Normal`) and `internal/mitigation/retries_rapid_test.go` (random
+  pre-trip retries states — trip always patches explicit `attempts:0`;
+  restore always carries the *true* original value, including a true
+  original of 0, through both the ramp-step and completion patches).
+  Re-sequenced to run first among Phases 6–11 (see the approved
+  solo-execution plan — Cursor is no longer available; Claude is sole
+  implementer for the rest of this initiative) specifically to lock in
+  these invariants before Phase 6 extends the same state machine to a
+  second mesh. `go test ./... -race` and `make lint` both clean.
+- [ ] Phase 9 — Quantified resilience benchmark: run each signature's chaos
+  scenario twice — `Mitigate` vs. the CRD's existing `DetectOnly` mode as
+  the real baseline — and publish time-to-detect / blast-radius /
+  time-to-restore numbers side by side (`make benchmark`,
+  `docs/benchmark-results.md`). Converts "it works" into a falsifiable,
+  measured claim; builds entirely on existing k6 scripts and PromQL.
 - [ ] Phase 7 — Visual cascade replay: capture a real trip→mitigate→restore
   episode per signature as a JSON trace (reusing `demo/k6/*.js`, no new live
   infra to *view* it) and build a self-contained page that animates the
@@ -562,19 +574,16 @@ live-cluster claim before checking an item here.
   metrics after an episode. On-demand CLI first; auto-trigger on
   `Tripped → Normal` (via Phase 4's notifier) as a stretch add-on, not the
   first version.
-- [ ] Phase 9 — Quantified resilience benchmark: run each signature's chaos
-  scenario twice — `Mitigate` vs. the CRD's existing `DetectOnly` mode as
-  the real baseline — and publish time-to-detect / blast-radius /
-  time-to-restore numbers side by side (`make benchmark`,
-  `docs/benchmark-results.md`). Converts "it works" into a falsifiable,
-  measured claim; builds entirely on existing k6 scripts and PromQL.
-- [ ] Phase 10 — Property-based state-machine verification: use
-  `pgregory.net/rapid` to prove real invariants across the
-  Tripped/Restoring/signature-handoff state machine (e.g. "a handoff never
-  leaves a signature's annotation orphaned," "a completed restore always
-  returns every managed field to its true original," "a trip value always
-  survives the patch round-trip") against random generated sequences,
-  rather than only hand-written cases. Test-only; no new runtime behavior.
+- [ ] Phase 6 — Multi-mesh (Linkerd) support, full attempt: mesh-adapter
+  interface (spike/design proposal first), Linkerd detection (PromQL
+  equivalent, metric names confirmed live not assumed), Linkerd mitigation
+  for latency/error-cascade + retry storm (these two are **mutually
+  exclusive per Service on Linkerd** — failure accrual vs. ServiceProfile —
+  extending the existing signature-handoff machinery to arbitrate which
+  owns a given Service), fan-out is explicit detect-only-on-Linkerd (status
+  condition, not a silent skip), explicit `spec.mesh` field, Linkerd dev
+  environment, integration coverage. Largest item by far — expect several
+  independently-reviewed slices, not one.
 - [ ] Phase 11 — eBPF-level kernel-signal corroboration: deploy Cilium's
   **Tetragon** (not hand-written eBPF/CO-RE — too deep a separate
   discipline for the payoff) as a DaemonSet exporting kernel-level TCP
@@ -586,15 +595,18 @@ live-cluster claim before checking an item here.
   confirming Tetragon actually runs cleanly in this exact dev environment,
   same discipline as Phase 6's Linkerd spike.
 
-**Sequencing note (revised after adding Phases 7–11):** 7–9 are the highest
-"someone actually notices this" payoff and don't depend on the webhook,
-observability, or hardening work — reasonable to pull them forward,
-interleaved with or even ahead of Phases 3–5, rather than only after Phase 6.
-Phase 10 (test-only) can happen anytime. Phase 11 is comparable in risk to
-Phase 6 and is sequenced after it deliberately — a kernel-level signal ought
-to corroborate detection across whichever mesh(es) are supported, so it
-benefits from Phase 6 already existing rather than being built against Istio
-alone and redone.
+**Sequencing note (revised 2026-08-31 — Cursor no longer available, Claude
+sole implementer for Phases 6–11):** re-sequenced to **10 → 9 → 7 → 8 → 6 →
+11**, approved plan at execution time. Rationale: without Cursor's
+build/review split, it's better to bank the small, self-contained, low-risk
+wins first (each independently demoable even if a later large phase runs
+over budget) and save the two large, spike-gated epics — 6 (Linkerd) and 11
+(eBPF/Tetragon) — for last, in that relative order, since a kernel-level
+signal ought to corroborate detection across whichever mesh(es) are
+supported rather than being built against Istio alone and redone. Phase 10
+went first specifically to lock in current state-machine invariants (via
+`pgregory.net/rapid`) as a regression net before Phase 6 extends that same
+machine to a second mesh — see its worklog entry.
 
 ---
 

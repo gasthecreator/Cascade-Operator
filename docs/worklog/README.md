@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-08-31 — Phase 10: property-based state-machine verification (pgregory.net/rapid)](2026-08-31-phase10-property-based-verification.md)
 - [2026-08-31 — Phase 5 (4/4): per-edge threshold overrides — additive, not breaking](2026-08-31-phase5-per-edge-threshold-overrides.md)
 - [2026-08-31 — Phase 5 (3/4): security threat-model doc](2026-08-31-phase5-security-threat-model.md)
 - [2026-08-31 — Phase 5 (2/4): HA — replicas: 2 + preferred pod anti-affinity](2026-08-31-phase5-ha-replicas.md)
