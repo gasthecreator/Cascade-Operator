@@ -78,8 +78,6 @@ func TestRetryStormRestoreAdvancesBothObjectKindsTogetherThenCompletes(t *testin
 	wantRoute1Attempts := []int32{1, 2, 3, 4, 5, 5}
 	// maxRetries original 10: lerp(0, 10, t).
 	wantMaxRetries := []int32{2, 4, 6, 8, 10, 10}
-	// http1MaxPendingRequests original 64: lerp(1, 64, t).
-	wantPending := []int32{14, 26, 39, 51, 64, 64}
 
 	for i := range wantPhase {
 		if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {
@@ -104,8 +102,8 @@ func TestRetryStormRestoreAdvancesBothObjectKindsTogetherThenCompletes(t *testin
 		if http.GetMaxRetries() != wantMaxRetries[i] {
 			t.Errorf("tick %d maxRetries = %d, want %d", i, http.GetMaxRetries(), wantMaxRetries[i])
 		}
-		if http.GetHttp1MaxPendingRequests() != wantPending[i] {
-			t.Errorf("tick %d http1MaxPendingRequests = %d, want %d", i, http.GetHttp1MaxPendingRequests(), wantPending[i])
+		if http.GetHttp1MaxPendingRequests() != 64 {
+			t.Errorf("tick %d http1MaxPendingRequests = %d, want 64 (never this signature's field, must not move)", i, http.GetHttp1MaxPendingRequests())
 		}
 
 		if wantPhase[i] == cascadev1alpha1.PolicyPhaseNormal {

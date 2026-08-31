@@ -55,19 +55,21 @@ func TestApplyRetryStormConnectionPoolTripFirstPatch(t *testing.T) {
 	if err := json.Unmarshal([]byte(dr.Annotations[AnnotationOriginalRetryConnectionPool]), &orig); err != nil {
 		t.Fatal(err)
 	}
-	if orig.MaxRetries != 10 || orig.Http1MaxPendingRequests != 64 {
-		t.Fatalf("original snapshot = %+v, want maxRetries=10 http1=64", orig)
+	if orig.MaxRetries != 10 {
+		t.Fatalf("original snapshot = %+v, want maxRetries=10", orig)
 	}
 
 	http := dr.Spec.TrafficPolicy.ConnectionPool.Http
 	if http.GetMaxRetries() != TripRetryStormMaxRetries {
 		t.Errorf("maxRetries = %d, want %d", http.GetMaxRetries(), TripRetryStormMaxRetries)
 	}
-	if http.GetHttp1MaxPendingRequests() != TripRetryStormMaxPendingRequests {
-		t.Errorf("http1MaxPendingRequests = %d, want %d", http.GetHttp1MaxPendingRequests(), TripRetryStormMaxPendingRequests)
+	// Fan-out's own fields, and every other connectionPool.http sibling,
+	// must be left exactly as they were — retry storm no longer writes
+	// Http1MaxPendingRequests at all (PLAN.md §2.6, overlap resolved
+	// direction 2).
+	if http.GetHttp1MaxPendingRequests() != 64 {
+		t.Errorf("http1MaxPendingRequests clobbered: %d, want 64 (fan-out's own field)", http.GetHttp1MaxPendingRequests())
 	}
-	// The field fan-out's own primary also manages on this same
-	// sub-message must be left exactly as it was.
 	if http.GetHttp2MaxRequests() != 128 {
 		t.Errorf("http2MaxRequests clobbered: %d, want 128 (fan-out's own field)", http.GetHttp2MaxRequests())
 	}
@@ -97,44 +99,45 @@ func TestApplyRetryStormConnectionPoolTripUnsetOriginal(t *testing.T) {
 	if err := json.Unmarshal([]byte(dr.Annotations[AnnotationOriginalRetryConnectionPool]), &orig); err != nil {
 		t.Fatal(err)
 	}
-	if orig.MaxRetries != 0 || orig.Http1MaxPendingRequests != 0 {
+	if orig.MaxRetries != 0 {
 		t.Errorf("original snapshot = %+v, want zero value (block was absent)", orig)
 	}
 	if dr.Spec.TrafficPolicy == nil || dr.Spec.TrafficPolicy.ConnectionPool == nil || dr.Spec.TrafficPolicy.ConnectionPool.Http == nil {
 		t.Fatal("connectionPool.http not created")
 	}
+	if dr.Spec.TrafficPolicy.ConnectionPool.Http.GetHttp1MaxPendingRequests() != 0 {
+		t.Error("unset original grew an http1MaxPendingRequests write")
+	}
 }
 
 func TestApplyRetryStormConnectionPoolTripDoesNotOverwriteOriginal(t *testing.T) {
 	t.Parallel()
+	const kept = `{"maxRetries":10}`
 	dr := &networkingv1.DestinationRule{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testDRName,
 			Namespace: testDRNS,
 			Annotations: map[string]string{
 				AnnotationManagedBy:                   ManagedByValue,
-				AnnotationOriginalRetryConnectionPool: `{"maxRetries":10,"http1MaxPendingRequests":64}`,
+				AnnotationOriginalRetryConnectionPool: kept,
 			},
 		},
 		Spec: apinet.DestinationRule{Host: testDRHost},
 	}
 	ApplyRetryStormConnectionPoolTrip(dr)
-	if got := dr.Annotations[AnnotationOriginalRetryConnectionPool]; got != `{"maxRetries":10,"http1MaxPendingRequests":64}` {
+	if got := dr.Annotations[AnnotationOriginalRetryConnectionPool]; got != kept {
 		t.Errorf("original overwritten: %s", got)
 	}
 	if dr.Spec.TrafficPolicy.ConnectionPool.Http.GetMaxRetries() != TripRetryStormMaxRetries {
-		t.Error("re-patch did not apply trip values")
+		t.Error("re-patch did not apply trip value")
 	}
 }
 
-// TestApplyRetryStormConnectionPoolTripLeavesFanOutFieldAlone guards the
-// same shared-object-kind subtlety every other trip function's own test
-// already covers, but for a *shared field within a shared sub-message*
-// (Http1MaxPendingRequests, both signatures' own concern) rather than a
-// disjoint one: fan-out's primary can already have Http2MaxRequests (its
-// own field) live on this same connectionPool.http block, and retry
-// storm's own trip must never touch it.
-func TestApplyRetryStormConnectionPoolTripLeavesFanOutFieldAlone(t *testing.T) {
+// TestApplyRetryStormConnectionPoolTripLeavesFanOutFieldsAlone: fan-out's
+// primary can already have Http1MaxPendingRequests and Http2MaxRequests
+// live on this same connectionPool.http block, and retry storm's own trip
+// must never touch either — they are fan-out's fields, not a shared claim.
+func TestApplyRetryStormConnectionPoolTripLeavesFanOutFieldsAlone(t *testing.T) {
 	t.Parallel()
 	dr := &networkingv1.DestinationRule{
 		ObjectMeta: metav1.ObjectMeta{
@@ -150,7 +153,8 @@ func TestApplyRetryStormConnectionPoolTripLeavesFanOutFieldAlone(t *testing.T) {
 			TrafficPolicy: &apinet.TrafficPolicy{
 				ConnectionPool: &apinet.ConnectionPoolSettings{
 					Http: &apinet.ConnectionPoolSettings_HTTPSettings{
-						Http2MaxRequests: TripHTTP2MaxRequests,
+						Http1MaxPendingRequests: TripHTTP1MaxPendingRequests,
+						Http2MaxRequests:        TripHTTP2MaxRequests,
 					},
 				},
 			},
@@ -163,13 +167,16 @@ func TestApplyRetryStormConnectionPoolTripLeavesFanOutFieldAlone(t *testing.T) {
 		t.Error("retry storm did not capture its own original-retry-connection-pool snapshot")
 	}
 	http := dr.Spec.TrafficPolicy.ConnectionPool.Http
+	if http.GetHttp1MaxPendingRequests() != TripHTTP1MaxPendingRequests {
+		t.Error("retry storm trip disturbed fan-out's own Http1MaxPendingRequests field")
+	}
 	if http.GetHttp2MaxRequests() != TripHTTP2MaxRequests {
 		t.Error("retry storm trip disturbed fan-out's own Http2MaxRequests field")
 	}
 	if dr.Annotations[AnnotationOriginalConnectionPool] != testFanOutOriginalConnPoolJSON {
 		t.Error("retry storm trip disturbed fan-out's own original-connection-pool annotation")
 	}
-	if http.GetMaxRetries() != TripRetryStormMaxRetries || http.GetHttp1MaxPendingRequests() != TripRetryStormMaxPendingRequests {
-		t.Error("retry storm's own fields were not applied")
+	if http.GetMaxRetries() != TripRetryStormMaxRetries {
+		t.Error("retry storm's own MaxRetries was not applied")
 	}
 }

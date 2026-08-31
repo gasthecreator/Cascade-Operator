@@ -46,13 +46,10 @@ import (
 //
 // This is the *third* signature to potentially manage a DestinationRule
 // (latency/error-cascade's outlierDetection, fan-out's connectionPool.http,
-// and now this signature's own connectionPool.http fields too), and the
-// first case where two signatures' own fields — this secondary's
-// Http1MaxPendingRequests and fan-out's primary's own Http1MaxPendingRequests —
-// name the *same field* on the *same sub-message*, not just the same
-// object kind on disjoint fields. The matrix currently names both; this
-// function implements that as written. Whether the overlap should stay is
-// a pending PROPOSALS.md entry, not locked here.
+// and now this signature's own MaxRetries on that same sub-message). The
+// three field sets are disjoint: retry storm no longer writes
+// Http1MaxPendingRequests (PLAN.md §2.6, overlap resolved 2026-08-30,
+// direction 2).
 func (r *CascadePolicyReconciler) applyRetryStormMitigation(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
@@ -116,12 +113,12 @@ func (r *CascadePolicyReconciler) applyRetryStormRetriesPrimary(
 }
 
 // applyRetryStormConnectionPoolSecondary patches DestinationRule
-// connectionPool.http's maxRetries/http1MaxPendingRequests (PLAN.md §2.6's
-// secondary). Deliberately never touches DependencyObjectMissing either
-// way — see applyRetryStormMitigation's doc comment: a missing
-// DestinationRule here is logged but does not flag the edge, and a
-// present one must not incorrectly clear a condition the primary's own
-// absence may have correctly set.
+// connectionPool.http's maxRetries (PLAN.md §2.6's secondary). Deliberately
+// never touches DependencyObjectMissing either way — see
+// applyRetryStormMitigation's doc comment: a missing DestinationRule here
+// is logged but does not flag the edge, and a present one must not
+// incorrectly clear a condition the primary's own absence may have
+// correctly set.
 func (r *CascadePolicyReconciler) applyRetryStormConnectionPoolSecondary(
 	ctx context.Context,
 	policy *cascadev1alpha1.CascadePolicy,
@@ -140,11 +137,10 @@ func (r *CascadePolicyReconciler) applyRetryStormConnectionPoolSecondary(
 	}
 
 	if policy.Spec.Mode == cascadev1alpha1.PolicyModeDetectOnly {
-		log.Info("DetectOnly: would cap DestinationRule connectionPool.http maxRetries/http1MaxPendingRequests",
+		log.Info("DetectOnly: would cap DestinationRule connectionPool.http maxRetries",
 			"name", name,
 			"namespace", ns,
 			"maxRetries", mitigation.TripRetryStormMaxRetries,
-			"http1MaxPendingRequests", mitigation.TripRetryStormMaxPendingRequests,
 		)
 		return nil
 	}

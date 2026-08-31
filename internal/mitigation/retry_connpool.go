@@ -25,23 +25,16 @@ import (
 // AnnotationOriginalRetryConnectionPool is retry storm's own
 // connectionPool.http original-value annotation — its own key and its own
 // JSON shape, not a reuse of fan-out's AnnotationOriginalConnectionPool.
-// Deliberately not shared even though both signatures' secondaries/
-// primary touch the same sub-message on the same object kind: this
-// signature only ever knows about, captures, and restores its own two
-// fields (MaxRetries, Http1MaxPendingRequests), not fan-out's
-// Http2MaxRequests or the sub-message as a whole. Http1MaxPendingRequests
-// is also named by fan-out's primary — a same-field overlap PLAN.md §2.6's
-// matrix lists but does not resolve; this slice implements the matrix as
-// currently written and files that overlap in PROPOSALS.md rather than
-// locking a direction here.
+// This signature only ever captures and restores MaxRetries; fan-out's
+// primary owns Http1MaxPendingRequests/Http2MaxRequests on the same
+// sub-message (PLAN.md §2.6, overlap resolved 2026-08-30, direction 2).
 const AnnotationOriginalRetryConnectionPool = "cascade.gideonsanni.dev/original-retry-connection-pool"
 
-// Trip-time values for retry storm's connectionPool.http secondary
-// (PLAN.md §2.6: "connectionPool.http.maxRetries, http1MaxPendingRequests").
-//
-// TripRetryStormMaxRetries=0, not a tightened-but-nonzero value: Envoy's
-// own circuit-breaker default for max_retries — confirmed against Envoy's
-// actual proto doc (https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/cluster/v3/circuit_breaker.proto,
+// TripRetryStormMaxRetries is the trip-time value for retry storm's
+// connectionPool.http.maxRetries secondary (PLAN.md §2.6). 0, not a
+// tightened-but-nonzero value: Envoy's own circuit-breaker default for
+// max_retries — confirmed against Envoy's actual proto doc
+// (https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/cluster/v3/circuit_breaker.proto,
 // "If not specified, the default is 3"; the vendored istio.io/api v1.30.4
 // DestinationRule field's own comment, "Defaults to 2^32-1", describes a
 // different thing and is not the number this package's restore target
@@ -56,52 +49,31 @@ const AnnotationOriginalRetryConnectionPool = "cascade.gideonsanni.dev/original-
 // mitigation is eliminating retry-driven amplification, not moderating
 // it, so this secondary backs the primary up with the same all-the-way
 // value rather than contradicting it with a partial one.
-//
-// TripRetryStormMaxPendingRequests=1, not 0: this field is a general
-// request bulkhead (not retry-specific — it caps *all* pending requests to
-// the destination, retried or not), so it gets fan-out's own
-// bulkhead-not-outage reasoning (connpool.go's TripHTTP1MaxPendingRequests
-// doc comment) applied fresh here rather than reused directly: Envoy's own
-// default when connectionPool.http is absent is 1024 (same source), and
-// capping to exactly 1 rejects any burst beyond a single in-flight request
-// immediately rather than piling more load onto a dependency already
-// amplifying retries against itself — a bulkhead against the amplified
-// *volume*, complementing the primary's cut to the amplification's
-// *source*. A separate named constant from fan-out's
-// TripHTTP1MaxPendingRequests on purpose, even though the values happen to
-// coincide today: each signature's own trip value should be justifiable,
-// and independently changeable, on its own terms.
-const (
-	TripRetryStormMaxRetries         = int32(0)
-	TripRetryStormMaxPendingRequests = int32(1)
-)
+const TripRetryStormMaxRetries = int32(0)
 
-// originalRetryConnectionPoolJSON captures only the two fields this
-// signature's secondary ever touches. Deliberately has no whole-block
+// originalRetryConnectionPoolJSON captures only MaxRetries, the one field
+// this signature's secondary ever touches. Deliberately has no whole-block
 // Unset flag, unlike originalConnectionPoolJSON (fan-out's twin, which
 // owns the *entire* practically-used part of connectionPool.http for its
-// own use case): MaxRetries and Http1MaxPendingRequests are plain proto3
-// int32 scalars where 0 already means "not specified" at the wire level
-// (same reasoning connpool.go's own doc comment gives for these exact
-// fields), so capturing and restoring the literal scalar value is both
-// necessary and sufficient — no separate "was the block absent" tracking
-// needed. This also means restore never nils the surrounding http
-// sub-message (contrast connpool_restore.go's clearConnectionPoolHTTP):
-// with fan-out's Http2MaxRequests, and potentially a user-authored
-// MaxRequestsPerConnection or IdleTimeout, possibly also live on that same
-// sub-message, this signature must only ever read/write its own two
-// fields and never clear or replace the message as a whole.
+// own use case): MaxRetries is a plain proto3 int32 scalar where 0 already
+// means "not specified" at the wire level (same reasoning connpool.go's
+// own doc comment gives for these exact fields), so capturing and
+// restoring the literal scalar is both necessary and sufficient. Sibling
+// fields (fan-out's Http1MaxPendingRequests/Http2MaxRequests, a
+// user-authored MaxRequestsPerConnection or IdleTimeout) are never
+// captured or written. Restore *does* prune the http sub-message when it
+// is empty after writing MaxRetries back to 0 — see
+// applyOriginalRetryConnectionPool.
 type originalRetryConnectionPoolJSON struct {
-	MaxRetries              int32 `json:"maxRetries,omitempty"`
-	Http1MaxPendingRequests int32 `json:"http1MaxPendingRequests,omitempty"`
+	MaxRetries int32 `json:"maxRetries,omitempty"`
 }
 
 // ApplyRetryStormConnectionPoolTrip mutates only connectionPool.http's
-// MaxRetries and Http1MaxPendingRequests on dr (plus our annotations).
-// Host, TLS, outlierDetection, connectionPool.tcp, and every other
-// connectionPool.http field — including Http2MaxRequests, which fan-out's
-// own primary also manages on this same sub-message — are left exactly as
-// they were; see ensureConnectionPoolHTTP (connpool.go, shared) for why
+// MaxRetries on dr (plus our annotations). Host, TLS, outlierDetection,
+// connectionPool.tcp, and every other connectionPool.http field —
+// including Http1MaxPendingRequests and Http2MaxRequests, which fan-out's
+// own primary manages on this same sub-message — are left exactly as they
+// were; see ensureConnectionPoolHTTP (connpool.go, shared) for why
 // reading/creating the sub-message is safe to share across signatures
 // while the fields written are not.
 //
@@ -109,18 +81,15 @@ type originalRetryConnectionPoolJSON struct {
 // touches dr — checked via AnnotationOriginalRetryConnectionPool's own
 // presence, not managed-by's, the same defensive pattern every other trip
 // function in this package now uses (outlier.go, connpool.go, retries.go,
-// timeout.go): three other signature/field pairs can already set
-// managed-by on this same DestinationRule (latency/error's
-// outlierDetection, fan-out's connectionPool.http), and if any tripped
-// first, managed-by is already ManagedByValue before this function ever
-// captures its own baseline. Own-annotation-keyed capture is necessary
-// and, for a *shared field* with fan-out (Http1MaxPendingRequests), not
-// sufficient on its own — capturing "current" while the other signature
-// still holds the object would snapshot *its* trip value as this
-// signature's original. Reconcile's synchronous force-complete-on-handoff
-// is what currently prevents that; whether the overlap should remain at
-// all is the pending PROPOSALS.md entry, not a decision this function
-// gets to make.
+// timeout.go): other signatures can already set managed-by on this same
+// DestinationRule (latency/error's outlierDetection, fan-out's
+// connectionPool.http), and if any tripped first, managed-by is already
+// ManagedByValue before this function ever captures its own baseline.
+// With the overlap resolved, MaxRetries is disjoint from every other
+// signature's fields, so capturing "current" is always this field's true
+// original — force-complete-on-handoff is no longer load-bearing for this
+// field's data integrity, only for not leaving a trip-time MaxRetries=0
+// (and the annotation) behind when a different signature adopts the object.
 func ApplyRetryStormConnectionPoolTrip(dr *networkingv1.DestinationRule) {
 	if dr.Annotations == nil {
 		dr.Annotations = map[string]string{}
@@ -132,14 +101,12 @@ func ApplyRetryStormConnectionPoolTrip(dr *networkingv1.DestinationRule) {
 
 	http := ensureConnectionPoolHTTP(dr)
 	http.MaxRetries = TripRetryStormMaxRetries
-	http.Http1MaxPendingRequests = TripRetryStormMaxPendingRequests
 }
 
 func snapshotRetryConnectionPoolJSON(dr *networkingv1.DestinationRule) string {
 	http := dr.Spec.GetTrafficPolicy().GetConnectionPool().GetHttp()
 	snap := originalRetryConnectionPoolJSON{
-		MaxRetries:              http.GetMaxRetries(),
-		Http1MaxPendingRequests: http.GetHttp1MaxPendingRequests(),
+		MaxRetries: http.GetMaxRetries(),
 	}
 	b, err := json.Marshal(snap)
 	if err != nil {

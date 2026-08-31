@@ -92,16 +92,10 @@ func dualManagedVS() *networkingv1.VirtualService {
 // dualManagedDR is trippedManagedDR's (restore_test.go) two-signature
 // twin for the DestinationRule side — dualManagedVS's counterpart, now
 // that retry storm also manages a DestinationRule (its own
-// connectionPool.http secondary, PLAN.md §2.6) alongside latency/error-
-// cascade's outlierDetection primary. Unlike dualManagedVS's own timeout/
-// retries overlap (both on VirtualService, but at least disjoint from each
-// other in the way outlierDetection and connectionPool.http are here too),
-// latency/error's outlierDetection and retry storm's connectionPool.http
-// secondary don't share a sub-message at all, so applying both trips
-// back-to-back here still captures each signature's *true* pre-trip
-// baseline correctly — no construction-order caveat needed, unlike the
-// three-way fixture in fanout_restore_test.go that also brings fan-out's
-// own connectionPool.http primary into the mix.
+// connectionPool.http MaxRetries secondary, PLAN.md §2.6) alongside
+// latency/error-cascade's outlierDetection primary. The two field sets
+// don't share a sub-message at all, so applying both trips back-to-back
+// here still captures each signature's true pre-trip baseline.
 func dualManagedDR() *networkingv1.DestinationRule {
 	dr := patchTestDR()
 	mitigation.ApplyLatencyErrorOutlierTrip(dr)
@@ -386,7 +380,7 @@ func TestRestoreDispatchAdvancesLatencyErrorsOwnFieldsOnBothObjectKinds(t *testi
 // thing to assert (see the previous version of this test's own name,
 // retired in the same slice that added the secondary). The DestinationRule
 // fixture is dual-managed (dualManagedDR) so this test can assert the
-// sharper claim: retry storm's dispatch advances its own two fields on the
+// sharper claim: retry storm's dispatch advances its own MaxRetries on the
 // DestinationRule while leaving latency/error-cascade's own outlierDetection
 // (and annotation) on that same object alone.
 func TestRestoreDispatchAdvancesRetryStormsOwnFieldsOnBothObjectKinds(t *testing.T) {
@@ -421,14 +415,13 @@ func TestRestoreDispatchAdvancesRetryStormsOwnFieldsOnBothObjectKinds(t *testing
 	if dr.Annotations[mitigation.AnnotationOriginalOutlier] != mitigation.OriginalOutlierUnsetJSON {
 		t.Error("latency/error's own original-outlier annotation disturbed by RetryStorm dispatch")
 	}
-	// retry storm's own secondary *should* advance: its own connectionPool.http
-	// fields ramp from their trip values toward whatever dualManagedDR's
-	// construction order captured as "original" (see its own doc comment) —
-	// this test only needs to see them move off the trip values, not match
-	// an exact target.
+	// retry storm's own secondary *should* advance: MaxRetries ramps from
+	// the trip value toward whatever dualManagedDR's construction captured
+	// as "original" (see its own doc comment) — this test only needs to
+	// see it move off the trip value, not match an exact target.
 	http := dr.Spec.GetTrafficPolicy().GetConnectionPool().GetHttp()
-	if http.GetMaxRetries() == mitigation.TripRetryStormMaxRetries && http.GetHttp1MaxPendingRequests() == mitigation.TripRetryStormMaxPendingRequests {
-		t.Error("retry storm's own connectionPool.http fields were not advanced by dispatch")
+	if http.GetMaxRetries() == mitigation.TripRetryStormMaxRetries {
+		t.Error("retry storm's own connectionPool.http maxRetries was not advanced by dispatch")
 	}
 	if dr.Annotations[mitigation.AnnotationManagedBy] != mitigation.ManagedByValue {
 		t.Error("managed-by disturbed by RetryStorm dispatch")

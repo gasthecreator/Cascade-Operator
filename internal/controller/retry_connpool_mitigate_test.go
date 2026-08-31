@@ -70,8 +70,11 @@ func TestRetryStormMitigateBothObjectsPresentPatchesBoth(t *testing.T) {
 		t.Fatal(err)
 	}
 	http := dr.Spec.GetTrafficPolicy().GetConnectionPool().GetHttp()
-	if http.GetMaxRetries() != mitigation.TripRetryStormMaxRetries || http.GetHttp1MaxPendingRequests() != mitigation.TripRetryStormMaxPendingRequests {
+	if http.GetMaxRetries() != mitigation.TripRetryStormMaxRetries {
 		t.Errorf("DestinationRule secondary not patched: http = %+v", http)
+	}
+	if http.GetHttp1MaxPendingRequests() != 0 {
+		t.Errorf("retry storm wrote http1MaxPendingRequests = %d, want 0 (fan-out's field, never ours)", http.GetHttp1MaxPendingRequests())
 	}
 	if dr.Annotations[mitigation.AnnotationManagedBy] != mitigation.ManagedByValue {
 		t.Error("DestinationRule not marked managed-by")
@@ -127,8 +130,11 @@ func TestRetryStormMitigateMissingVirtualServiceStillPatchesSecondaryAndSetsCond
 		t.Fatal(err)
 	}
 	http := dr.Spec.GetTrafficPolicy().GetConnectionPool().GetHttp()
-	if http.GetMaxRetries() != mitigation.TripRetryStormMaxRetries || http.GetHttp1MaxPendingRequests() != mitigation.TripRetryStormMaxPendingRequests {
+	if http.GetMaxRetries() != mitigation.TripRetryStormMaxRetries {
 		t.Error("DestinationRule secondary not patched despite the primary VirtualService being absent")
+	}
+	if http.GetHttp1MaxPendingRequests() != 0 {
+		t.Error("retry storm wrote http1MaxPendingRequests despite only owning maxRetries")
 	}
 }
 

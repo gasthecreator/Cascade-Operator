@@ -167,14 +167,9 @@ func (r *CascadePolicyReconciler) forceCompleteOutgoingRestore(
 		// primary, DestinationRule secondary) must be force-completed
 		// together — an incoming signature adopting this host's
 		// DestinationRule (e.g. fan-out or latency/error-cascade) must
-		// never find retry storm's own connectionPool.http fields still
-		// at trip values, and the reverse (an incoming signature
-		// adopting the VirtualService) must never find retries.attempts
-		// still at 0. The Http1MaxPendingRequests overlap with fan-out's
-		// primary (same field, not just same object) is why this
-		// ordering is load-bearing beyond "don't leave an orphaned
-		// annotation"; whether that overlap should remain in the matrix
-		// is pending in PROPOSALS.md, not decided here.
+		// never find retry storm's own MaxRetries still at the trip
+		// value, and the reverse (an incoming signature adopting the
+		// VirtualService) must never find retries.attempts still at 0.
 		vsEdges, err := r.listManagedVirtualServiceEdges(ctx, policy)
 		if err != nil {
 			return err

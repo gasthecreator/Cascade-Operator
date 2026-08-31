@@ -68,8 +68,7 @@ func (r *CascadePolicyReconciler) listManagedVirtualServiceEdges(
 // applyRetryStormRestoreStep, and completeRetryStormRestore all gather and
 // act on *both* object kinds this signature now manages — the
 // VirtualService primary (retries.attempts) and the DestinationRule
-// secondary (connectionPool.http maxRetries/http1MaxPendingRequests,
-// PLAN.md §2.6) — independently of each other, mirroring
+// secondary (connectionPool.http maxRetries, PLAN.md §2.6) — independently of each other, mirroring
 // applyRetryStormMitigation's own independence and exactly the shape
 // beginRestoreLatencyError/advanceRestoreLatencyError/
 // completeLatencyErrorRestore (restore.go) already established for the

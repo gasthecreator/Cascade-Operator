@@ -27,8 +27,8 @@ same two-object-kind shape. Its overlap with fan-out's primary on
 `http1MaxPendingRequests` is resolved (`PROPOSALS.md`, approved 2026-08-30):
 retry storm's secondary keeps only `maxRetries`, restoring field
 disjointness as an invariant rather than depending on force-complete-on-
-handoff for a shared field's data integrity. Implementation of that drop
-is the next slice. The §2.7 demo topology
+handoff for a shared field's data integrity. That drop is now
+implemented. The §2.7 demo topology
 (`checkout → {payments, inventory}`, under `demo/`) is built and deployed,
 and its live-scrape evidence (a clean 1:1:1 healthy ratio; a 3× ratio when
 `payments` fails and `checkout`'s own retry loop kicks in) is what the

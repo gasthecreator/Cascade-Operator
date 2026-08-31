@@ -206,16 +206,11 @@ func TestFanOutQueryErrorWhileTrippedDoesNotRestore(t *testing.T) {
 
 // tripleManagedDR is one DestinationRule trip-time-patched by all three
 // signatures (fan-out, then retry storm, matching each trip function's own
-// "capture-my-baseline-even-if-managed-by-is-already-set" contract).
-// Construction order means retry storm's own captured "original" for
-// Http1MaxPendingRequests here is fan-out's trip value (1), not the
-// true pre-any-trip value (0) — an artifact of applying two trips
-// back-to-back with no force-complete between them, which cannot
-// happen via Reconcile in production (PLAN.md §2.6's handoff
-// force-complete guarantees the outgoing signature is fully restored
-// first). Harmless for what the dispatch-isolation tests check (not
-// restore-value correctness), and not a stand-in for the handoff
-// ordering question itself — see PROPOSALS.md's pending entry.
+// "capture-my-baseline-even-if-managed-by-is-already-set" contract). The
+// three field sets are disjoint (PLAN.md §2.6, overlap resolved 2026-08-30,
+// direction 2), so applying them back-to-back still captures each
+// signature's true pre-trip baseline for its own fields — retry storm
+// only ever snapshots MaxRetries, which fan-out never writes.
 func tripleManagedDR() *networkingv1.DestinationRule {
 	dr := patchTestDR()
 	mitigation.ApplyLatencyErrorOutlierTrip(dr)
@@ -328,10 +323,8 @@ func TestRestoreDispatchThreeSignaturesFanOutOnlyAdvancesOwnFields(t *testing.T)
 // specifically the *three*-signature case — TestRestoreDispatchAdvancesRetryStormsOwnFieldsOnBothObjectKinds
 // (retry_restore_test.go) already covers retry storm's two-object-kind
 // dispatch against a two-signature-shared DestinationRule. This one
-// confirms retry storm's dispatch, currently also writing
-// Http1MaxPendingRequests (matrix-as-written; overlap pending in
-// PROPOSALS.md), still only ever advances its own captured baseline and
-// never fan-out's live Http2MaxRequests value or annotation.
+// confirms retry storm's dispatch only ever advances MaxRetries and never
+// fan-out's live Http1MaxPendingRequests/Http2MaxRequests or annotation.
 func TestRestoreDispatchThreeSignaturesRetryStormLeavesFanOutHttp2Alone(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -362,13 +355,16 @@ func TestRestoreDispatchThreeSignaturesRetryStormLeavesFanOutHttp2Alone(t *testi
 		t.Error("latency/error's own original-outlier annotation disturbed by RetryStorm dispatch")
 	}
 	http := dr.Spec.GetTrafficPolicy().GetConnectionPool().GetHttp()
+	if http.GetHttp1MaxPendingRequests() != mitigation.TripHTTP1MaxPendingRequests {
+		t.Error("fan-out's own Http1MaxPendingRequests touched by RetryStorm dispatch")
+	}
 	if http.GetHttp2MaxRequests() != mitigation.TripHTTP2MaxRequests {
 		t.Error("fan-out's own Http2MaxRequests touched by RetryStorm dispatch")
 	}
 	if dr.Annotations[mitigation.AnnotationOriginalConnectionPool] != mitigation.OriginalConnectionPoolUnsetJSON {
 		t.Error("fan-out's own original-connection-pool annotation disturbed by RetryStorm dispatch")
 	}
-	if http.GetMaxRetries() == mitigation.TripRetryStormMaxRetries && http.GetHttp1MaxPendingRequests() == mitigation.TripRetryStormMaxPendingRequests {
-		t.Error("retry storm's own connectionPool.http fields were not advanced by dispatch")
+	if http.GetMaxRetries() == mitigation.TripRetryStormMaxRetries {
+		t.Error("retry storm's own connectionPool.http maxRetries was not advanced by dispatch")
 	}
 }

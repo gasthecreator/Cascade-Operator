@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	apinet "istio.io/api/networking/v1alpha3"
 	networkingv1 "istio.io/client-go/pkg/apis/networking/v1"
 )
 
@@ -48,11 +49,6 @@ func parseOriginalRetryConnectionPool(raw string) (originalRetryConnectionPoolJS
 	return orig, nil
 }
 
-// origRetryMaxRetriesTarget/origRetryMaxPendingTarget fall back to the
-// Envoy/Istio implicit default whenever the captured field reads 0 — same
-// rule connpool_restore.go's origMaxPendingTarget/origMaxRequestsTarget
-// already apply to Http1MaxPendingRequests/Http2MaxRequests, extended to
-// MaxRetries.
 func origRetryMaxRetriesTarget(orig originalRetryConnectionPoolJSON) int32 {
 	if orig.MaxRetries != 0 {
 		return orig.MaxRetries
@@ -60,35 +56,45 @@ func origRetryMaxRetriesTarget(orig originalRetryConnectionPoolJSON) int32 {
 	return istioDefaultMaxRetries
 }
 
-func origRetryMaxPendingTarget(orig originalRetryConnectionPoolJSON) int32 {
-	if orig.Http1MaxPendingRequests != 0 {
-		return orig.Http1MaxPendingRequests
-	}
-	return istioDefaultMaxPendingRequests
-}
-
-// applyInterpolatedRetryConnectionPool ramps MaxRetries/Http1MaxPendingRequests
-// toward their restore targets. Only ever reads or writes these two fields
-// on the http sub-message — never Http2MaxRequests (fan-out's own field on
-// the same sub-message) and never the sub-message itself, so a concurrent
-// (or, in the handoff case, just-restored) fan-out value on that sibling
-// field is never touched by this function, in either direction.
+// applyInterpolatedRetryConnectionPool ramps MaxRetries toward its restore
+// target. Only ever reads or writes that one field on the http
+// sub-message — never Http1MaxPendingRequests/Http2MaxRequests (fan-out's
+// own fields on the same sub-message) and never the sub-message itself.
 func applyInterpolatedRetryConnectionPool(dr *networkingv1.DestinationRule, orig originalRetryConnectionPoolJSON, t float64) {
 	http := ensureConnectionPoolHTTP(dr)
 	http.MaxRetries = lerpI32(TripRetryStormMaxRetries, origRetryMaxRetriesTarget(orig), t)
-	http.Http1MaxPendingRequests = lerpI32(TripRetryStormMaxPendingRequests, origRetryMaxPendingTarget(orig), t)
 }
 
 // applyOriginalRetryConnectionPool writes back the literal captured
-// scalars (0 correctly means "restore to absent/default", per
-// originalRetryConnectionPoolJSON's own doc comment) and, deliberately,
-// never calls clearConnectionPoolHTTP or touches the surrounding
-// sub-message: unlike fan-out's whole-block restore, this signature does
-// not own the whole block and must never nil siblings it never captured.
+// MaxRetries (0 correctly means "restore to absent/default") and then, if
+// the http sub-message has no remaining fields, prunes it the same way
+// fan-out's Unset path does via clearConnectionPoolHTTP. That prune is
+// safe now that this signature only owns MaxRetries: an empty http after
+// writing 0 means neither this signature nor fan-out (nor a user) has
+// anything left on the block, which is exactly the live-observed empty
+// `connectionPool.http: {}` shell this restores away. A sibling field
+// still set — fan-out's Http2MaxRequests, a user-authored
+// MaxRequestsPerConnection — keeps the block.
 func applyOriginalRetryConnectionPool(dr *networkingv1.DestinationRule, orig originalRetryConnectionPoolJSON) {
 	http := ensureConnectionPoolHTTP(dr)
 	http.MaxRetries = orig.MaxRetries
-	http.Http1MaxPendingRequests = orig.Http1MaxPendingRequests
+	if httpSettingsEmpty(http) {
+		clearConnectionPoolHTTP(dr)
+	}
+}
+
+func httpSettingsEmpty(http *apinet.ConnectionPoolSettings_HTTPSettings) bool {
+	if http == nil {
+		return true
+	}
+	return http.GetHttp1MaxPendingRequests() == 0 &&
+		http.GetHttp2MaxRequests() == 0 &&
+		http.GetMaxRequestsPerConnection() == 0 &&
+		http.GetMaxRetries() == 0 &&
+		http.GetIdleTimeout() == nil &&
+		http.GetH2UpgradePolicy() == 0 &&
+		!http.GetUseClientProtocol() &&
+		http.GetMaxConcurrentStreams() == 0
 }
 
 func stripRetryConnectionPoolAnnotations(dr *networkingv1.DestinationRule) {
@@ -102,10 +108,10 @@ func stripRetryConnectionPoolAnnotations(dr *networkingv1.DestinationRule) {
 	}
 }
 
-// ApplyRetryStormConnectionPoolRestoreStep writes interpolated
-// MaxRetries/Http1MaxPendingRequests for restoreStep 0–3, or the stored
-// original at step 4 — mirrors every other *RestoreStep function's step
-// contract exactly, reusing the same restoreProgress(step) curve.
+// ApplyRetryStormConnectionPoolRestoreStep writes interpolated MaxRetries
+// for restoreStep 0–3, or the stored original at step 4 — mirrors every
+// other *RestoreStep function's step contract exactly, reusing the same
+// restoreProgress(step) curve.
 func ApplyRetryStormConnectionPoolRestoreStep(dr *networkingv1.DestinationRule, step int32) error {
 	orig, err := parseOriginalRetryConnectionPool(dr.Annotations[AnnotationOriginalRetryConnectionPool])
 	if err != nil {
@@ -120,7 +126,7 @@ func ApplyRetryStormConnectionPoolRestoreStep(dr *networkingv1.DestinationRule, 
 }
 
 // CompleteRetryStormConnectionPoolRestore writes the stored original
-// MaxRetries/Http1MaxPendingRequests and removes both operator
+// MaxRetries (pruning an empty http sub-message) and removes both operator
 // annotations. Like every other stripAnnotations helper in this package,
 // this unconditionally deletes the single shared AnnotationManagedBy key,
 // not just this signature's own AnnotationOriginalRetryConnectionPool —

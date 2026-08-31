@@ -45,9 +45,10 @@ func bothSignaturesQuerier() *fakeQuerier {
 // confirms a retry-storm trip patches both the VirtualService primary
 // (tested separately in retry_mitigate_test.go) and, now that this
 // signature has its own DestinationRule connectionPool.http secondary
-// (PLAN.md §2.6), the DestinationRule too — but only its own two fields
-// (maxRetries, http1MaxPendingRequests), never latency/error-cascade's
-// exclusive outlierDetection field on the same object kind.
+// (PLAN.md §2.6), the DestinationRule too — but only its own field
+// (maxRetries), never fan-out's Http1MaxPendingRequests/Http2MaxRequests
+// and never latency/error-cascade's exclusive outlierDetection field on
+// the same object kind.
 func TestRetryStormTripPatchesConnectionPoolSecondaryButNotOutlierDetection(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -90,8 +91,8 @@ func TestRetryStormTripPatchesConnectionPoolSecondaryButNotOutlierDetection(t *t
 	if http.GetMaxRetries() != mitigation.TripRetryStormMaxRetries {
 		t.Errorf("maxRetries = %d, want %d", http.GetMaxRetries(), mitigation.TripRetryStormMaxRetries)
 	}
-	if http.GetHttp1MaxPendingRequests() != mitigation.TripRetryStormMaxPendingRequests {
-		t.Errorf("http1MaxPendingRequests = %d, want %d", http.GetHttp1MaxPendingRequests(), mitigation.TripRetryStormMaxPendingRequests)
+	if http.GetHttp1MaxPendingRequests() != 0 {
+		t.Errorf("http1MaxPendingRequests = %d, want 0 (fan-out's field, never written by retry storm)", http.GetHttp1MaxPendingRequests())
 	}
 	if gotDR.Spec.TrafficPolicy != nil && gotDR.Spec.TrafficPolicy.OutlierDetection != nil {
 		t.Error("retry storm mutated outlierDetection (latency/error-cascade's exclusive field)")
@@ -182,10 +183,10 @@ func retryStormAndFanOutQuerier() *fakeQuerier {
 // TestLatencyErrorCascadeWinsWhenBothSignaturesCouldTrip above. Retry
 // storm now has its own DestinationRule connectionPool.http secondary
 // (PLAN.md §2.6), so "retry storm wins" no longer means the DestinationRule
-// is left untouched — it means retry storm's *own* fields land there and
-// fan-out's own field (Http2MaxRequests, never touched by retry storm's
-// secondary) never does, since fan-out lost the race and its trip function
-// never ran at all.
+// is left untouched — it means retry storm's *own* field (MaxRetries)
+// lands there and fan-out's own fields (Http1MaxPendingRequests,
+// Http2MaxRequests) never do, since retry storm no longer writes them
+// and fan-out lost the race so its trip function never ran at all.
 func TestRetryStormWinsWhenRetryStormAndFanOutCouldTrip(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -212,8 +213,11 @@ func TestRetryStormWinsWhenRetryStormAndFanOutCouldTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	http := gotDR.Spec.GetTrafficPolicy().GetConnectionPool().GetHttp()
-	if http.GetMaxRetries() != mitigation.TripRetryStormMaxRetries || http.GetHttp1MaxPendingRequests() != mitigation.TripRetryStormMaxPendingRequests {
-		t.Errorf("retry storm's own secondary did not patch its own fields: %+v", http)
+	if http.GetMaxRetries() != mitigation.TripRetryStormMaxRetries {
+		t.Errorf("retry storm's own secondary did not patch maxRetries: %+v", http)
+	}
+	if http.GetHttp1MaxPendingRequests() != 0 {
+		t.Errorf("fan-out's own http1MaxPendingRequests was written even though retry storm won and no longer claims that field: %d", http.GetHttp1MaxPendingRequests())
 	}
 	if http.GetHttp2MaxRequests() != 0 {
 		t.Errorf("fan-out's own field was touched even though fan-out lost the race: %d", http.GetHttp2MaxRequests())
