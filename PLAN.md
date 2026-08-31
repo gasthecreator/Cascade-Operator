@@ -450,6 +450,52 @@ blocking belongs here, not silently assumed in code.
 
 ---
 
+## 5. Production-Readiness & Repo Standardization Initiative (started 2026-08-31)
+
+Section 3's checklist covers the original v1alpha1 scope and is fully done.
+This section tracks a second, larger initiative: pushing the project from
+"portfolio-complete" toward genuinely production-grade engineering, plus full
+repo standardization and multi-mesh (Linkerd) support. Full plan and rationale
+— including the ground-truth audit this was built from (RBAC already tight,
+webhook infra plumbed but greenfield, zero standard-repo files existed,
+Linkerd's primitives conflict with this project's model in specific,
+sourced ways) — lives in this session's approved plan; summarized here so it
+survives the session.
+
+Same protocol as section 3: Cursor builds each slice, writes a worklog entry,
+and Claude independently rebuilds/tests/lints and re-verifies any
+live-cluster claim before checking an item here.
+
+- [ ] Phase 0 — Repo hygiene: LICENSE, CONTRIBUTING.md, CODE_OF_CONDUCT.md,
+  SECURITY.md, CODEOWNERS, CHANGELOG.md, .editorconfig, issue/PR templates,
+  dependabot.yml, .gitignore additions
+- [ ] Phase 1 — CI: Kind+Istio integration workflow (`make test-integration`
+  in Actions), govulncheck, CodeQL
+- [ ] Phase 2 — Integration test coverage for latency/error-cascade and
+  fan-out amplification (retry storm's is done — `test/integration/`)
+- [ ] Phase 3 — `CascadePolicy` admission webhook (validating; field-level
+  checks only, no live dependency-resolution check)
+- [ ] Phase 4 — Grafana dashboard over existing operator metrics; trip/restore
+  webhook notifier
+- [ ] Phase 5 — Production hardening: fix the known zero-value bug in retry
+  storm's *restore-completion* path (same class as the trip-path bug fixed
+  2026-08-30, never applied to restore); HA (`replicas: 2`, leader election
+  already wired); per-edge threshold overrides (**breaking v1alpha1 CRD
+  change** — needs its own PROPOSALS.md entry, not routine); security
+  threat-model doc
+- [ ] Phase 6 — Multi-mesh (Linkerd) support, full attempt: mesh-adapter
+  interface (spike/design proposal first), Linkerd detection (PromQL
+  equivalent, metric names confirmed live not assumed), Linkerd mitigation
+  for latency/error-cascade + retry storm (these two are **mutually
+  exclusive per Service on Linkerd** — failure accrual vs. ServiceProfile —
+  extending the existing signature-handoff machinery to arbitrate which
+  owns a given Service), fan-out is explicit detect-only-on-Linkerd (status
+  condition, not a silent skip), explicit `spec.mesh` field, Linkerd dev
+  environment, integration coverage. Largest item by far — expect several
+  independently-reviewed slices, not one.
+
+---
+
 *Update this file after every meaningful milestone — new signature detector
 landed, architecture decision changed, checklist item completed. Don't let it
 drift from what's actually in the repo.*
