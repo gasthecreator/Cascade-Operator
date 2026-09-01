@@ -633,7 +633,7 @@ live-cluster claim before checking an item here.
   cascade on the same host), confirmed live to force-complete retry
   storm's restore (both object kinds, both annotations) cleanly before
   the incoming signature's trip applied.
-- [ ] Phase 6, 6.6 — Linkerd's actual `QueryBuilder`/`Mitigator`
+- [x] Phase 6, 6.6 — Linkerd's actual `QueryBuilder`/`Mitigator`
   implementations, the failure-accrual/ServiceProfile arbitration logic,
   a Linkerd dev environment, and integration coverage.
   **Slice 1 done**: `internal/mesh/linkerd.QueryBuilder`, live-verified
@@ -701,8 +701,21 @@ live-cluster claim before checking an item here.
   The second run completed end-to-end, leaving the control plane and
   linkerd-viz's Prometheus fully rolled out and healthy. See
   `docs/worklog/2026-09-01-phase6.6-linkerd-install-script.md`.
-  **Not done yet**: integration test coverage — the last remaining piece
-  of Phase 6.6.
+  **Slice 5 (final) done**: integration test coverage —
+  `test/integration/linkerd_*.go`, the same raw-apiserver-JSON
+  wire-format discipline as Istio's three existing integration tests,
+  applied to all three Linkerd signatures. Skips (not fails) when
+  Linkerd isn't installed, so the existing CI job
+  (`.github/workflows/integration.yml`, Istio-only) keeps passing
+  unmodified. Live-verified individually and as part of the full
+  `make test-integration` run (all six tests, both meshes, together, no
+  cross-fixture interference). See
+  `docs/worklog/2026-09-01-phase6.6-linkerd-integration-tests.md`.
+  **Phase 6.6 is now complete.** One deliberately-out-of-scope item
+  across all five slices: CI itself still only installs Istio, so the
+  new Linkerd integration tests currently skip there rather than run —
+  wiring `make linkerd-install` into that workflow is a real, separate
+  follow-up.
 - [ ] Phase 11 — eBPF-level kernel-signal corroboration: **spike done and
   passed; corroboration integration not done.** Confirmed live on this
   exact dev environment (Docker Desktop 29.7.2, kernel 7.0.12-linuxkit,
