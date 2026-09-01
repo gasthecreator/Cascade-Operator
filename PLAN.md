@@ -711,11 +711,21 @@ live-cluster claim before checking an item here.
   `make test-integration` run (all six tests, both meshes, together, no
   cross-fixture interference). See
   `docs/worklog/2026-09-01-phase6.6-linkerd-integration-tests.md`.
-  **Phase 6.6 is now complete.** One deliberately-out-of-scope item
-  across all five slices: CI itself still only installs Istio, so the
-  new Linkerd integration tests currently skip there rather than run —
-  wiring `make linkerd-install` into that workflow is a real, separate
-  follow-up.
+  **Phase 6.6 is now complete**, including the one item deferred across
+  all five slices: `.github/workflows/integration.yml` now installs
+  Linkerd alongside Istio (`make linkerd-install`, right after
+  `make istio-install`), so the Linkerd integration tests actually run in
+  CI instead of skipping there. This is also the first real exercise of
+  `hack/install-linkerd.sh`'s plain `install` code path (every prior live
+  run took the `upgrade` branch, since the persistent dev cluster already
+  had a control plane from the first Phase 6.6 spike) — CI's always-fresh
+  Kind cluster is what actually confirms it. A real, honestly-flagged risk
+  going in: running Istio's and Linkerd's full stacks together strained
+  the dev machine's own Kind node repeatedly across this phase's slices,
+  and GitHub's standard runners have less headroom — not preemptively
+  worked around, since doing so without a confirmed real failure would be
+  scope creep; see `docs/worklog/2026-09-01-phase6.6-ci-linkerd-integration.md`
+  for the plan if it does turn out flaky.
 - [ ] Phase 11 — eBPF-level kernel-signal corroboration: **spike done and
   passed; corroboration integration not done.** Confirmed live on this
   exact dev environment (Docker Desktop 29.7.2, kernel 7.0.12-linuxkit,

@@ -1,5 +1,15 @@
-# Kind + Istio integration tests (PLAN.md §5 Phase 1). Separate from
-# test-e2e.yml — that scaffold targets a plain Kind cluster with no mesh.
+# Kind + Istio + Linkerd integration tests (PLAN.md §5 Phase 1, extended
+# for Phase 6.6's Linkerd multi-mesh support). Separate from test-e2e.yml
+# — that scaffold targets a plain Kind cluster with no mesh.
+#
+# Both meshes install onto the same Kind cluster, in disjoint namespaces
+# (Istio's demo topology in `default`, Linkerd's in `linkerd-demo`) — the
+# same one-cluster-two-meshes shape this project's own dev environment has
+# used since PLAN.md §5 Phase 6.6's own spike, confirmed there not to
+# conflict as long as injected workloads stay in separate namespaces.
+# test/integration's Linkerd tests (test/integration/linkerd_*.go) already
+# skip cleanly if the ServiceProfile CRD is missing — this workflow is
+# what makes them actually run instead of skip.
 name: Integration Tests
 
 on:
@@ -14,12 +24,16 @@ jobs:
   integration:
     permissions:
       contents: read
-    name: Kind + Istio 1.30.4
+    name: Kind + Istio 1.30.4 + Linkerd edge-26.6.3
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Bumped from 30: a second mesh control plane (Gateway API CRDs +
+    # Linkerd + linkerd-viz, on top of Istio + Prometheus) is real extra
+    # install time on a fresh cluster, not just this repo's own test suite.
+    timeout-minutes: 40
     env:
       INTEGRATION_CONTEXT: kind-cascade-operator
       ISTIO_VERSION: "1.30.4"
+      LINKERD_VERSION: "edge-26.6.3"
     steps:
       - name: Clone the code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -45,6 +59,9 @@ jobs:
 
       - name: Install Istio
         run: make istio-install
+
+      - name: Install Linkerd
+        run: make linkerd-install
 
       - name: Install CascadePolicy CRDs
         run: kubectl apply -f config/crd/bases
