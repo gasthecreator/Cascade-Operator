@@ -1,0 +1,34 @@
+# Retry-storm demo fixture, the Linkerd twin of ../k8s/inventory-retry-vs.yaml
+# (PLAN.md §5 Phase 6.6): gives inventory-service a real ServiceProfile
+# retryBudget for internal/mesh/linkerd's Mitigator to patch. isRetryable
+# on the "GET /" route is what actually makes retryBudget meaningful —
+# without it, Linkerd has no route marked eligible for retries regardless
+# of budget — and is deliberately part of this fixture, not something the
+# Mitigator itself ever sets (mirrors the Istio fixture's own retryOn
+# field: the operator only ever cuts/restores retries.attempts, never
+# authors which conditions are retryable in the first place).
+#
+# On inventory specifically, not payments, for the same reason the Istio
+# fixture gives: payments already carries the fan-out demo's own signal
+# (checkout's application-level retry loop), so stacking a mesh-level
+# retry budget on top of it would compound the two signals. inventory has
+# no app-level retry loop from checkout, so its route_actual_request_total
+# amplification is exactly the retry-storm signature this fixture exists
+# to demonstrate, live-verified at ~4.3x (130:30) during PLAN.md §5 Phase
+# 6.6's own spike against a failing inventory-service.
+apiVersion: linkerd.io/v1alpha2
+kind: ServiceProfile
+metadata:
+  name: inventory-service.linkerd-demo.svc.cluster.local
+  namespace: linkerd-demo
+spec:
+  routes:
+    - name: GET /
+      condition:
+        method: GET
+        pathRegex: /
+      isRetryable: true
+  retryBudget:
+    retryRatio: 1.0
+    minRetriesPerSecond: 10
+    ttl: 10s

@@ -1,0 +1,30 @@
+# The CascadePolicy watching the Linkerd copy of the §2.7 demo topology
+# (checkout -> {payments, inventory} in linkerd-demo) — the Linkerd twin of
+# ../k8s/cascadepolicy.yaml, differing only in mesh, namespace, and hosts.
+# Thresholds are unchanged from that copy: the underlying application
+# behavior (checkout's own 3x app-level retry loop against payments) is
+# identical regardless of which mesh is injected, since both namespaces
+# run the exact same demo images (PLAN.md §5 Phase 6.6's own worklog) —
+# only retryStormMultiplier's *mechanism* differs by mesh (Envoy retries
+# vs. a ServiceProfile retryBudget), not the threshold value itself, which
+# is comfortably below both meshes' own live-verified induced ratios
+# (Istio: dest:source 4x with attempts:3; Linkerd: ~4.3x with a seeded
+# retryBudget — see this repo's Phase 6.6 worklogs).
+apiVersion: cascade.gideonsanni.dev/v1alpha1
+kind: CascadePolicy
+metadata:
+  name: checkout-service
+  namespace: linkerd-demo
+spec:
+  service: checkout-service.linkerd-demo.svc.cluster.local
+  dependsOn:
+    - payments-service.linkerd-demo.svc.cluster.local
+    - inventory-service.linkerd-demo.svc.cluster.local
+  thresholds:
+    latencyP99Ms: 500
+    errorRateFraction: 0.05
+    windowSeconds: 30
+    retryStormMultiplier: 3.0
+    fanOutMultiplier: 2.0
+  mode: Mitigate
+  mesh: Linkerd

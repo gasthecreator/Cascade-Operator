@@ -29,6 +29,7 @@ import (
 	"strings"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -42,6 +43,7 @@ import (
 
 	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
 	"github.com/gasthecreator/Cascade-Operator/internal/controller"
+	spv1alpha2 "github.com/gasthecreator/Cascade-Operator/internal/mesh/linkerd/serviceprofile/v1alpha2"
 	"github.com/gasthecreator/Cascade-Operator/internal/metrics"
 )
 
@@ -139,6 +141,15 @@ func newClusterClient(t *testing.T) (client.Client, *runtime.Scheme, *rest.Confi
 		t.Fatal(err)
 	}
 	if err := networkingv1.AddToScheme(s); err != nil {
+		t.Fatal(err)
+	}
+	// corev1/spv1alpha2 registered here too (not only in a Linkerd-specific
+	// client constructor) so every test in this package shares one scheme —
+	// harmless to the Istio-only tests that already use this helper.
+	if err := corev1.AddToScheme(s); err != nil {
+		t.Fatal(err)
+	}
+	if err := spv1alpha2.AddToScheme(s); err != nil {
 		t.Fatal(err)
 	}
 	cl, err := client.New(cfg, client.Options{Scheme: s})
