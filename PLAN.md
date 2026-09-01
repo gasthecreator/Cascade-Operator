@@ -726,9 +726,9 @@ live-cluster claim before checking an item here.
   worked around, since doing so without a confirmed real failure would be
   scope creep; see `docs/worklog/2026-09-01-phase6.6-ci-linkerd-integration.md`
   for the plan if it does turn out flaky.
-- [ ] Phase 11 — eBPF-level kernel-signal corroboration: **spike done and
-  passed; the fault-injection gap the spike found is now closed;
-  detection-pipeline integration still not done.** Confirmed live on this
+- [x] Phase 11 — eBPF-level kernel-signal corroboration: **complete —
+  spike passed, the fault-injection gap closed, detection-pipeline
+  integration built and live-verified end-to-end.** Confirmed live on this
   exact dev environment (Docker Desktop 29.7.2, kernel 7.0.12-linuxkit,
   BTF present) — installed Tetragon for real via Helm, confirmed its base
   sensor loads and captures real `process_exec` events, applied a real
@@ -751,12 +751,36 @@ live-cluster claim before checking an item here.
   reset events, not two — left as-is (a real system behaving correctly
   under a real disruption, not a bug to paper over). See
   `docs/worklog/2026-09-01-phase11-tcp-reset-fault-injection.md`.
-  **Not done yet**: wiring this signal into `internal/signatures`/the
-  reconciler as an evidence/confidence input — needs a way to actually
-  query Tetragon for recent events in a window (its `export-stdout` is a
-  log stream, not a queryable API/Prometheus metric the way this
-  project's existing detectors poll Prometheus), a real design problem
-  in its own right, not attempted in this slice.
+  **Slice 2 (final) done**: wired the signal into detection. The real
+  design question — how to *query* Tetragon at all — turned out to have
+  a much simpler answer than a bespoke log-tailing component: confirmed
+  live that Tetragon's own `:2112/metrics` endpoint already exports a
+  real Prometheus counter, `tetragon_events_total{namespace,workload,
+  pod,type,binary}`, so corroboration is just one more PromQL query
+  through the exact same `metrics.Querier` every other signal already
+  uses (`internal/controller/kernel_corroboration.go`), not a second
+  ingestion pipeline. `internal/signatures.ApplyKernelCorroboration`
+  applies a flat, capped (+0.15, max 1.0) confidence boost and an
+  evidence-string note to an *already*-tripped verdict only — it can
+  never trip a signature on its own, and detection is unchanged with
+  Tetragon absent, matching this phase's own stated requirement.
+  `hack/install-tetragon.sh` now also patches whichever mesh Prometheus
+  is present to scrape Tetragon. A real, honestly-stated limitation:
+  `tetragon_events_total` doesn't disambiguate which kprobe fired — an
+  accurate simplification today, since `/control/reset` is the only
+  mechanism that has ever produced a real event, but would need
+  refining if a packet-loss mechanism is added later.
+  **Live-verified end-to-end**: drove a real dependency through both a
+  real HTTP-layer disruption and a real kernel-level TCP reset in the
+  same window, then ran the actual, unmodified `Reconcile()` against a
+  real Prometheus instance scraping both Linkerd and Tetragon — the
+  logged verdict showed `LatencyErrorCascade` tripped for real
+  (p99=995ms, error_rate=16.7%) with `kernel_corroboration=true
+  kernel_events=129.6` and confidence correctly boosted to 1.0. Also
+  caught and fixed a real bug in the install script itself (an
+  unescaped `.` in a `kubectl jsonpath` expression silently returned
+  empty) by actually running it, not assuming it correct. See
+  `docs/worklog/2026-09-01-phase11-kernel-corroboration.md`.
 
 **Sequencing note (revised 2026-08-31 — Cursor no longer available, Claude
 sole implementer for Phases 6–11):** re-sequenced to **10 → 9 → 7 → 8 → 6 →

@@ -293,6 +293,9 @@ func (r *CascadePolicyReconciler) evalLatencyError(
 		LatencyThresholdMs: float64(th.LatencyP99Ms),
 		ErrorRateThreshold: th.ErrorRateFraction,
 	})
+	if v.Tripped {
+		v = r.applyKernelCorroboration(ctx, v, host, window)
+	}
 	log.Info("latency/error cascade evaluation",
 		"dependency", host,
 		"tripped", v.Tripped,
@@ -329,6 +332,9 @@ func (r *CascadePolicyReconciler) evalRetryStorm(
 		DestSourceRatio: ratio,
 		Multiplier:      th.RetryStormMultiplier,
 	})
+	if v.Tripped {
+		v = r.applyKernelCorroboration(ctx, v, host, window)
+	}
 	log.Info("retry storm evaluation",
 		"dependency", host,
 		"tripped", v.Tripped,
@@ -365,6 +371,9 @@ func (r *CascadePolicyReconciler) evalFanOut(
 		DependencyCallerRatio: ratio,
 		Multiplier:            th.FanOutMultiplier,
 	})
+	if v.Tripped {
+		v = r.applyKernelCorroboration(ctx, v, host, window)
+	}
 	log.Info("fan-out evaluation",
 		"dependency", host,
 		"tripped", v.Tripped,
