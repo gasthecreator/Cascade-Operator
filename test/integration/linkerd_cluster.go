@@ -71,9 +71,24 @@ func verifyLinkerdClusterReady(t *testing.T) {
 	}
 }
 
+// applyLinkerdDemoFixtures applies namespace.yaml first, on its own,
+// before applying the rest of the directory — a real race, not a
+// hypothetical one: confirmed live against a genuinely fresh cluster
+// (this repo's own CI, where linkerd-demo does not pre-exist the way it
+// does on a long-running local dev cluster) that a single
+// `kubectl apply -f demo/k8s-linkerd` sends every file's objects in one
+// batch without guaranteeing the Namespace object is visible to the
+// apiserver before the namespaced objects that depend on it are created,
+// producing `namespaces "linkerd-demo" not found` on several of them.
+// Applying the namespace alone first, then the rest, removes the race
+// instead of relying on alphabetical file ordering (which doesn't
+// actually help here either — cascadepolicy.yaml/checkout.yaml sort
+// before namespace.yaml).
 func applyLinkerdDemoFixtures(t *testing.T, root string) {
 	t.Helper()
-	kubectl(t, "apply", "-f", filepath.Join(root, "demo", "k8s-linkerd"))
+	dir := filepath.Join(root, "demo", "k8s-linkerd")
+	kubectl(t, "apply", "-f", filepath.Join(dir, "namespace.yaml"))
+	kubectl(t, "apply", "-f", dir)
 }
 
 func linkerdPolicyRequestName() types.NamespacedName {
