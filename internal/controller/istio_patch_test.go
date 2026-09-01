@@ -20,6 +20,7 @@ import (
 	"context"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,6 +34,7 @@ import (
 	networkingv1 "istio.io/client-go/pkg/apis/networking/v1"
 
 	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
+	spv1alpha2 "github.com/gasthecreator/Cascade-Operator/internal/mesh/linkerd/serviceprofile/v1alpha2"
 	"github.com/gasthecreator/Cascade-Operator/internal/mitigation"
 )
 
@@ -52,6 +54,17 @@ func patchTestScheme(t *testing.T) *runtime.Scheme {
 		t.Fatal(err)
 	}
 	if err := networkingv1.AddToScheme(s); err != nil {
+		t.Fatal(err)
+	}
+	// corev1/spv1alpha2 registered here too (not only in a Linkerd-specific
+	// helper) so every existing fake-client test in this package can build
+	// a Linkerd-mode CascadePolicy fixture without a second scheme —
+	// registering unused types is harmless to the Istio-only tests that
+	// already use this helper.
+	if err := corev1.AddToScheme(s); err != nil {
+		t.Fatal(err)
+	}
+	if err := spv1alpha2.AddToScheme(s); err != nil {
 		t.Fatal(err)
 	}
 	return s

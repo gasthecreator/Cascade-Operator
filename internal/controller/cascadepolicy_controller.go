@@ -30,6 +30,7 @@ import (
 	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
 	"github.com/gasthecreator/Cascade-Operator/internal/mesh"
 	istiomesh "github.com/gasthecreator/Cascade-Operator/internal/mesh/istio"
+	linkerdmesh "github.com/gasthecreator/Cascade-Operator/internal/mesh/linkerd"
 	"github.com/gasthecreator/Cascade-Operator/internal/metrics"
 	"github.com/gasthecreator/Cascade-Operator/internal/notify"
 	"github.com/gasthecreator/Cascade-Operator/internal/signatures"
@@ -50,36 +51,46 @@ type CascadePolicyReconciler struct {
 	// propagated as a reconcile error — same reasoning as Metrics being
 	// nil-able: an optional dependency, not a required one.
 	Notify notify.Notifier
-	// QueryBuilder selects which mesh's PromQL shapes detection uses
-	// (PLAN.md §5 Phase 6.1). Unlike Metrics/Notify this is not optional
-	// infrastructure — detection cannot run without it — so it defaults to
-	// istio.QueryBuilder{} via queryBuilder() below rather than requiring
-	// every existing constructor call site (cmd/main.go, and every test
-	// building a CascadePolicyReconciler directly) to set it explicitly.
+	// QueryBuilder overrides mesh selection entirely when set (every
+	// existing test that injects a fakeQuerier alongside a specific mesh's
+	// query shapes relies on this) — leave nil in production so each
+	// policy's own spec.mesh picks the implementation via queryBuilder()
+	// below (PLAN.md §5 Phase 6.6). Unlike Metrics/Notify this is not
+	// optional infrastructure — detection cannot run without it — so
+	// queryBuilder() always returns something even when this field and
+	// spec.mesh are both unset (Istio, spec.mesh's own default).
 	QueryBuilder mesh.QueryBuilder
-	// Mitigator selects which mesh's objects fan-out amplification's
-	// mitigation patches (PLAN.md §5 Phase 6.3) — latency/error-cascade and
-	// retry storm are not migrated yet and never read this field. Same
-	// default-when-nil pattern as QueryBuilder.
+	// Mitigator overrides mesh selection entirely when set — same
+	// override-vs-per-policy-dispatch relationship as QueryBuilder, see
+	// mitigator() below.
 	Mitigator mesh.Mitigator
 }
 
-// queryBuilder returns r.QueryBuilder, defaulting to Istio's implementation
-// when unset — see the QueryBuilder field's own doc comment for why this is
-// a default-when-nil fallback rather than a required field.
-func (r *CascadePolicyReconciler) queryBuilder() mesh.QueryBuilder {
+// queryBuilder returns r.QueryBuilder when set (a full override, used by
+// tests), otherwise dispatches on policy.Spec.Mesh (PLAN.md §5 Phase
+// 6.6) — Istio for MeshIstio or the unset zero value (spec.mesh's own
+// +kubebuilder:default=Istio), Linkerd for MeshLinkerd. See the
+// QueryBuilder field's own doc comment for why an explicit override takes
+// priority over the policy's own choice rather than the reverse.
+func (r *CascadePolicyReconciler) queryBuilder(policy *cascadev1alpha1.CascadePolicy) mesh.QueryBuilder {
 	if r.QueryBuilder != nil {
 		return r.QueryBuilder
+	}
+	if policy.Spec.Mesh == cascadev1alpha1.MeshLinkerd {
+		return linkerdmesh.QueryBuilder{}
 	}
 	return istiomesh.QueryBuilder{}
 }
 
-// mitigator returns r.Mitigator, defaulting to a fresh Istio implementation
-// built around this reconciler's own client when unset — see the Mitigator
-// field's own doc comment.
-func (r *CascadePolicyReconciler) mitigator() mesh.Mitigator {
+// mitigator returns r.Mitigator when set (a full override, used by
+// tests), otherwise dispatches on policy.Spec.Mesh, each built fresh
+// around this reconciler's own client — same dispatch as queryBuilder.
+func (r *CascadePolicyReconciler) mitigator(policy *cascadev1alpha1.CascadePolicy) mesh.Mitigator {
 	if r.Mitigator != nil {
 		return r.Mitigator
+	}
+	if policy.Spec.Mesh == cascadev1alpha1.MeshLinkerd {
+		return linkerdmesh.NewMitigator(r.Client)
 	}
 	return istiomesh.NewMitigator(r.Client)
 }
@@ -213,7 +224,7 @@ func (r *CascadePolicyReconciler) detectSignatures(
 		th := cascadev1alpha1.EffectiveThresholds(policy, host)
 		window := windowOrDefault(th.WindowSeconds)
 
-		latV, latOK := r.evalLatencyError(ctx, th, host, window)
+		latV, latOK := r.evalLatencyError(ctx, policy, th, host, window)
 		if latOK {
 			evaluated++
 			if latV.Tripped {
@@ -221,7 +232,7 @@ func (r *CascadePolicyReconciler) detectSignatures(
 			}
 		}
 
-		rsV, rsOK := r.evalRetryStorm(ctx, th, host, window)
+		rsV, rsOK := r.evalRetryStorm(ctx, policy, th, host, window)
 		if rsOK {
 			if !latOK {
 				evaluated++
@@ -246,18 +257,19 @@ func (r *CascadePolicyReconciler) detectSignatures(
 
 func (r *CascadePolicyReconciler) evalLatencyError(
 	ctx context.Context,
+	policy *cascadev1alpha1.CascadePolicy,
 	th cascadev1alpha1.Thresholds,
 	host string,
 	window int32,
 ) (signatures.Verdict, bool) {
 	log := logf.FromContext(ctx)
 
-	latSnap, err := r.Metrics.Query(ctx, r.queryBuilder().LatencyP99Query(host, window))
+	latSnap, err := r.Metrics.Query(ctx, r.queryBuilder(policy).LatencyP99Query(host, window))
 	if err != nil {
 		log.Error(err, "p99 latency query failed", "dependency", host)
 		return signatures.Verdict{}, false
 	}
-	errSnap, err := r.Metrics.Query(ctx, r.queryBuilder().ErrorRateQuery(host, window))
+	errSnap, err := r.Metrics.Query(ctx, r.queryBuilder(policy).ErrorRateQuery(host, window))
 	if err != nil {
 		log.Error(err, "error-rate query failed", "dependency", host)
 		return signatures.Verdict{}, false
@@ -292,13 +304,14 @@ func (r *CascadePolicyReconciler) evalLatencyError(
 
 func (r *CascadePolicyReconciler) evalRetryStorm(
 	ctx context.Context,
+	policy *cascadev1alpha1.CascadePolicy,
 	th cascadev1alpha1.Thresholds,
 	host string,
 	window int32,
 ) (signatures.Verdict, bool) {
 	log := logf.FromContext(ctx)
 
-	snap, err := r.Metrics.Query(ctx, r.queryBuilder().RetryStormRatioQuery(host, window))
+	snap, err := r.Metrics.Query(ctx, r.queryBuilder(policy).RetryStormRatioQuery(host, window))
 	if err != nil {
 		log.Error(err, "retry-storm ratio query failed", "dependency", host)
 		return signatures.Verdict{}, false
@@ -334,7 +347,7 @@ func (r *CascadePolicyReconciler) evalFanOut(
 ) (signatures.Verdict, bool) {
 	log := logf.FromContext(ctx)
 
-	snap, err := r.Metrics.Query(ctx, r.queryBuilder().FanOutRatioQuery(host, policy.Spec.Service, window))
+	snap, err := r.Metrics.Query(ctx, r.queryBuilder(policy).FanOutRatioQuery(host, policy.Spec.Service, window))
 	if err != nil {
 		log.Error(err, "fan-out ratio query failed", "dependency", host)
 		return signatures.Verdict{}, false

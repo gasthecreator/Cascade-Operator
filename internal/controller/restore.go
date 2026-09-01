@@ -110,7 +110,7 @@ func (r *CascadePolicyReconciler) forceCompleteOutgoingRestore(
 		// either, since the whole point of force-complete is leaving a
 		// clean, fully-original object state behind for whatever claims it
 		// next.
-		has, err := r.mitigator().HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureLatencyErrorCascade)
+		has, err := r.mitigator(policy).HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureLatencyErrorCascade)
 		if err != nil {
 			return err
 		}
@@ -127,7 +127,7 @@ func (r *CascadePolicyReconciler) forceCompleteOutgoingRestore(
 		// never find retry storm's own MaxRetries still at the trip
 		// value, and the reverse (an incoming signature adopting the
 		// VirtualService) must never find retries.attempts still at 0.
-		has, err := r.mitigator().HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureRetryStorm)
+		has, err := r.mitigator(policy).HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureRetryStorm)
 		if err != nil {
 			return err
 		}
@@ -137,7 +137,7 @@ func (r *CascadePolicyReconciler) forceCompleteOutgoingRestore(
 		log.Info("Signature handoff: force-completing outgoing restore", "outgoing", outgoing)
 		return r.completeRetryStormRestore(ctx, policy)
 	case cascadev1alpha1.SignatureFanOutAmplification:
-		has, err := r.mitigator().HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureFanOutAmplification)
+		has, err := r.mitigator(policy).HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureFanOutAmplification)
 		if err != nil {
 			return err
 		}
@@ -167,7 +167,7 @@ func (r *CascadePolicyReconciler) snapToNormalNoRestore(ctx context.Context, pol
 
 // beginRestoreLatencyError, advanceRestoreLatencyError,
 // applyLatencyErrorRestoreStep, and completeLatencyErrorRestore delegate to
-// r.mitigator() (PLAN.md §5 Phase 6.4) for the actual object mutation
+// r.mitigator(policy) (PLAN.md §5 Phase 6.4) for the actual object mutation
 // across *both* object kinds this signature manages — the DestinationRule
 // primary (outlierDetection) and the VirtualService secondary (route
 // timeout, PLAN.md §2.6) — independently of each other, mirroring
@@ -177,7 +177,7 @@ func (r *CascadePolicyReconciler) snapToNormalNoRestore(ctx context.Context, pol
 // event per episode, not one per object kind.
 func (r *CascadePolicyReconciler) beginRestoreLatencyError(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
 	log := logf.FromContext(ctx)
-	has, err := r.mitigator().HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureLatencyErrorCascade)
+	has, err := r.mitigator(policy).HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureLatencyErrorCascade)
 	if err != nil {
 		return err
 	}
@@ -195,7 +195,7 @@ func (r *CascadePolicyReconciler) beginRestoreLatencyError(ctx context.Context, 
 
 func (r *CascadePolicyReconciler) advanceRestoreLatencyError(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
 	log := logf.FromContext(ctx)
-	has, err := r.mitigator().HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureLatencyErrorCascade)
+	has, err := r.mitigator(policy).HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureLatencyErrorCascade)
 	if err != nil {
 		return err
 	}
@@ -223,14 +223,14 @@ func (r *CascadePolicyReconciler) advanceRestoreLatencyError(ctx context.Context
 }
 
 func (r *CascadePolicyReconciler) applyLatencyErrorRestoreStep(ctx context.Context, policy *cascadev1alpha1.CascadePolicy, step int32) error {
-	if err := r.mitigator().ApplyRestoreStep(ctx, policy, cascadev1alpha1.SignatureLatencyErrorCascade, step); err != nil {
+	if err := r.mitigator(policy).ApplyRestoreStep(ctx, policy, cascadev1alpha1.SignatureLatencyErrorCascade, step); err != nil {
 		return fmt.Errorf("apply latency/error restore step %d: %w", step, err)
 	}
 	return nil
 }
 
 func (r *CascadePolicyReconciler) completeLatencyErrorRestore(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
-	if err := r.mitigator().CompleteRestore(ctx, policy, cascadev1alpha1.SignatureLatencyErrorCascade); err != nil {
+	if err := r.mitigator(policy).CompleteRestore(ctx, policy, cascadev1alpha1.SignatureLatencyErrorCascade); err != nil {
 		return fmt.Errorf("complete latency/error restore: %w", err)
 	}
 	// DetectOnly never counts/notifies a completion — matches the

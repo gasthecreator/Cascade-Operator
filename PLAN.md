@@ -681,9 +681,19 @@ live-cluster claim before checking an item here.
   install this project's own partial copy of Linkerd's ServiceProfile CRD
   — fixed via controller-gen's package-level `+kubebuilder:skip` marker,
   confirmed against controller-tools' own source, not guessed).
-  **Not done yet**: `spec.mesh` reconciler dispatch, a scripted
-  dev-environment install script, and integration coverage — next
-  slice(s).
+  **Slice 3 done**: `spec.mesh` reconciler dispatch —
+  `queryBuilder()`/`mitigator()` now actually select Linkerd's
+  implementation when `policy.Spec.Mesh == Linkerd`, defaulting to Istio
+  otherwise (unchanged from before, including the unset zero value).
+  Live-verified through the real, unmodified `Reconcile()` method against
+  the real cluster: a real `CascadePolicy` with `spec.mesh: Linkerd`
+  correctly tripped retry storm and patched a real `ServiceProfile`'s
+  `retryBudget` to fully-suppressed values, confirming the dispatch works
+  end-to-end through the actual reconcile path the deployed operator
+  binary uses, not only fake-client unit tests. See
+  `docs/worklog/2026-08-31-phase6.6-reconciler-mesh-dispatch.md`.
+  **Not done yet**: a scripted dev-environment install script and
+  integration coverage — next slice(s), the last two pieces of Phase 6.6.
 - [ ] Phase 11 — eBPF-level kernel-signal corroboration: **spike done and
   passed; corroboration integration not done.** Confirmed live on this
   exact dev environment (Docker Desktop 29.7.2, kernel 7.0.12-linuxkit,

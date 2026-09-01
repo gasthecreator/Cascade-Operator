@@ -39,7 +39,7 @@ func (r *CascadePolicyReconciler) applyRetryStormMitigation(
 	policy *cascadev1alpha1.CascadePolicy,
 	host string,
 ) error {
-	outcome, err := r.mitigator().ApplyTrip(ctx, policy, cascadev1alpha1.SignatureRetryStorm, host)
+	outcome, err := r.mitigator(policy).ApplyTrip(ctx, policy, cascadev1alpha1.SignatureRetryStorm, host)
 	if err != nil {
 		return fmt.Errorf("apply retry-storm trip for %q: %w", host, err)
 	}

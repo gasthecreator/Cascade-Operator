@@ -28,7 +28,7 @@ import (
 
 // beginRestoreRetryStorm, advanceRestoreRetryStorm,
 // applyRetryStormRestoreStep, and completeRetryStormRestore delegate to
-// r.mitigator() (PLAN.md §5 Phase 6.5 — the last signature migrated) for
+// r.mitigator(policy) (PLAN.md §5 Phase 6.5 — the last signature migrated) for
 // the actual object mutation across *both* object kinds this signature
 // manages — the VirtualService primary (retries.attempts) and the
 // DestinationRule secondary (connectionPool.http maxRetries, PLAN.md
@@ -39,7 +39,7 @@ import (
 // either or both object kinds.
 func (r *CascadePolicyReconciler) beginRestoreRetryStorm(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
 	log := logf.FromContext(ctx)
-	has, err := r.mitigator().HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureRetryStorm)
+	has, err := r.mitigator(policy).HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureRetryStorm)
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func (r *CascadePolicyReconciler) beginRestoreRetryStorm(ctx context.Context, po
 
 func (r *CascadePolicyReconciler) advanceRestoreRetryStorm(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
 	log := logf.FromContext(ctx)
-	has, err := r.mitigator().HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureRetryStorm)
+	has, err := r.mitigator(policy).HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureRetryStorm)
 	if err != nil {
 		return err
 	}
@@ -85,14 +85,14 @@ func (r *CascadePolicyReconciler) advanceRestoreRetryStorm(ctx context.Context, 
 }
 
 func (r *CascadePolicyReconciler) applyRetryStormRestoreStep(ctx context.Context, policy *cascadev1alpha1.CascadePolicy, step int32) error {
-	if err := r.mitigator().ApplyRestoreStep(ctx, policy, cascadev1alpha1.SignatureRetryStorm, step); err != nil {
+	if err := r.mitigator(policy).ApplyRestoreStep(ctx, policy, cascadev1alpha1.SignatureRetryStorm, step); err != nil {
 		return fmt.Errorf("apply retry-storm restore step %d: %w", step, err)
 	}
 	return nil
 }
 
 func (r *CascadePolicyReconciler) completeRetryStormRestore(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
-	if err := r.mitigator().CompleteRestore(ctx, policy, cascadev1alpha1.SignatureRetryStorm); err != nil {
+	if err := r.mitigator(policy).CompleteRestore(ctx, policy, cascadev1alpha1.SignatureRetryStorm); err != nil {
 		return fmt.Errorf("complete retry-storm restore: %w", err)
 	}
 	// DetectOnly never counts/notifies a completion — matches the

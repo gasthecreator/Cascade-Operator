@@ -37,7 +37,7 @@ func (r *CascadePolicyReconciler) applyFanOutMitigation(
 	policy *cascadev1alpha1.CascadePolicy,
 	host string,
 ) error {
-	outcome, err := r.mitigator().ApplyTrip(ctx, policy, cascadev1alpha1.SignatureFanOutAmplification, host)
+	outcome, err := r.mitigator(policy).ApplyTrip(ctx, policy, cascadev1alpha1.SignatureFanOutAmplification, host)
 	if err != nil {
 		return fmt.Errorf("apply fan-out trip for %q: %w", host, err)
 	}
