@@ -132,6 +132,10 @@ lint-config: golangci-lint ## Verify golangci-lint linter configuration
 istio-install: ## Install pinned Istio (demo profile) + Prometheus on the current kube context.
 	ISTIO_VERSION="$(ISTIO_VERSION)" ISTIOCTL="$(ISTIOCTL)" LOCALBIN="$(LOCALBIN)" hack/install-istio.sh
 
+.PHONY: linkerd-install
+linkerd-install: ## Install pinned Linkerd + linkerd-viz (for its Prometheus) on the current kube context.
+	LINKERD_VERSION="$(LINKERD_VERSION)" LINKERD="$(LINKERD)" LOCALBIN="$(LOCALBIN)" hack/install-linkerd.sh
+
 .PHONY: istio-samples
 istio-samples: ## Deploy sleep + httpbin (sidecar-injected). Not the §2.7 demo topology.
 	ISTIO_VERSION="$(ISTIO_VERSION)" hack/deploy-istio-samples.sh
@@ -245,12 +249,18 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
 ISTIOCTL ?= $(LOCALBIN)/istioctl
+LINKERD ?= $(LOCALBIN)/linkerd
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.8.1
 CONTROLLER_TOOLS_VERSION ?= v0.21.0
 # Pin matches current stable (2026-08-29) and istio.io/client-go in go.mod.
 ISTIO_VERSION ?= 1.30.4
+# Pin matches the version this project's PLAN.md §5 Phase 6.6 spike
+# live-verified against (2026-08-31) — Linkerd has no numbered stable
+# release series the way Istio does, only rolling "edge" builds, so this
+# is the specific edge build known to work, not a moving target.
+LINKERD_VERSION ?= edge-26.6.3
 
 #ENVTEST_VERSION is the controller-runtime version to use for setup-envtest, derived from go.mod
 ENVTEST_VERSION ?= $(shell v='$(call gomodver,sigs.k8s.io/controller-runtime)'; \
