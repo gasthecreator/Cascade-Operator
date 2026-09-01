@@ -1,0 +1,41 @@
+# Phase 11 (PLAN.md §5): watches tcp_send_active_reset — the kernel
+# function that runs when a local socket actively sends a TCP RST (e.g.
+# SO_LINGER 0 + Close(), which is exactly what
+# demo/internal/depsvc.abortWithTCPReset does via /control/reset) — as a
+# fourth, independent, corroborating signal alongside the existing
+# Envoy/Linkerd-proxy-metric-based detection. Never a replacement:
+# detection must work identically with Tetragon absent.
+#
+# This is the resolution of the gap the original spike
+# (tcp-retransmit-policy.yaml, docs/worklog/2026-08-31-phase11-tetragon-spike.md)
+# found and stated plainly rather than working around: tcp_retransmit_skb
+# is a real, valid signal for actual packet loss, but this project's demo
+# topology had no fault-injection mechanism that ever produced a real
+# TCP-layer disruption to fire it — every mode was HTTP-layer only (500s,
+# time.Sleep). Rather than build a packet-loss mechanism (tc/netem,
+# needing NET_ADMIN and more invasive network manipulation),
+# /control/reset produces a genuine kernel-level TCP RST entirely from Go
+# application code (http.Hijacker + net.TCPConn.SetLinger(0)), which is
+# what this policy's own kprobe target actually fires on.
+#
+# Confirmed live (2026-09-01) that tcp_send_active_reset is a real,
+# kprobe-able global kernel symbol on this exact dev kernel
+# (`docker run --rm --privileged debian:stable-slim cat /proc/kallsyms |
+# grep tcp_send_active_reset` -> `T tcp_send_active_reset`, matching the
+# same kernel the Kind node itself runs, per the original spike's own
+# verification method) before writing this policy — not assumed from
+# documentation. Cluster-wide, not namespace-scoped, for the same reason
+# tcp-retransmit-policy.yaml already documents (arg-based selectors filter
+# on destination address, not namespace/pod labels, in this Tetragon
+# version).
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: "cascade-tcp-reset"
+spec:
+  kprobes:
+    - call: "tcp_send_active_reset"
+      syscall: false
+      args:
+        - index: 0
+          type: "sock"
