@@ -162,7 +162,7 @@ benchmark: ## Run each signature's k6 scenario in DetectOnly vs Mitigate mode ag
 	hack/run-benchmark.sh
 
 .PHONY: tetragon-install
-tetragon-install: ## Install Tetragon (eBPF observability) + the tcp_retransmit_skb TracingPolicy on the current kube context. Requires Helm.
+tetragon-install: ## Install Tetragon (eBPF observability) + its TracingPolicies, and scrape it from whichever mesh Prometheus is present. Requires Helm.
 	hack/install-tetragon.sh
 
 ##@ Build
