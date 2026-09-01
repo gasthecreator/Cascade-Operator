@@ -692,8 +692,17 @@ live-cluster claim before checking an item here.
   end-to-end through the actual reconcile path the deployed operator
   binary uses, not only fake-client unit tests. See
   `docs/worklog/2026-08-31-phase6.6-reconciler-mesh-dispatch.md`.
-  **Not done yet**: a scripted dev-environment install script and
-  integration coverage — next slice(s), the last two pieces of Phase 6.6.
+  **Slice 4 done**: `hack/install-linkerd.sh` + `make linkerd-install`,
+  mirroring `hack/install-istio.sh`'s shape. Live-run twice against the
+  dev cluster: the first run caught a real bug (`linkerd install` refuses
+  outright when a control plane already exists, unlike `istioctl
+  install`'s own reconcile-in-place behavior); fixed by detecting an
+  existing install and using `linkerd upgrade`/`upgrade --crds` instead.
+  The second run completed end-to-end, leaving the control plane and
+  linkerd-viz's Prometheus fully rolled out and healthy. See
+  `docs/worklog/2026-09-01-phase6.6-linkerd-install-script.md`.
+  **Not done yet**: integration test coverage — the last remaining piece
+  of Phase 6.6.
 - [ ] Phase 11 — eBPF-level kernel-signal corroboration: **spike done and
   passed; corroboration integration not done.** Confirmed live on this
   exact dev environment (Docker Desktop 29.7.2, kernel 7.0.12-linuxkit,
