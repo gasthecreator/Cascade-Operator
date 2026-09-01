@@ -653,9 +653,37 @@ live-cluster claim before checking an item here.
   ServiceProfile-route-scoped pair), confirmed live at ~4.3x for the same
   failing traffic. See
   `docs/worklog/2026-08-31-phase6.6-linkerd-query-builder.md` for the full
-  live-query accounting. **Not done yet**: `Mitigator`, the arbitration
-  logic, `spec.mesh` reconciler dispatch, a scripted dev-environment
-  install, and integration coverage — next slice(s).
+  live-query accounting.
+  **Slice 2 done**: `internal/mesh/linkerd.Mitigator` — failure-accrual
+  Service annotations for latency/error-cascade, `ServiceProfile.spec.
+  retryBudget` for retry storm (via a new hand-written, minimal typed
+  client, `internal/mesh/linkerd/serviceprofile/v1alpha2` — deliberately
+  not the upstream `linkerd2` module's generated clientset, a heavy
+  monorepo dependency for one CRD type), fan-out staying honestly
+  detect-only. The failure-accrual/ServiceProfile arbitration PLAN.md
+  called for turned out to need no new bookkeeping: re-reading
+  `internal/controller/restore.go`'s `forceCompleteOutgoingRestore`
+  found it already fully mesh-agnostic, driving entirely through
+  `mesh.Mitigator`'s own `HasManagedEdges`/`CompleteRestore` — only
+  implementing those correctly for each Linkerd signature was needed. A
+  real, honestly-stated remaining limitation: a dependency with a
+  pre-provisioned ServiceProfile can never also receive latency/error-
+  cascade's Linkerd mitigation, since Linkerd suppresses circuit breaking
+  for as long as *any* ServiceProfile object exists on a Service,
+  independent of its field values — not solved by deleting the object
+  (this project's Mitigators never own object lifecycle), only logged.
+  Live-verified against the real cluster with a real typed client (not
+  only the fake-client unit tests): full trip → restore cycles for both
+  patched signatures, confirmed byte-exact original values restored. See
+  `docs/worklog/2026-08-31-phase6.6-linkerd-mitigator.md` for the full
+  accounting, including a real mistake caught and fixed before it shipped
+  (an early version would have made `make manifests` generate and try to
+  install this project's own partial copy of Linkerd's ServiceProfile CRD
+  — fixed via controller-gen's package-level `+kubebuilder:skip` marker,
+  confirmed against controller-tools' own source, not guessed).
+  **Not done yet**: `spec.mesh` reconciler dispatch, a scripted
+  dev-environment install script, and integration coverage — next
+  slice(s).
 - [ ] Phase 11 — eBPF-level kernel-signal corroboration: **spike done and
   passed; corroboration integration not done.** Confirmed live on this
   exact dev environment (Docker Desktop 29.7.2, kernel 7.0.12-linuxkit,

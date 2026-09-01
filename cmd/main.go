@@ -39,6 +39,7 @@ import (
 
 	cascadev1alpha1 "github.com/gasthecreator/Cascade-Operator/api/v1alpha1"
 	"github.com/gasthecreator/Cascade-Operator/internal/controller"
+	spv1alpha2 "github.com/gasthecreator/Cascade-Operator/internal/mesh/linkerd/serviceprofile/v1alpha2"
 	"github.com/gasthecreator/Cascade-Operator/internal/metrics"
 	"github.com/gasthecreator/Cascade-Operator/internal/notify"
 	webhookv1alpha1 "github.com/gasthecreator/Cascade-Operator/internal/webhook/v1alpha1"
@@ -55,6 +56,7 @@ func init() {
 
 	utilruntime.Must(cascadev1alpha1.AddToScheme(scheme))
 	utilruntime.Must(networkingv1.AddToScheme(scheme))
+	utilruntime.Must(spv1alpha2.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
