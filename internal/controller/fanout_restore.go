@@ -28,7 +28,7 @@ import (
 
 // Migrated to mesh.Mitigator (PLAN.md §5 Phase 6.3, the first of the
 // three signatures migrated): begin/advance/completeFanOutRestore below
-// delegate the actual object mutation to r.mitigator(), keeping only the
+// delegate the actual object mutation to r.mitigator(policy), keeping only the
 // mesh-agnostic status.Phase/RestoreStep transitions, metrics, and
 // notification here — same shape restore.go's latency/error-cascade and
 // retry_restore.go's retry storm functions were migrated to afterward
@@ -38,7 +38,7 @@ import (
 // copies were deleted once all three signatures no longer needed them.
 func (r *CascadePolicyReconciler) beginRestoreFanOut(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
 	log := logf.FromContext(ctx)
-	has, err := r.mitigator().HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureFanOutAmplification)
+	has, err := r.mitigator(policy).HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureFanOutAmplification)
 	if err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func (r *CascadePolicyReconciler) beginRestoreFanOut(ctx context.Context, policy
 
 func (r *CascadePolicyReconciler) advanceRestoreFanOut(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
 	log := logf.FromContext(ctx)
-	has, err := r.mitigator().HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureFanOutAmplification)
+	has, err := r.mitigator(policy).HasManagedEdges(ctx, policy, cascadev1alpha1.SignatureFanOutAmplification)
 	if err != nil {
 		return err
 	}
@@ -88,14 +88,14 @@ func (r *CascadePolicyReconciler) applyFanOutRestoreStep(
 	policy *cascadev1alpha1.CascadePolicy,
 	step int32,
 ) error {
-	if err := r.mitigator().ApplyRestoreStep(ctx, policy, cascadev1alpha1.SignatureFanOutAmplification, step); err != nil {
+	if err := r.mitigator(policy).ApplyRestoreStep(ctx, policy, cascadev1alpha1.SignatureFanOutAmplification, step); err != nil {
 		return fmt.Errorf("apply fan-out restore step %d: %w", step, err)
 	}
 	return nil
 }
 
 func (r *CascadePolicyReconciler) completeFanOutRestore(ctx context.Context, policy *cascadev1alpha1.CascadePolicy) error {
-	if err := r.mitigator().CompleteRestore(ctx, policy, cascadev1alpha1.SignatureFanOutAmplification); err != nil {
+	if err := r.mitigator(policy).CompleteRestore(ctx, policy, cascadev1alpha1.SignatureFanOutAmplification); err != nil {
 		return fmt.Errorf("complete fan-out restore: %w", err)
 	}
 	// DetectOnly never counts/notifies a completion — matches the

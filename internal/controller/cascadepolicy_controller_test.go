@@ -45,12 +45,22 @@ type fakeQuerier struct {
 	err             error
 }
 
-// Query distinguishes the three ratio-shaped queries by their reporter
-// matcher: retryStormRatioQuery is the only one with reporter="source"
-// (dest:source, same host); fanOutRatioQuery uses reporter="destination" on
-// both sides (dependency:caller, cross-host) and never mentions "source" at
-// all, so checking "source" first routes each query to the right canned
-// value even though both contain reporter="destination" somewhere.
+// Query distinguishes the ratio-shaped queries by mesh-specific substrings
+// unique to each: Istio's retryStormRatioQuery is the only one with
+// reporter="source" (dest:source, same host); Istio's fanOutRatioQuery uses
+// reporter="destination" on both sides (dependency:caller, cross-host) and
+// never mentions "source" at all, so checking "source" first routes each
+// query to the right canned value even though both contain
+// reporter="destination" somewhere. Linkerd's own two ratio queries have no
+// reporter label at all (internal/mesh/linkerd has no same-host
+// source/destination split — see its own query_builder.go doc comments):
+// its retryStormRatioQuery is the only query using
+// route_actual_request_total, and its fanOutRatioQuery is the only ratio
+// query using direction="inbound" (latency/error-rate both stay
+// direction="outbound" on Linkerd) — both checked ahead of the Istio cases
+// so a Linkerd-mode policy's queries route correctly through this same
+// fake, shared by every reconcile-level test in this package regardless of
+// which mesh a given test's policy selects.
 func (f *fakeQuerier) Query(_ context.Context, promql string) (metrics.Snapshot, error) {
 	if f.err != nil {
 		return metrics.Snapshot{}, f.err
@@ -59,6 +69,10 @@ func (f *fakeQuerier) Query(_ context.Context, promql string) (metrics.Snapshot,
 	switch {
 	case strings.Contains(promql, "histogram_quantile"):
 		v = f.p99
+	case strings.Contains(promql, "route_actual_request_total"):
+		v = f.retryStormRatio
+	case strings.Contains(promql, `direction="inbound"`):
+		v = f.fanOutRatio
 	case strings.Contains(promql, `reporter="source"`):
 		v = f.retryStormRatio
 	case strings.Contains(promql, `reporter="destination"`):

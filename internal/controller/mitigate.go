@@ -51,7 +51,7 @@ func (r *CascadePolicyReconciler) applyLatencyErrorMitigation(
 	policy *cascadev1alpha1.CascadePolicy,
 	host string,
 ) error {
-	outcome, err := r.mitigator().ApplyTrip(ctx, policy, cascadev1alpha1.SignatureLatencyErrorCascade, host)
+	outcome, err := r.mitigator(policy).ApplyTrip(ctx, policy, cascadev1alpha1.SignatureLatencyErrorCascade, host)
 	if err != nil {
 		return fmt.Errorf("apply latency/error trip for %q: %w", host, err)
 	}
