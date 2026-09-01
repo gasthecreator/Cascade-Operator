@@ -727,21 +727,36 @@ live-cluster claim before checking an item here.
   scope creep; see `docs/worklog/2026-09-01-phase6.6-ci-linkerd-integration.md`
   for the plan if it does turn out flaky.
 - [ ] Phase 11 — eBPF-level kernel-signal corroboration: **spike done and
-  passed; corroboration integration not done.** Confirmed live on this
+  passed; the fault-injection gap the spike found is now closed;
+  detection-pipeline integration still not done.** Confirmed live on this
   exact dev environment (Docker Desktop 29.7.2, kernel 7.0.12-linuxkit,
   BTF present) — installed Tetragon for real via Helm, confirmed its base
   sensor loads and captures real `process_exec` events, applied a real
   `tcp_retransmit_skb` `TracingPolicy` and confirmed its sensor loads too.
-  **Real, honestly-stated gap**: `demo/internal/depsvc`'s fault injection
-  is entirely HTTP-layer (500s, `time.Sleep`) — it never actually disrupts
-  a TCP connection, so the retransmit signal, while genuinely working,
-  has not fired during an induced incident, and no detection-pipeline
-  integration was written against zero real captured events — doing so
-  would mean designing against fabricated data, which this project has
-  avoided doing for every other signal. Needs either a new TCP-layer
-  fault-injection mechanism in the demo topology or a different choice of
-  Tetragon signal, decided deliberately before any Go code is written
-  against it. See its worklog for the exact accounting.
+  **Slice 1 done**: the spike's own honestly-stated gap —
+  `demo/internal/depsvc`'s fault injection was entirely HTTP-layer, so the
+  retransmit signal, while genuinely working, had never fired during an
+  induced incident — is closed. Added `/control/reset` (hijacks the
+  connection and force-closes it with `SO_LINGER 0`, producing a real
+  kernel-level TCP RST from plain Go application code, no
+  `tc`/`netem`/`iptables`) and a new `TracingPolicy` watching
+  `tcp_send_active_reset` (confirmed live via `/proc/kallsyms` as the
+  precise kernel function for a locally-initiated abortive close, not a
+  guess between similarly-named options). Live-verified against the real
+  cluster: real `tcp_send_active_reset` `process_kprobe` events captured
+  from the demo app's own binary during an actual induced incident — the
+  exact gap the spike left open. A genuine, unplanned finding along the
+  way: Linkerd's own proxy retries a broken upstream connection
+  aggressively, so two client requests produced well over a hundred real
+  reset events, not two — left as-is (a real system behaving correctly
+  under a real disruption, not a bug to paper over). See
+  `docs/worklog/2026-09-01-phase11-tcp-reset-fault-injection.md`.
+  **Not done yet**: wiring this signal into `internal/signatures`/the
+  reconciler as an evidence/confidence input — needs a way to actually
+  query Tetragon for recent events in a window (its `export-stdout` is a
+  log stream, not a queryable API/Prometheus metric the way this
+  project's existing detectors poll Prometheus), a real design problem
+  in its own right, not attempted in this slice.
 
 **Sequencing note (revised 2026-08-31 — Cursor no longer available, Claude
 sole implementer for Phases 6–11):** re-sequenced to **10 → 9 → 7 → 8 → 6 →

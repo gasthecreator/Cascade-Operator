@@ -79,6 +79,30 @@ func TestHealResetsBothFailingAndSlow(t *testing.T) {
 	}
 }
 
+// TestResetAbortsTheConnectionUntilHealed pins /control/reset's whole
+// point (PLAN.md §5 Phase 11): the client must see a broken connection,
+// not an HTTP response of any kind — a real net/http.Client surfaces a
+// hijacked-then-SO_LINGER-0-closed connection as a Get error (connection
+// reset/EOF), never a status code, which is exactly what distinguishes
+// this mode from fail's 500.
+func TestResetAbortsTheConnectionUntilHealed(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(NewMux("test"))
+	t.Cleanup(srv.Close)
+
+	mustGet(t, srv.URL+"/control/reset")
+	resp, err := http.Get(srv.URL + "/") //nolint:noctx,gosec // test helper, url is always the local httptest server
+	if err == nil {
+		_ = resp.Body.Close()
+		t.Fatal("GET during reset mode returned a response, want a connection error (reset/EOF)")
+	}
+
+	mustGet(t, srv.URL+"/control/heal")
+	if status := mustGet(t, srv.URL+"/"); status != http.StatusOK {
+		t.Errorf("status = %d, want 200 after heal (heal must also clear resetting)", status)
+	}
+}
+
 func mustGet(t *testing.T, url string) int {
 	t.Helper()
 	resp, err := http.Get(url) //nolint:noctx,gosec // test helper, url is always the local httptest server
