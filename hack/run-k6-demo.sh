@@ -9,11 +9,11 @@
 # services it calls, and an injected istio-proxy container would never exit,
 # so the Job would never reach Completed.
 #
-# Usage: hack/run-k6-demo.sh <fanout-amplification|latency-error-cascade|retry-storm>
+# Usage: hack/run-k6-demo.sh <fanout-amplification|latency-error-cascade|retry-storm|tetragon-reset>
 set -euo pipefail
 
 if [[ $# -lt 1 ]]; then
-  echo "usage: $0 <fanout-amplification|latency-error-cascade|retry-storm>" >&2
+  echo "usage: $0 <fanout-amplification|latency-error-cascade|retry-storm|tetragon-reset>" >&2
   exit 1
 fi
 

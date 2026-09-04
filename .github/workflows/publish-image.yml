@@ -1,0 +1,84 @@
+# Builds the manager image, publishes it to GHCR, and signs it keylessly
+# with cosign (Sigstore) — closes docs/security-threat-model.md's "No image
+# signing or provenance verification" known gap. Also attaches an SBOM and
+# SLSA provenance attestation via docker/build-push-action's own built-in
+# support, so "provenance" in that gap's title is covered too, not just
+# the signature.
+#
+# workflow_dispatch exists specifically so this can be exercised and
+# verified on demand (this project has no tagged release yet) — the tag
+# trigger is what a real release would use. Manual runs publish to
+# ghcr.io/<owner>/cascade-operator:<short-sha>; tag pushes additionally
+# publish :<tag> and :latest.
+name: Publish image
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  publish:
+    permissions:
+      contents: read
+      packages: write
+      id-token: write # required for cosign's keyless OIDC signing
+    name: Build, push, and sign
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: tags
+        run: |
+          IMAGE="${REGISTRY}/${IMAGE_NAME}"
+          TAGS="${IMAGE}:$(git rev-parse --short HEAD)"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            REF_TAG="${GITHUB_REF#refs/tags/}"
+            TAGS="${TAGS},${IMAGE}:${REF_TAG},${IMAGE}:latest"
+          fi
+          echo "tags=${TAGS}" >>"${GITHUB_OUTPUT}"
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          provenance: true
+          sbom: true
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
+
+      - name: Sign the published image (keyless)
+        run: |
+          cosign sign --yes "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          DIGEST: ${{ steps.build.outputs.digest }}

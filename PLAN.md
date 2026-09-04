@@ -597,7 +597,16 @@ live-cluster claim before checking an item here.
   `demo/replay/traces/`. Verified in-browser (play/scrub/topology-
   coloring/diff-highlighting all confirmed working against a real
   captured trace, not just the synthetic one used to first verify the
-  rendering logic).
+  rendering logic). **Closed 2026-09-04**: the plan's own stated second
+  deliverable — a Claude Artifact copy for direct portfolio linking,
+  flagged as "not-yet-done" in this phase's own worklog and confirmed via
+  `Artifact list` (zero published artifacts) before building it — is now
+  published: https://claude.ai/code/artifact/8285a2af-81d4-4493-bbed-9fe14e604775.
+  Same design, same three captured traces, embedded inline instead of
+  fetched (an artifact is one sandboxed file, no sibling files to fetch
+  from) — not a redesign, a distribution adaptation of the already-shipped
+  page. Private by default; sharing it publicly is the user's own call via
+  the page's share menu, not something built to assume.
 - [x] Phase 8 — Postmortem generator: `cmd/postmortem` renders a real
   incident postmortem (timeline, root cause reconstructed from Prometheus
   history at the trip timestamp via PromQL's `@<unix>` modifier, blast
@@ -833,6 +842,23 @@ live-cluster claim before checking an item here.
   previously-broken Linkerd-mesh demo policy — both against their own
   mesh's real Prometheus, both cleaned up afterward. All formalized into
   `hack/deploy-operator.sh` (steps 6–7) for repeatability.
+- [ ] Security-hardening follow-up (`docs/security-threat-model.md`'s own
+  Known gaps, from Phase 5): image signing/provenance
+  (`.github/workflows/publish-image.yml`), egress `NetworkPolicy`
+  (`config/network-policy-egress/`), and namespace-scoped RBAC
+  (`--watch-namespaces`, `hack/switch-to-namespaced-rbac.sh`) are all
+  written and passing `go build`/`go vet`/`go test ./... -race`/
+  `make lint`. Left unchecked deliberately: full live verification is not
+  complete for any of the three (the publish-image workflow has never
+  actually run; the `NetworkPolicy`'s enforcement was genuinely confirmed
+  live — catching and fixing both a real upstream Calico RBAC bug and a
+  real gap in the policy's own first draft — but a full deliberate
+  allow/deny pass/fail test wasn't completed; the namespace-scoped-RBAC
+  switch was never exercised against the live cluster at all), derailed
+  by a fourth wave of dev-cluster instability this same session. See
+  `docs/worklog/2026-09-04-security-hardening-and-a-real-calico-bug.md`
+  for the full accounting and `docs/security-threat-model.md`'s own three
+  entries for each item's exact current status.
 
 **Sequencing note (revised 2026-08-31 — Cursor no longer available, Claude
 sole implementer for Phases 6–11):** re-sequenced to **10 → 9 → 7 → 8 → 6 →

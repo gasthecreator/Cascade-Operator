@@ -1,0 +1,141 @@
+# Restricts the operator's own outbound traffic, closing the gap
+# docs/security-threat-model.md's "Known gaps" section named: "No
+# NetworkPolicy restricting the operator pod's egress... it can, in
+# principle, reach any address in the cluster." Once any NetworkPolicy
+# selects a pod for a given policyType, Kubernetes makes that policyType
+# default-deny except what's explicitly listed — so this one policy is
+# both the restriction and the allow-list, standard NetworkPolicy
+# semantics, no separate "deny-all" object needed.
+#
+# Every selector below was checked against a real cluster before being
+# written, not assumed from documentation:
+#   - `kubernetes.io/metadata.name` is a namespace label Kubernetes itself
+#     applies automatically (since 1.21+) — no manual labeling needed.
+#   - CoreDNS's real pod label is `k8s-app: kube-dns` (kube-system).
+#   - Kind's kube-apiserver runs as a real static pod with labels
+#     `component: kube-apiserver, tier: control-plane` in kube-system —
+#     true for Kind/kubeadm-style control planes, NOT for managed
+#     control planes without pod-based API servers (EKS/GKE) — this
+#     project's own dev environment is Kind-only, so that's the honest
+#     scope, not a universal claim.
+#   - istio-system's Prometheus pod label is
+#     `app.kubernetes.io/name: prometheus`; linkerd-viz's is
+#     `component: prometheus, linkerd.io/extension: viz` — both taken
+#     directly from `kubectl get svc prometheus -o jsonpath='{.spec.selector}'`
+#     in each namespace, not guessed.
+#   - `linkerd-identity-headless`/`linkerd-dst-headless`/`linkerd-policy`
+#     (namespace `linkerd`) selectors and ports (8080/8086/8090) are
+#     likewise taken directly from
+#     `kubectl -n linkerd get svc <name> -o jsonpath='{.spec.selector}
+#     {.spec.ports[*].port}'`, found necessary live: hack/deploy-operator.sh's
+#     own Linkerd mesh-injection step gives the operator pod a real
+#     linkerd-proxy sidecar, and that sidecar's own mTLS identity
+#     bootstrap needs this egress regardless of any CascadePolicy's own
+#     spec.mesh — confirmed by first shipping this policy *without* this
+#     rule, watching the mesh-injected replica's linkerd-proxy init
+#     container fail its own startup probe under real Calico-enforced
+#     denial (503/timeout), then adding it and confirming the pod came up
+#     clean.
+#
+# NOT covered, and deliberately so: --notify-webhook-url/NOTIFY_WEBHOOK_URL
+# (PLAN.md §5 Phase 4) is an arbitrary, operator-configured destination
+# only known at deploy time, not something this manifest can allow-list
+# generically. Enabling that flag needs one more egress rule added for
+# that specific destination — not attempted here, since guessing at a
+# destination nobody has configured would either be a no-op or a false
+# sense of security.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: restrict-egress
+  namespace: system
+  labels:
+    app.kubernetes.io/name: cascade-operator
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector:
+    matchLabels:
+      control-plane: controller-manager
+      app.kubernetes.io/name: cascade-operator
+  policyTypes:
+    - Egress
+  egress:
+    # DNS resolution — needed to resolve any hostname-based
+    # --prometheus-url-*/--notify-webhook-url value.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # The Kubernetes API server itself — reconcile, leader election, and
+    # the webhook/metrics cert watchers all need this regardless of any
+    # CascadePolicy configuration.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              component: kube-apiserver
+      ports:
+        - port: 6443
+          protocol: TCP
+    # Istio's own Prometheus — relevant when --prometheus-url-istio/
+    # PROMETHEUS_URL_ISTIO points here (hack/deploy-operator.sh's default).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - port: 9090
+          protocol: TCP
+    # linkerd-viz's own Prometheus — relevant when
+    # --prometheus-url-linkerd/PROMETHEUS_URL_LINKERD points here.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd-viz
+          podSelector:
+            matchLabels:
+              component: prometheus
+              linkerd.io/extension: viz
+      ports:
+        - port: 9090
+          protocol: TCP
+    # Linkerd's own control plane — needed only once this pod itself is
+    # mesh-injected (hack/deploy-operator.sh's Linkerd step): the
+    # linkerd-proxy sidecar's own mTLS identity bootstrap talks to
+    # linkerd-identity, linkerd-destination, and linkerd-policy directly,
+    # independent of anything a CascadePolicy configures.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
+          podSelector:
+            matchLabels:
+              linkerd.io/control-plane-component: identity
+      ports:
+        - port: 8080
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
+          podSelector:
+            matchLabels:
+              linkerd.io/control-plane-component: destination
+      ports:
+        - port: 8086
+          protocol: TCP
+        - port: 8090
+          protocol: TCP

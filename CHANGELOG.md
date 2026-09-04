@@ -160,6 +160,45 @@ reproduction and confirmation for each:
   separate real trip on the previously-broken Linkerd-mesh demo policy,
   both against their own mesh's real Prometheus, both mitigating and fully
   restoring.
+- **Security hardening from `docs/security-threat-model.md`'s own Known
+  gaps section** — all three written and passing `go build`/`go vet`/
+  `go test ./... -race`/`make lint`; live-verification status varies per
+  item, stated honestly below rather than claimed uniformly done:
+  - **Image signing/provenance**: `.github/workflows/publish-image.yml`
+    builds and publishes the manager image to GHCR, signs it keylessly
+    with `cosign` via the workflow's own OIDC identity (no private key to
+    manage), and attaches SLSA provenance + an SBOM via
+    `docker/build-push-action`'s own support. Not yet actually triggered —
+    the workflow itself hasn't run once yet, on a tag push or manually.
+  - **Egress `NetworkPolicy`** —
+    `config/network-policy-egress/restrict-egress.yaml` (new, separate
+    overlay; the pre-existing kubebuilder-scaffolded
+    `config/network-policy/` is ingress-only and left untouched) restricts
+    the operator to DNS, the Kubernetes API server, each mesh's
+    Prometheus, and Linkerd's own control plane, every selector confirmed
+    against this project's real cluster objects rather than assumed.
+    Enforcement is genuinely confirmed, not just schema-applied: Kind's
+    default CNI doesn't enforce `NetworkPolicy` at all, so
+    `hack/install-calico-for-policy.sh` layers Calico in policy-only mode
+    on top — installing it surfaced and fixed a real upstream Calico RBAC
+    bug (breaking pod-sandbox teardown cluster-wide, easy to mistake for
+    generic resource exhaustion) and then, with enforcement genuinely
+    active, caught and fixed a real gap in this policy's own first draft
+    (the operator's Linkerd-mesh-injected sidecar needs egress to
+    Linkerd's control plane for its own mTLS bootstrap). A full,
+    deliberate allow/deny pass/fail test was not completed — the dev
+    cluster hit a fourth wave of instability (`kube-controller-manager`
+    crash-looping under the aggregate load of everything now installed)
+    independent of the Calico bug, and testing was stopped rather than
+    pushed further. See `docs/security-threat-model.md` for the full
+    accounting.
+  - **Namespace-scoped RBAC**: `cmd/main.go`'s new
+    `--watch-namespaces`/`WATCH_NAMESPACES` flag,
+    `config/rbac-namespaced/role.yaml.tmpl` +
+    `hack/generate-namespaced-rbac.sh`, and `hack/switch-to-namespaced-rbac.sh`
+    (`make switch-to-namespaced-rbac`). Not yet exercised against the live
+    cluster at all — the same instability that interrupted the
+    `NetworkPolicy` test above derailed this one before it was reached.
 
 ## [0.1.0] - 2026-08-31
 
