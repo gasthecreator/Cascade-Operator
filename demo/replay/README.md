@@ -3,9 +3,9 @@
 A self-contained static page (`index.html`, no build step, no external CDN)
 that replays one real trip → mitigate → restore episode per signature,
 captured from the live dev Kind cluster — not simulated data. This exists
-to solve the portfolio's actual distribution problem, not to add a feature
-to the operator itself: most reviewers will never `kubectl apply` this
-repo, but will click a link (PLAN.md §5 Phase 7).
+to solve a real distribution problem, not to add a feature to the
+operator itself: most reviewers will never `kubectl apply` this repo, but
+will click a link (PLAN.md §5 Phase 7).
 
 ## Capturing an episode
 

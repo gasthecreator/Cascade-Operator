@@ -16,9 +16,11 @@ detection and retry budgets; Linkerd's failure-accrual annotations and
 `ServiceProfile` retry budgets). What none of them have is anything that
 *decides when to use it*: today that's a human, hand-tuning thresholds
 after an incident. This project closes that gap for three specific failure
-shapes, across two meshes. It's a portfolio piece, not a product — see
-[`PLAN.md`](PLAN.md)'s §1 for the full goal statement and why that framing
-drives every tradeoff in here.
+shapes, across two meshes, built and verified to the same standard as
+production infrastructure — real clusters, real meshes, real failure
+injection, no mocked verification. See [`PLAN.md`](PLAN.md)'s §1 for the
+full goal statement and the engineering standard behind every tradeoff in
+here.
 
 **License:** [Apache 2.0](LICENSE) · **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md) · **Security:** [SECURITY.md](SECURITY.md)
 
@@ -222,8 +224,8 @@ decision are tracked live in [`PLAN.md`](PLAN.md)'s §5 checklist, which is
 the source of truth for what's built — this section won't try to keep a
 duplicate in sync. Every unit of work, including the reasoning behind
 decisions and the real bugs found and fixed along the way (there were a
-lot, and hiding them would defeat the point of a portfolio
-piece), has a dated entry in [`docs/worklog/`](docs/worklog/README.md).
+lot, and hiding them would defeat the point of an honest engineering
+record), has a dated entry in [`docs/worklog/`](docs/worklog/README.md).
 
 ## Repo layout
 

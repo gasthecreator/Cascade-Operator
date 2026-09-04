@@ -218,7 +218,7 @@ reproduction and confirmation for each:
 
 ## [0.1.0] - 2026-08-31
 
-First portfolio-complete milestone: three cascade signatures detectable from
+First working milestone: three cascade signatures detectable from
 Prometheus, mitigatable via Istio patches, and restorable through a shared
 ramp — plus demo topology, k6 scripts, and Kind-based integration coverage
 for retry storm wire-format.

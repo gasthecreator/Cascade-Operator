@@ -73,13 +73,15 @@ completes — by patching Istio config directly. Istio's own circuit breaking
 hand-tunes thresholds after an incident. Nothing auto-detects these signatures
 and dynamically reacts. That's the gap this project closes.
 
-**Why this project exists:** portfolio piece for competitive SWE recruiting
-(Core Technology & Engineering sector). It exists to demonstrate understanding
-of distributed-systems failure modes and the Kubernetes reconciliation loop —
-not a commercial product. Optimize for code that is **clean and defensible in
-a technical interview** over feature completeness. Prioritize order: novelty →
-recruiting relevance → feasibility → tech diversity. Market viability is not a
-goal.
+**Why this project exists:** to close a real, well-documented operational gap
+— every major service mesh ships circuit breaking, but nothing decides *when*
+to use it; that's still a human, hand-tuning thresholds after an incident.
+This project automates that decision for three concrete failure shapes, built
+and verified to the same standard expected of production infrastructure: real
+clusters, real meshes, real failure injection, no mocked verification.
+Optimize for code that is **correct and defensible under real load** over
+feature completeness. Prioritize order: correctness → real-world
+applicability → feasibility → breadth of coverage.
 
 ### The three failure signatures it must detect
 
@@ -469,8 +471,8 @@ blocking belongs here, not silently assumed in code.
 ## 5. Production-Readiness & Repo Standardization Initiative (started 2026-08-31)
 
 Section 3's checklist covers the original v1alpha1 scope and is fully done.
-This section tracks a second, larger initiative: pushing the project from
-"portfolio-complete" toward genuinely production-grade engineering, plus full
+This section tracks a second, larger initiative: pushing the project from a
+working prototype toward genuinely production-grade engineering, plus full
 repo standardization and multi-mesh (Linkerd) support. Full plan and rationale
 — including the ground-truth audit this was built from (RBAC already tight,
 webhook infra plumbed but greenfield, zero standard-repo files existed,
@@ -598,9 +600,10 @@ live-cluster claim before checking an item here.
   coloring/diff-highlighting all confirmed working against a real
   captured trace, not just the synthetic one used to first verify the
   rendering logic). **Closed 2026-09-04**: the plan's own stated second
-  deliverable — a Claude Artifact copy for direct portfolio linking,
-  flagged as "not-yet-done" in this phase's own worklog and confirmed via
-  `Artifact list` (zero published artifacts) before building it — is now
+  deliverable — a Claude Artifact copy for direct sharing without
+  requiring a repo clone, flagged as "not-yet-done" in this phase's own
+  worklog and confirmed via `Artifact list` (zero published artifacts)
+  before building it — is now
   published: https://claude.ai/code/artifact/8285a2af-81d4-4493-bbed-9fe14e604775.
   Same design, same three captured traces, embedded inline instead of
   fetched (an artifact is one sandboxed file, no sibling files to fetch
