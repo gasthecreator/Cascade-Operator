@@ -166,7 +166,7 @@ tetragon-install: ## Install Tetragon (eBPF observability) + its TracingPolicies
 	hack/install-tetragon.sh
 
 .PHONY: deploy-operator
-deploy-operator: ## Deploy the operator itself in-cluster (cert-manager, image build/load, install/deploy, metrics RBAC, PROMETHEUS_URL, mesh Prometheus scrape config). See the script's own header for the known multi-mesh Prometheus-client limitation.
+deploy-operator: ## Deploy the operator itself in-cluster (cert-manager, image build/load, install/deploy, metrics RBAC, a per-mesh PROMETHEUS_URL, mesh Prometheus scrape config).
 	hack/deploy-operator.sh
 
 ##@ Build

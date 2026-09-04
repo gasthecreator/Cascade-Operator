@@ -120,14 +120,27 @@ Same as `docs/dev-istio.md`: `make deploy-operator`
 read `/metrics`, a static scrape job on that Prometheus — the same
 technique `hack/install-tetragon.sh` already uses for Tetragon's own
 `/metrics`), and this dev cluster's `linkerd-viz` Prometheus does scrape it
-now. The one thing that script does *not* fix, documented in its own header
-rather than silently worked around: `PROMETHEUS_URL` is one URL for the
-whole operator process, so if it's pointed at Istio's Prometheus (the
-script's default), the Linkerd-mesh demo `CascadePolicy` in this doc
-reconciles forever without ever seeing real Linkerd proxy metrics — not an
-error, just silently no detection. Point `PROMETHEUS_URL_ISTIO` at
-`linkerd-viz`'s Prometheus instead (or run two operator deployments, one
-per mesh) if you need the Linkerd-mesh policy to actually trip.
+now. The Linkerd-mesh demo `CascadePolicy` in this doc detects against real
+`linkerd-viz` proxy metrics too: the operator runs a separate
+`--prometheus-url-linkerd` client alongside `--prometheus-url-istio`, not
+one shared client that would starve whichever mesh it doesn't point at.
+
+Reaching `linkerd-viz`'s own Prometheus for real needs one more thing
+beyond RBAC, confirmed live: `linkerd-viz` ships its Prometheus locked down
+by a deny-by-default `AuthorizationPolicy` on its query port (only its own
+`metrics-api` ServiceAccount is allowed in, authenticated via mTLS) — an
+unmeshed caller gets a clean HTTP 403 regardless of RBAC or query
+correctness. `hack/deploy-operator.sh` handles this by mesh-injecting the
+operator itself (`linkerd.io/inject: enabled` on its namespace) and adding
+a *second*, additive `AuthorizationPolicy` granting the operator's own
+ServiceAccount identity access to the same `Server` — Linkerd's own policy
+validator rejects more than one ServiceAccount per `AuthorizationPolicy`,
+so this is a new policy alongside the existing `metrics-api` one, not an
+edit to it. This cluster's `defaultInboundPolicy` is `all-unauthenticated`,
+confirmed before doing this, so meshing the operator does not newly
+restrict any of its *other* inbound traffic (istio-system's own, unmeshed
+Prometheus scraping the operator's `/metrics` keeps working
+unauthenticated).
 
 ## Uninstall (optional)
 

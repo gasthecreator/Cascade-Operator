@@ -24,6 +24,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	networkingv1 "istio.io/client-go/pkg/apis/networking/v1"
 
@@ -43,8 +44,12 @@ import (
 // ServiceProfile mutation — either way a real, distinguishing failure
 // mode, not a coincidental pass.
 
-func linkerdTestPolicy(mode cascadev1alpha1.PolicyMode) *cascadev1alpha1.CascadePolicy {
-	p := patchTestPolicy(mode)
+// linkerdTestPolicy always builds a Mitigate-mode policy — every test in
+// this file needs mitigation to actually run, so unlike patchTestPolicy
+// (whose callers span both Mitigate and DetectOnly) this helper takes no
+// mode parameter.
+func linkerdTestPolicy() *cascadev1alpha1.CascadePolicy {
+	p := patchTestPolicy(cascadev1alpha1.PolicyModeMitigate)
 	p.Spec.Mesh = cascadev1alpha1.MeshLinkerd
 	return p
 }
@@ -71,7 +76,7 @@ func TestLinkerdModeTripsServiceAnnotationsNotDestinationRule(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	svc := linkerdTestService()
-	r, c := patchReconcileWith(t, &fakeQuerier{p99: 900, errorRate: 0.2}, linkerdTestPolicy(cascadev1alpha1.PolicyModeMitigate), svc)
+	r, c := patchReconcileWith(t, &fakeQuerier{p99: 900, errorRate: 0.2}, linkerdTestPolicy(), svc)
 
 	if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {
 		t.Fatal(err)
@@ -132,7 +137,7 @@ func TestLinkerdModeRetryStormFullTripAndRestoreCycleViaReconcile(t *testing.T) 
 	ctx := context.Background()
 
 	sp := linkerdTestServiceProfile(&spv1alpha2.RetryBudget{RetryRatio: 1.0, MinRetriesPerSecond: 10, TTL: "10s"})
-	policy := linkerdTestPolicy(cascadev1alpha1.PolicyModeMitigate)
+	policy := linkerdTestPolicy()
 	r, c := patchReconcileWith(t, &fakeQuerier{p99: 80, errorRate: 0.001, retryStormRatio: 6.0}, policy, sp)
 
 	if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {
@@ -174,5 +179,181 @@ func TestLinkerdModeRetryStormFullTripAndRestoreCycleViaReconcile(t *testing.T) 
 	}
 	if len(gotFinal.Annotations) != 0 {
 		t.Errorf("annotations after full restore = %v, want none", gotFinal.Annotations)
+	}
+}
+
+// Tests below prove metricsQuerier()'s own dispatch: a real, previously-
+// hidden bug (2026-09-03, docs/worklog/2026-09-03-operator-in-cluster-deploy-and-metrics-scrape.md)
+// found this session live — a single process-wide Metrics querier silently
+// starves whichever mesh it doesn't scrape, since a CascadePolicy on that
+// mesh reconciles forever without ever seeing real data. MetricsIstio/
+// MetricsLinkerd fix that; these tests fail the old way (no reconciler
+// change) and pass the new way.
+
+func TestMetricsQuerierDispatch(t *testing.T) {
+	t.Parallel()
+	shared := &fakeQuerier{p99: 1}
+	istioOnly := &fakeQuerier{p99: 2}
+	linkerdOnly := &fakeQuerier{p99: 3}
+
+	istioPolicy := patchTestPolicy(cascadev1alpha1.PolicyModeMitigate)
+	linkerdPolicy := linkerdTestPolicy()
+
+	cases := []struct {
+		name   string
+		r      CascadePolicyReconciler
+		policy *cascadev1alpha1.CascadePolicy
+		want   *fakeQuerier
+	}{
+		{
+			name:   "istio policy falls back to shared Metrics when MetricsIstio unset",
+			r:      CascadePolicyReconciler{Metrics: shared},
+			policy: istioPolicy,
+			want:   shared,
+		},
+		{
+			name:   "istio policy prefers MetricsIstio over shared Metrics",
+			r:      CascadePolicyReconciler{Metrics: shared, MetricsIstio: istioOnly},
+			policy: istioPolicy,
+			want:   istioOnly,
+		},
+		{
+			name:   "linkerd policy falls back to shared Metrics when MetricsLinkerd unset",
+			r:      CascadePolicyReconciler{Metrics: shared},
+			policy: linkerdPolicy,
+			want:   shared,
+		},
+		{
+			name:   "linkerd policy prefers MetricsLinkerd over shared Metrics",
+			r:      CascadePolicyReconciler{Metrics: shared, MetricsLinkerd: linkerdOnly},
+			policy: linkerdPolicy,
+			want:   linkerdOnly,
+		},
+		{
+			name:   "linkerd policy is unaffected by MetricsIstio",
+			r:      CascadePolicyReconciler{Metrics: shared, MetricsIstio: istioOnly},
+			policy: linkerdPolicy,
+			want:   shared,
+		},
+		{
+			name:   "istio policy is unaffected by MetricsLinkerd",
+			r:      CascadePolicyReconciler{Metrics: shared, MetricsLinkerd: linkerdOnly},
+			policy: istioPolicy,
+			want:   shared,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.r.metricsQuerier(tc.policy)
+			if got != tc.want {
+				t.Errorf("metricsQuerier() = %p, want %p", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestReconcileIstioPolicyUsesMetricsIstioNotSharedMetrics proves the
+// dispatch through the real Reconcile path, not just the method in
+// isolation: shared Metrics is wired to data that would never trip, while
+// MetricsIstio is wired to data that trips immediately. If Reconcile still
+// consulted the shared field for an Istio-mesh policy (the pre-fix
+// behavior), this policy would stay Normal forever, exactly the silent
+// failure mode this slice fixes.
+func TestReconcileIstioPolicyUsesMetricsIstioNotSharedMetrics(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := patchTestScheme(t)
+	dr := patchTestDR()
+	policy := patchTestPolicy(cascadev1alpha1.PolicyModeMitigate)
+	c := fake.NewClientBuilder().
+		WithScheme(s).
+		WithStatusSubresource(&cascadev1alpha1.CascadePolicy{}).
+		WithObjects(policy, dr).
+		Build()
+	r := &CascadePolicyReconciler{
+		Client:       c,
+		Scheme:       s,
+		Metrics:      &fakeQuerier{p99: 80, errorRate: 0.001, retryStormRatio: 1.0}, // never trips
+		MetricsIstio: &fakeQuerier{p99: 900, errorRate: 0.2},                        // trips immediately
+	}
+
+	if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {
+		t.Fatal(err)
+	}
+
+	got := &cascadev1alpha1.CascadePolicy{}
+	if err := c.Get(ctx, types.NamespacedName{Name: patchPolicyName, Namespace: patchPolicyNS}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Status.Phase != cascadev1alpha1.PolicyPhaseTripped {
+		t.Fatalf("phase = %s, want Tripped (Reconcile must use MetricsIstio, not the healthy shared Metrics)", got.Status.Phase)
+	}
+}
+
+// TestReconcileLinkerdPolicyUsesMetricsLinkerdNotSharedMetrics is the
+// Linkerd-mesh mirror of the test above.
+func TestReconcileLinkerdPolicyUsesMetricsLinkerdNotSharedMetrics(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := patchTestScheme(t)
+	svc := linkerdTestService()
+	policy := linkerdTestPolicy()
+	c := fake.NewClientBuilder().
+		WithScheme(s).
+		WithStatusSubresource(&cascadev1alpha1.CascadePolicy{}).
+		WithObjects(policy, svc).
+		Build()
+	r := &CascadePolicyReconciler{
+		Client:         c,
+		Scheme:         s,
+		Metrics:        &fakeQuerier{p99: 80, errorRate: 0.001, retryStormRatio: 1.0}, // never trips
+		MetricsLinkerd: &fakeQuerier{p99: 900, errorRate: 0.2},                        // trips immediately
+	}
+
+	if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {
+		t.Fatal(err)
+	}
+
+	got := &cascadev1alpha1.CascadePolicy{}
+	if err := c.Get(ctx, types.NamespacedName{Name: patchPolicyName, Namespace: patchPolicyNS}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Status.Phase != cascadev1alpha1.PolicyPhaseTripped {
+		t.Fatalf("phase = %s, want Tripped (Reconcile must use MetricsLinkerd, not the healthy shared Metrics)", got.Status.Phase)
+	}
+}
+
+// TestReconcileNoMetricsForMeshNeverPolls locks in the exact silent-failure
+// shape this slice's worklog describes: a mesh with no matching Querier at
+// all (no shared Metrics, no mesh-specific field) never polls Prometheus
+// and so never trips — no error, same as before this fix, since a
+// deployment might legitimately run only one mesh.
+func TestReconcileNoMetricsForMeshNeverPolls(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := patchTestScheme(t)
+	svc := linkerdTestService()
+	policy := linkerdTestPolicy()
+	c := fake.NewClientBuilder().
+		WithScheme(s).
+		WithStatusSubresource(&cascadev1alpha1.CascadePolicy{}).
+		WithObjects(policy, svc).
+		Build()
+	r := &CascadePolicyReconciler{
+		Client:       c,
+		Scheme:       s,
+		MetricsIstio: &fakeQuerier{p99: 900, errorRate: 0.2}, // wrong mesh, must not be consulted
+	}
+
+	if _, err := r.Reconcile(ctx, restoreRequest()); err != nil {
+		t.Fatal(err)
+	}
+
+	got := &cascadev1alpha1.CascadePolicy{}
+	if err := c.Get(ctx, types.NamespacedName{Name: patchPolicyName, Namespace: patchPolicyNS}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Status.Phase != cascadev1alpha1.PolicyPhaseNormal {
+		t.Fatalf("phase = %s, want Normal (no Metrics/MetricsLinkerd configured for this Linkerd policy)", got.Status.Phase)
 	}
 }

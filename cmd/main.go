@@ -70,6 +70,8 @@ func main() {
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var prometheusURL string
+	var prometheusURLIstio string
+	var prometheusURLLinkerd string
 	var notifyWebhookURL string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
@@ -91,7 +93,22 @@ func main() {
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	flag.StringVar(&prometheusURL, "prometheus-url", os.Getenv("PROMETHEUS_URL"),
 		"Base URL of the Prometheus HTTP API (e.g. http://prometheus.istio-system.svc:9090). "+
-			"Also read from PROMETHEUS_URL. Empty disables metrics polling.")
+			"Also read from PROMETHEUS_URL. Used for every CascadePolicy regardless of spec.mesh "+
+			"unless the mesh-specific flag below is also set for that mesh. Empty disables metrics "+
+			"polling entirely unless a mesh-specific flag is set.")
+	flag.StringVar(&prometheusURLIstio, "prometheus-url-istio", os.Getenv("PROMETHEUS_URL_ISTIO"),
+		"Base URL of the Prometheus HTTP API that scrapes Istio's proxies, for CascadePolicies with "+
+			"spec.mesh: Istio (or unset, Istio being the default). Also read from PROMETHEUS_URL_ISTIO. "+
+			"Overrides --prometheus-url for Istio-mesh policies only; set this (and/or "+
+			"--prometheus-url-linkerd) instead of --prometheus-url when one operator process "+
+			"reconciles CascadePolicies for both meshes at once, since each mesh's proxies are "+
+			"typically scraped by a different Prometheus instance — a single --prometheus-url "+
+			"pointed at only one mesh's Prometheus silently starves the other mesh's policies of "+
+			"real data (they keep reconciling, they just never see a genuine reading).")
+	flag.StringVar(&prometheusURLLinkerd, "prometheus-url-linkerd", os.Getenv("PROMETHEUS_URL_LINKERD"),
+		"Base URL of the Prometheus HTTP API that scrapes Linkerd's proxies (e.g. linkerd-viz's own "+
+			"Prometheus), for CascadePolicies with spec.mesh: Linkerd. Also read from "+
+			"PROMETHEUS_URL_LINKERD. See --prometheus-url-istio's own help text for why this exists.")
 	flag.StringVar(&notifyWebhookURL, "notify-webhook-url", os.Getenv("NOTIFY_WEBHOOK_URL"),
 		"Slack-compatible incoming webhook URL for trip/restore notifications. "+
 			"Also read from NOTIFY_WEBHOOK_URL. Empty disables notifications.")
@@ -206,8 +223,26 @@ func main() {
 		}
 		reconciler.Metrics = promClient
 		setupLog.Info("Prometheus metrics client configured", "url", prometheusURL)
-	} else {
+	} else if prometheusURLIstio == "" && prometheusURLLinkerd == "" {
 		setupLog.Info("Prometheus URL not set; metrics polling disabled")
+	}
+	if prometheusURLIstio != "" {
+		promClient, err := metrics.NewClient(prometheusURLIstio, nil)
+		if err != nil {
+			setupLog.Error(err, "Invalid prometheus-url-istio")
+			os.Exit(1)
+		}
+		reconciler.MetricsIstio = promClient
+		setupLog.Info("Istio-mesh Prometheus metrics client configured", "url", prometheusURLIstio)
+	}
+	if prometheusURLLinkerd != "" {
+		promClient, err := metrics.NewClient(prometheusURLLinkerd, nil)
+		if err != nil {
+			setupLog.Error(err, "Invalid prometheus-url-linkerd")
+			os.Exit(1)
+		}
+		reconciler.MetricsLinkerd = promClient
+		setupLog.Info("Linkerd-mesh Prometheus metrics client configured", "url", prometheusURLLinkerd)
 	}
 	if notifyWebhookURL != "" {
 		reconciler.Notify = notify.NewWebhookNotifier(notifyWebhookURL)

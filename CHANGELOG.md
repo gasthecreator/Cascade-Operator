@@ -109,22 +109,6 @@ reproduction and confirmation for each:
   current state, since `/control/reset` is the only mechanism that has
   ever produced a real event, but would need refining if a real
   packet-loss mechanism is added later.
-- **New, surfaced while closing the operator-metrics gap below**: the
-  operator's Prometheus client is one process-wide `PROMETHEUS_URL`
-  (`cmd/main.go`), but `CascadePolicy.spec.mesh` can be Istio *or*
-  Linkerd, each scraped by a different mesh's own Prometheus. Confirmed
-  live: with `PROMETHEUS_URL` pointed at Istio's Prometheus, an Istio-mesh
-  policy detects and trips correctly (real threshold-crossing traffic
-  produced a genuine `RetryStorm` trip, live-verified), but a Linkerd-mesh
-  policy on the same operator process reconciles forever without ever
-  seeing real data — silently, not as an error, since Istio's Prometheus
-  has no Linkerd proxy metrics to return regardless of query correctness.
-  Fixing this for real needs a per-mesh `Querier` (or running one operator
-  deployment per mesh) — a design change, not a config change — and is
-  left as an explicit follow-up rather than silently masked by picking one
-  mesh's Prometheus and hoping nobody notices the other mesh's policies
-  never fire.
-
 ### Closed this slice
 
 - **Operator metrics now genuinely scraped in-cluster**
@@ -143,6 +127,39 @@ reproduction and confirmation for each:
   incremented on the operator's own `/metrics`, and confirmed the *same*
   numbers come back through a real PromQL query against Prometheus itself
   (`cascade_signatures_detected_total`), not just a direct curl.
+- **Per-mesh Prometheus client, closing the gap surfaced while verifying
+  the item above**: the operator's Prometheus client was one process-wide
+  `PROMETHEUS_URL` (`cmd/main.go`), but `CascadePolicy.spec.mesh` can be
+  Istio *or* Linkerd, each scraped by a different mesh's own Prometheus.
+  Confirmed live: with `PROMETHEUS_URL` pointed at Istio's Prometheus, an
+  Istio-mesh policy detected and tripped correctly, but a Linkerd-mesh
+  policy on the same operator process reconciled forever without ever
+  seeing real data — silently, not as an error. Fixed with
+  `MetricsIstio`/`MetricsLinkerd` (`internal/controller/cascadepolicy_controller.go`'s
+  `metricsQuerier()`) and matching `--prometheus-url-istio`/
+  `--prometheus-url-linkerd` flags, each an independent `metrics.Client`;
+  `metricsQuerier()` picks the mesh-specific one for a policy's own
+  `spec.mesh`, falling back to the shared field so single-mesh deployments
+  need no change. A second, real blocker turned up live-verifying this
+  against `linkerd-viz`'s actual Prometheus (not just a fake-client unit
+  test): `linkerd-viz` ships its Prometheus locked down by a deny-by-default
+  `AuthorizationPolicy` on its query port (only its own `metrics-api`
+  ServiceAccount, authenticated via mTLS, is allowed in) — an unmeshed
+  operator pod got a clean HTTP 403 regardless of RBAC or query
+  correctness. Closed by mesh-injecting the operator itself
+  (`linkerd.io/inject: enabled`) and adding a second, additive
+  `AuthorizationPolicy` granting its own ServiceAccount identity access to
+  the same `Server` (Linkerd's own policy validator rejects more than one
+  ServiceAccount per `AuthorizationPolicy`, so this is a new policy
+  alongside `metrics-api`'s existing one, not an edit to it) — confirmed
+  this cluster's `defaultInboundPolicy` is `all-unauthenticated` first, so
+  meshing the operator doesn't newly restrict its other inbound traffic
+  (istio-system's own unmeshed Prometheus scrape of the operator's
+  `/metrics` keeps working unauthenticated). Live-verified end-to-end on
+  both meshes at once: a real trip on the Istio-mesh demo policy and a
+  separate real trip on the previously-broken Linkerd-mesh demo policy,
+  both against their own mesh's real Prometheus, both mitigating and fully
+  restoring.
 
 ## [0.1.0] - 2026-08-31
 
