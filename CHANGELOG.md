@@ -102,21 +102,6 @@ reproduction and confirmation for each:
 
 ### Known gaps (documented, not silently assumed fixed)
 
-- The operator's own `/metrics` endpoint is not currently scraped by
-  either mesh's Prometheus in the dev environment. Closing this for real
-  needs two things, not just a scrape-config addition: the operator
-  actually deployed in-cluster (never done in this project's history —
-  every live check so far ran it via `go run` from the host — and itself
-  blocked on cert-manager or a manual cert for the admission webhook,
-  Phase 3's own follow-up), and a static scrape-config job on whichever
-  mesh Prometheus is present (the kubebuilder-scaffolded `ServiceMonitor`
-  needs the Prometheus Operator, which neither Istio's sample Prometheus
-  nor linkerd-viz's Prometheus run). Not attempted: installing
-  cert-manager as a new, persistent, cluster-wide dependency on a dev
-  cluster this project's own worklogs have repeatedly found to be
-  resource-constrained is a real infrastructure decision, not a
-  documentation fix — left for a deliberate follow-up rather than done
-  unprompted.
 - Tetragon is not installed or exercised in CI (`hack/install-tetragon.sh`
   is a local dev-environment tool only) — deliberate, not an oversight.
 - `tetragon_events_total` (the metric kernel corroboration queries)
@@ -124,6 +109,40 @@ reproduction and confirmation for each:
   current state, since `/control/reset` is the only mechanism that has
   ever produced a real event, but would need refining if a real
   packet-loss mechanism is added later.
+- **New, surfaced while closing the operator-metrics gap below**: the
+  operator's Prometheus client is one process-wide `PROMETHEUS_URL`
+  (`cmd/main.go`), but `CascadePolicy.spec.mesh` can be Istio *or*
+  Linkerd, each scraped by a different mesh's own Prometheus. Confirmed
+  live: with `PROMETHEUS_URL` pointed at Istio's Prometheus, an Istio-mesh
+  policy detects and trips correctly (real threshold-crossing traffic
+  produced a genuine `RetryStorm` trip, live-verified), but a Linkerd-mesh
+  policy on the same operator process reconciles forever without ever
+  seeing real data — silently, not as an error, since Istio's Prometheus
+  has no Linkerd proxy metrics to return regardless of query correctness.
+  Fixing this for real needs a per-mesh `Querier` (or running one operator
+  deployment per mesh) — a design change, not a config change — and is
+  left as an explicit follow-up rather than silently masked by picking one
+  mesh's Prometheus and hoping nobody notices the other mesh's policies
+  never fire.
+
+### Closed this slice
+
+- **Operator metrics now genuinely scraped in-cluster**
+  (`hack/deploy-operator.sh`, `make deploy-operator`): the operator is
+  deployed in-cluster for the first time in this project's history (every
+  prior live check ran it via `go run` from the host) — cert-manager
+  installed for the admission webhook's TLS (Phase 3's own long-standing
+  follow-up), `PROMETHEUS_URL` wired so `reconciler.Metrics` is non-nil
+  (confirmed live: omitting it silently disables all detection — `Normal`
+  forever, no error, just a startup log line easy to miss), RBAC bound so
+  a mesh's Prometheus can read the operator's secured `/metrics`, and a
+  static scrape job added to that Prometheus (same technique
+  `hack/install-tetragon.sh` already used for Tetragon). Verified live
+  end-to-end, not just deployed: triggered a real trip via the demo
+  topology's fault-injection endpoints, confirmed `cascade_*` counters
+  incremented on the operator's own `/metrics`, and confirmed the *same*
+  numbers come back through a real PromQL query against Prometheus itself
+  (`cascade_signatures_detected_total`), not just a direct curl.
 
 ## [0.1.0] - 2026-08-31
 

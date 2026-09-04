@@ -165,6 +165,10 @@ benchmark: ## Run each signature's k6 scenario in DetectOnly vs Mitigate mode ag
 tetragon-install: ## Install Tetragon (eBPF observability) + its TracingPolicies, and scrape it from whichever mesh Prometheus is present. Requires Helm.
 	hack/install-tetragon.sh
 
+.PHONY: deploy-operator
+deploy-operator: ## Deploy the operator itself in-cluster (cert-manager, image build/load, install/deploy, metrics RBAC, PROMETHEUS_URL, mesh Prometheus scrape config). See the script's own header for the known multi-mesh Prometheus-client limitation.
+	hack/deploy-operator.sh
+
 ##@ Build
 
 .PHONY: build

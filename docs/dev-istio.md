@@ -59,15 +59,19 @@ plus controller-runtime's standard reconcile-health metrics. No new metrics —
 this is a visualization layer only. Re-running `make grafana-install` re-imports
 the dashboard, so edits to the JSON show up without a full reinstall.
 
-The operator itself needs `--metrics-bind-address=:8080 --metrics-secure=false`
-(or an equivalent in-cluster scrape target) for these metrics to actually reach
-Prometheus — the default `go run ./cmd/main.go` invocation leaves the metrics
-server disabled (`--metrics-bind-address=0`). This project's own dev cluster
-does not currently scrape a running operator via Prometheus (verified instead
-by curling the operator's own `/metrics` endpoint directly, same as the
-`operator-metrics` worklog entries) — wiring that up is a separate,
-larger task (a real in-cluster operator deployment + matching scrape config),
-not part of this dashboard.
+The default `go run ./cmd/main.go` invocation leaves the metrics server
+enabled but unreached by a mesh's Prometheus — there's nothing in-cluster
+for it to scrape. `make deploy-operator` (`hack/deploy-operator.sh`)
+deploys the operator in-cluster for real (cert-manager for the webhook's
+TLS, RBAC bound so a mesh's Prometheus can read `/metrics`, a static
+scrape job on that Prometheus) and is what this project's own dev cluster
+now runs — confirmed live by triggering a real trip and querying
+`cascade_signatures_detected_total` back out through Prometheus itself, not
+just curling the operator directly. One caveat that script's own header
+documents rather than silently works around: `PROMETHEUS_URL` is one URL
+for the whole operator process, so a `CascadePolicy` whose `spec.mesh`
+doesn't match that Prometheus's mesh reconciles forever without ever
+detecting anything real.
 
 ## Retries / `response_flags`
 

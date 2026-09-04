@@ -114,14 +114,20 @@ cover installing it and confirming it actually captures this as a real
 
 ## Grafana / operator metrics
 
-Same caveat as `docs/dev-istio.md`: this dev cluster does not currently
-scrape a running operator (via either mesh's Prometheus) — verified
-instead by curling the operator's own `/metrics` endpoint directly. Wiring
-that up needs the operator actually deployed in-cluster (which itself
-needs cert-manager or a manual cert for the admission webhook — Phase 3's
-own follow-up) plus a static Prometheus scrape job, the same technique
-`hack/install-tetragon.sh` already uses for Tetragon's `/metrics`
-endpoint — not attempted here.
+Same as `docs/dev-istio.md`: `make deploy-operator`
+(`hack/deploy-operator.sh`) deploys the operator in-cluster for real
+(cert-manager for the webhook's TLS, RBAC bound so a mesh's Prometheus can
+read `/metrics`, a static scrape job on that Prometheus — the same
+technique `hack/install-tetragon.sh` already uses for Tetragon's own
+`/metrics`), and this dev cluster's `linkerd-viz` Prometheus does scrape it
+now. The one thing that script does *not* fix, documented in its own header
+rather than silently worked around: `PROMETHEUS_URL` is one URL for the
+whole operator process, so if it's pointed at Istio's Prometheus (the
+script's default), the Linkerd-mesh demo `CascadePolicy` in this doc
+reconciles forever without ever seeing real Linkerd proxy metrics — not an
+error, just silently no detection. Point `PROMETHEUS_URL_ISTIO` at
+`linkerd-viz`'s Prometheus instead (or run two operator deployments, one
+per mesh) if you need the Linkerd-mesh policy to actually trip.
 
 ## Uninstall (optional)
 
