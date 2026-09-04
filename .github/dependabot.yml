@@ -5,8 +5,29 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    ignore:
+      # This project pins Istio at a specific stable control-plane version
+      # everywhere (hack/install-istio.sh, .github/workflows/integration.yml's
+      # ISTIO_VERSION) — the Go client library should track that pin, not
+      # jump ahead onto an unreleased minor via a pre-release tag. Blocks
+      # 1.31.0's own pre-release identifiers (rc.*, beta.*, etc.) while
+      # still allowing the real 1.31.0 stable tag once it ships; revisit
+      # this range (and the control-plane pin) together when that happens,
+      # not as an automatic bump. #7 was closed for exactly this reason.
+      - dependency-name: "istio.io/api"
+        versions: [">=1.31.0-0, <1.31.0"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    groups:
+      # github/codeql-action ships init/autobuild/analyze as separate
+      # actions that must stay on matching versions within one workflow
+      # run (confirmed live: bumping just one while the others stay pinned
+      # breaks the Analyze job with "CodeQL job status was configuration
+      # error" — see #9/#12, closed for exactly this reason). Grouping
+      # them means Dependabot proposes one PR bumping all three together.
+      codeql-action:
+        patterns:
+          - "github/codeql-action/*"
