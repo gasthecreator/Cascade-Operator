@@ -154,9 +154,11 @@
 // This page always fetches its trace data from ./traces/<scenario>.json —
 // the repo-hosted copy (served via any static file server, e.g.
 // `python3 -m http.server` from demo/replay/) — never embeds data inline.
-// A separately-published Claude Artifact copy of this same page embeds one
-// trace's JSON inline instead, since an artifact is a single sandboxed file
-// with no ability to fetch sibling files; see PLAN.md §5 Phase 7's worklog.
+// A separately-published Claude Artifact copy of this same page
+// (https://claude.ai/code/artifact/8285a2af-81d4-4493-bbed-9fe14e604775)
+// embeds all three traces' JSON inline instead, since an artifact is a
+// single sandboxed file with no ability to fetch sibling files; see
+// PLAN.md §5 Phase 7's worklog.
 
 const AFFECTED_HOST = {
   'latency-error-cascade': 'payments',

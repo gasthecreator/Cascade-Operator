@@ -57,6 +57,8 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-09-04 — Three security-hardening items built; a real upstream Calico bug found and fixed along the way; full live verification incomplete](2026-09-04-security-hardening-and-a-real-calico-bug.md)
+- [2026-09-04 — Two genuinely deferred deliverables closed: Phase 7's Claude Artifact copy, and a Tetragon reset k6 scenario](2026-09-04-phase7-artifact-copy-and-tetragon-k6-scenario.md)
 - [2026-09-03 — hack/deploy-operator.sh validated as a genuine from-scratch run](2026-09-03-deploy-operator-fresh-run-validation.md)
 - [2026-09-03 — Per-mesh Prometheus client, and getting past linkerd-viz's own locked-down AuthorizationPolicy](2026-09-03-per-mesh-prometheus-client-and-linkerd-viz-authz.md)
 - [2026-09-03 — Operator deployed in-cluster for real, and its own metrics genuinely scraped](2026-09-03-operator-in-cluster-deploy-and-metrics-scrape.md)

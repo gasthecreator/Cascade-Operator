@@ -31,7 +31,21 @@ resources:
 # Only Pod(s) running a namespace labeled with 'metrics: enabled' will be able to gather the metrics.
 # Only CR(s) which requires webhooks and are applied on namespaces labeled with 'webhooks: enabled' will
 # be able to communicate with the Webhook Server.
+# Left commented out deliberately: activating it would also require
+# labeling every namespace whose Prometheus scrapes the operator (see
+# hack/deploy-operator.sh) with metrics: enabled, and the webhook-traffic
+# policy's own namespace-labeled-source model doesn't cleanly match how
+# the API server actually calls a webhook — a separate, pre-existing
+# concern from the egress restriction below, not addressed here.
 #- ../network-policy
+# [EGRESS NETWORK POLICY] Restrict the operator's own outbound traffic to
+# DNS, the Kubernetes API server, and each mesh's Prometheus — closes
+# docs/security-threat-model.md's "No NetworkPolicy restricting the
+# operator pod's egress" known gap. See
+# config/network-policy-egress/restrict-egress.yaml's own header for the
+# exact reasoning and the one thing it deliberately does not cover
+# (--notify-webhook-url's arbitrary destination).
+- ../network-policy-egress
 
 # Uncomment the patches line if you enable Metrics
 patches:

@@ -169,6 +169,14 @@ tetragon-install: ## Install Tetragon (eBPF observability) + its TracingPolicies
 deploy-operator: ## Deploy the operator itself in-cluster (cert-manager, image build/load, install/deploy, metrics RBAC, a per-mesh PROMETHEUS_URL, mesh Prometheus scrape config).
 	hack/deploy-operator.sh
 
+.PHONY: switch-to-namespaced-rbac
+switch-to-namespaced-rbac: ## Switch an already-deployed operator from the cluster-wide ClusterRole to per-namespace Role/RoleBinding pairs. Requires NAMESPACES=ns1,ns2.
+	hack/switch-to-namespaced-rbac.sh
+
+.PHONY: calico-install
+calico-install: ## Install Calico in policy-only mode on top of kindnet, so NetworkPolicy objects (e.g. config/network-policy-egress) are actually enforced, not just accepted.
+	hack/install-calico-for-policy.sh
+
 ##@ Build
 
 .PHONY: build

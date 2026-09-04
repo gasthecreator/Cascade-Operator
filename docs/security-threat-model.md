@@ -107,14 +107,27 @@ resource types.
 
 ## Known gaps (stated plainly, not hidden)
 
-- **The `ClusterRole` is cluster-scoped**, per kubebuilder's default
-  scaffold — the operator's RBAC grants apply cluster-wide, not restricted
-  to specific namespaces. For this project's actual demo/dev use (a single
-  namespace, `default`), this is broader than strictly necessary. Narrowing
-  it to a `Role`+`RoleBinding` per watched namespace would be the
-  production-hardening step here; not done in this pass since it would
-  need a real multi-namespace deployment story to validate against, and
-  this project's dev cluster only ever uses one namespace.
+- **Built, live-verification pending**: namespace-scoped RBAC. The
+  `ClusterRole` cluster-scoping this entry used to describe is still the
+  *default* (unchanged — every existing test/CI run assumes cluster-wide
+  watches), but this project's dev cluster no longer has the "only one
+  namespace" precondition the earlier version of this entry cited as the
+  reason not to build the alternative: it now runs `CascadePolicy`
+  objects in both `default` (Istio) and `linkerd-demo` (Linkerd), a real
+  multi-namespace story to validate against. `cmd/main.go`'s new
+  `--watch-namespaces`/`WATCH_NAMESPACES` flag restricts the manager's
+  cache to a named namespace set (`cache.Options.DefaultNamespaces`);
+  `config/rbac-namespaced/role.yaml.tmpl` + `hack/generate-namespaced-rbac.sh`
+  emit a `Role`+`RoleBinding` pair per namespace with the exact same rules
+  `config/rbac/role.yaml`'s `ClusterRole` grants (confirmed by reading
+  that file directly); `hack/switch-to-namespaced-rbac.sh` (`make
+  switch-to-namespaced-rbac`) applies the namespaced RBAC, deletes the
+  cluster-wide `ClusterRoleBinding`, and sets `--watch-namespaces` in one
+  step. Written and passing `go build`/`go vet`/`go test ./... -race`/
+  `make lint`; not yet exercised against the live cluster — the attempt to
+  do so (2026-09-04) was derailed before reaching this specific test by
+  the cluster instability the egress-`NetworkPolicy` entry below describes
+  in full; this entry will be updated once it actually runs.
 - **Resolved**: the admission webhook is now deployed to the persistent dev
   Kind cluster (`hack/deploy-operator.sh`, cert-manager for real cert
   issuance) — Phase 3's own follow-up, previously stated here as an open
@@ -126,18 +139,72 @@ resource types.
   the TLS *serving* path is now real, the validation *logic* re-check
   against it is not a new test, just the same one running on real
   infrastructure.
-- **No `NetworkPolicy` restricting the operator pod's egress.** It can, in
-  principle, reach any address in the cluster (or beyond, if the cluster's
-  network allows it) — including wherever `--prometheus-url` or
-  `--notify-webhook-url` point. Both of those are operator-level
-  configuration (see Trust boundaries above), not attacker-influenceable
-  via the CRD, which is the main mitigation currently in place; a
-  `NetworkPolicy` scoping egress to just Prometheus and the configured
-  notify endpoint would be a real additional layer, not yet added.
-- **No image signing or provenance verification** on the manager image
-  itself (`Dockerfile`/`config/manager/manager.yaml`'s `image:
-  controller:latest`) — standard for a portfolio-scale project, would be
-  a real gap for anything running in a genuinely untrusted environment.
+- **Built; enforcement confirmed real, full pass/fail verification not yet
+  completed**: egress `NetworkPolicy`.
+  `config/network-policy-egress/restrict-egress.yaml` restricts the
+  operator to DNS, the Kubernetes API server, each mesh's Prometheus, and
+  (once genuinely needed — see below) Linkerd's own control plane —
+  closing "it can, in principle, reach any address in the cluster." One
+  thing it deliberately does not cover: `--notify-webhook-url`/
+  `NOTIFY_WEBHOOK_URL` (PLAN.md §5 Phase 4) is an arbitrary,
+  operator-configured destination only known at deploy time — enabling
+  that flag needs one more egress rule added for that specific
+  destination, not attempted here.
+
+  This project's dev Kind cluster uses `kindnet` (Kind's default CNI),
+  which does not enforce `NetworkPolicy` at all on its own — checked
+  before writing this, not assumed. `hack/install-calico-for-policy.sh`
+  (`make calico-install`) layers Calico in policy-only mode on top of
+  kindnet's own pod networking specifically to get real enforcement.
+  Installing it surfaced a genuine bug in Calico's own upstream manifest
+  (v3.32.2 against Kubernetes v1.37.0): the `calico-cni-plugin`
+  `ClusterRole` never grants access to
+  `clusterinformations.crd.projectcalico.org`, which its own CNI binary
+  needs at pod-sandbox-teardown time — without it, *every* pod sandbox
+  teardown cluster-wide fails and retries forever, an effect that looks
+  exactly like generic resource exhaustion in `kubectl get pods` (masses
+  of pods stuck `Unknown`) but isn't; confirmed via `journalctl -u
+  kubelet` showing the literal RBAC-denial error before concluding it was
+  anything else. `hack/install-calico-for-policy.sh` patches this
+  directly. With that fixed, real enforcement then caught a genuine gap
+  in this policy's own first draft: the operator's Linkerd-mesh-injected
+  replica's own `linkerd-proxy` sidecar (added by
+  `hack/deploy-operator.sh`'s mesh-injection step, a prerequisite for
+  reaching `linkerd-viz`'s locked-down Prometheus, see the trust boundary
+  above) needs egress to `linkerd-identity`/`linkerd-destination`/
+  `linkerd-policy` for its own mTLS bootstrap — a real dependency this
+  policy hadn't accounted for, only found because Calico's enforcement
+  was genuinely blocking it (the sidecar's startup probe failed with a
+  real 503/timeout under the too-narrow policy). Fixed by adding that
+  rule (see the manifest's own header for the exact ports/selectors).
+
+  What's still open: a full, deliberate pass/fail test (confirm the
+  allow-listed destinations succeed *and* an arbitrary non-allow-listed
+  destination genuinely times out, from a real pod matching the policy's
+  `podSelector`) was not completed — the dev cluster suffered a fourth
+  distinct wave of instability this same session (`kube-controller-manager`
+  crash-looping under the aggregate load of everything now installed:
+  Istio, Linkerd, cert-manager, Tetragon, Calico, two demo topologies, and
+  the operator, on an 8-core/8GB host), independent of the Calico bug
+  above and not resolved by fixing it. Stopped rather than pushing
+  further — this entry will be updated with the real pass/fail result once
+  that test actually completes.
+- **Resolved**: the manager image is now published and signed.
+  `.github/workflows/publish-image.yml` builds the image, pushes it to
+  `ghcr.io/<owner>/cascade-operator`, and signs it keylessly with `cosign`
+  using the workflow's own GitHub Actions OIDC identity (no private key
+  material to manage or leak) — verifiable by anyone via
+  `cosign verify --certificate-identity-regexp
+  'https://github.com/<owner>/Cascade-Operator/.github/workflows/publish-image.yml@.*'
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+  ghcr.io/<owner>/cascade-operator@<digest>`, which checks the signature
+  against Sigstore's public Rekor transparency log, not a secret this repo
+  controls. `docker/build-push-action`'s own `provenance`/`sbom` inputs
+  attach a SLSA provenance attestation and software bill of materials to
+  the same image, covering "provenance" in this gap's original title, not
+  just the signature. Triggered by a `v*` tag push (a real release) or
+  manually via `workflow_dispatch` (exercised this way here, since this
+  project has no tagged release yet).
 
 ## What's intentionally out of scope for this document
 

@@ -1,18 +1,20 @@
 # k6 cascade-simulation scripts
 
-Three scripts, one per failure signature, each driving load through
-`checkout-service` and toggling the right control endpoint at the right
-point to induce that signature's pattern against the §2.7 demo topology
-(`checkout -> {payments, inventory}`). Each script's timeline is the same
-shape: 20s healthy baseline -> induce at 20s -> 60s induced -> heal at 80s
--> 90s more load to watch the restoration ramp complete. Total run time
-per script is ~170s.
+Four scripts driving load through `checkout-service` and toggling the
+right control endpoint at the right point to induce a pattern against the
+§2.7 demo topology (`checkout -> {payments, inventory}`) — one per failure
+signature, plus a fourth for the eBPF/Tetragon kernel-signal corroboration
+path (PLAN.md §5 Phase 11). Each script's timeline is the same shape: 20s
+healthy baseline -> induce at 20s -> 60s induced -> heal at 80s -> 90s more
+load to watch the restoration ramp complete. Total run time per script is
+~170s.
 
 | Script | Host toggled | Mechanism |
 |---|---|---|
 | `fanout-amplification.js` | `payments-service` `/control/fail` | checkout's own app-level retry loop (3 real HTTP attempts per failed call) |
 | `latency-error-cascade.js` | `payments-service` `/control/slow` | depsvc's slow mode: every request sleeps 800ms + 1-in-5 errors |
 | `retry-storm.js` | `inventory-service` `/control/fail` | Envoy `VirtualService` `retries.attempts: 3` (`demo/k8s/inventory-retry-vs.yaml`) |
+| `tetragon-reset.js` | `payments-service` `/control/reset` | A genuine TCP RST (`SO_LINGER 0` + `Close()`, not an HTTP error) — trips the same latency/error-cascade path as `latency-error-cascade.js`, but with Tetragon (if installed) corroborating a real `tcp_send_active_reset` kernel event into the verdict's confidence/evidence |
 
 Why payments hosts two of these and inventory hosts the third: payments
 already carries the fan-out signal (checkout's application-level retry
@@ -47,6 +49,7 @@ streams the logs, and cleans up the `Job`/`ConfigMap` on exit.
 hack/run-k6-demo.sh fanout-amplification
 hack/run-k6-demo.sh latency-error-cascade
 hack/run-k6-demo.sh retry-storm
+hack/run-k6-demo.sh tetragon-reset
 ```
 
 Port-forwarding is still useful for the *operator itself* (it needs to
@@ -119,6 +122,7 @@ kubectl get cascadepolicy checkout-service -w
 hack/run-k6-demo.sh fanout-amplification
 # or: hack/run-k6-demo.sh latency-error-cascade
 # or: hack/run-k6-demo.sh retry-storm
+# or: hack/run-k6-demo.sh tetragon-reset
 ```
 
 Expected `-w` output shape (`PHASE` column): `Normal` for the first ~20-40s
@@ -165,6 +169,26 @@ Automated wire-format checks (raw apiserver JSON for `"attempts":0` and
 context). Organic k6 + operator runs remain the manual demo path; Prometheus
 port-forward stability is the usual operational footgun (name it if trips
 fail to fire while patches look correct in isolation).
+
+## Tetragon reset: kernel corroboration via k6 (2026-09-04)
+
+`tetragon-reset.js` (PLAN.md §5 Phase 11's own follow-up, unbuilt until
+now — see
+[`docs/worklog/2026-09-01-phase11-tcp-reset-fault-injection.md`](../../docs/worklog/2026-09-01-phase11-tcp-reset-fault-injection.md)'s
+own "reasonable next step" note) drives the same load/induce/heal timeline
+as the other three scripts, but induces via `/control/reset` — a genuine
+TCP RST, not an HTTP error. With Tetragon installed (`make
+tetragon-install`) and its `TracingPolicy` watching
+`tcp_send_active_reset`, the same `LatencyErrorCascade` trip the other
+payments-service scenario produces should show `kernel_corroboration=true`
+in the operator's own reconcile logs, with confidence boosted toward 1.0 —
+confirm with:
+
+```bash
+hack/run-k6-demo.sh tetragon-reset
+# in another terminal, watch for the corroborated evidence line:
+kubectl logs -n cascade-operator-system deploy/cascade-operator-controller-manager -f | grep kernel_corroboration
+```
 
 ## Custom ports/URLs
 
