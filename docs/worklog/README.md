@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-09-03 — hack/deploy-operator.sh validated as a genuine from-scratch run](2026-09-03-deploy-operator-fresh-run-validation.md)
 - [2026-09-03 — Per-mesh Prometheus client, and getting past linkerd-viz's own locked-down AuthorizationPolicy](2026-09-03-per-mesh-prometheus-client-and-linkerd-viz-authz.md)
 - [2026-09-03 — Operator deployed in-cluster for real, and its own metrics genuinely scraped](2026-09-03-operator-in-cluster-deploy-and-metrics-scrape.md)
 - [2026-09-01 — Documentation follow-up: docs/dev-linkerd.md, and a closer look at the operator-metrics gap](2026-09-01-docs-dev-linkerd-and-audit-followup.md)
