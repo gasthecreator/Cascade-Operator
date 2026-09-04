@@ -5,7 +5,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ISTIO_VERSION="${ISTIO_VERSION:-1.30.4}"
+ISTIO_VERSION="${ISTIO_VERSION:-1.31.0}"
 LOCALBIN="${LOCALBIN:-${ROOT}/bin}"
 ISTIOCTL="${ISTIOCTL:-${LOCALBIN}/istioctl}"
 MESH_NS="${MESH_NS:-default}"

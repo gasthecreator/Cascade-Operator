@@ -200,6 +200,21 @@ reproduction and confirmation for each:
   See `docs/worklog/2026-09-04-security-hardening-and-a-real-calico-bug.md`
   and `docs/worklog/2026-09-04-live-verification-completed.md` for the
   full accounting of all four bugs found and fixed via live testing.
+- **Istio 1.30.4 → 1.31.0**: `istio.io/api`/`istio.io/client-go` and the
+  pinned control-plane version bumped together (this project keeps them
+  in lockstep, so Dependabot's Go-library-only PRs were superseded, not
+  merged as-is). A changelog-research claim about a backwards-incompatible
+  `OutlierDetection.MinHealthPercent` default was checked directly against
+  the vendored Go source and found inaccurate — byte-identical between
+  versions. Live-verified: control plane and demo-topology sidecars
+  upgraded in place, then `make test-integration` surfaced a real, if
+  unrelated, bug — a corrupted `kubectl.kubernetes.io/last-applied-configuration`
+  annotation on both demo `CascadePolicy` objects, left over from an
+  earlier slice's `kubectl apply -f <full -o yaml backup>` restore step,
+  producing `metadata.resourceVersion: Invalid value: 0` on any later
+  apply. Fixed by stripping the stale annotation; all 6 integration tests
+  (Istio + Linkerd) pass clean against the upgraded control plane. See
+  `docs/worklog/2026-09-04-istio-1.31-upgrade.md`.
 
 ## [0.1.0] - 2026-08-31
 
