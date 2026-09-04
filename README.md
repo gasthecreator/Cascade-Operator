@@ -204,19 +204,25 @@ The operator is now deployed in-cluster for real (`make deploy-operator`,
 `hack/deploy-operator.sh`) — cert-manager for the webhook's TLS, RBAC bound
 so a mesh's Prometheus can actually read `/metrics`, and a static scrape
 job on that Prometheus — closing the scrape-config gap earlier snapshots
-of this section described as open. One real limitation surfaced while
-closing it, deliberately not fixed here: the operator's Prometheus client
-is a single process-wide `PROMETHEUS_URL`, so a `CascadePolicy` whose
-`spec.mesh` doesn't match the mesh that URL's Prometheus scrapes reconciles
-forever without ever seeing real data — silently, not as an error. Fixing
-that for real (a per-mesh `Querier`) is a design change, not a config
-change, and is left as an open, explicitly-scoped item rather than papered
-over. Every phase's exact scope, the reasoning behind each nontrivial
-decision, and this new limitation are tracked live in [`PLAN.md`](PLAN.md)'s
-§5 checklist, which is the source of truth for what's built — this section
-won't try to keep a duplicate in sync. Every unit of work, including the
-reasoning behind decisions and the real bugs found and fixed along the way
-(there were a lot, and hiding them would defeat the point of a portfolio
+of this section described as open. A second, deeper limitation surfaced
+while verifying that live — the operator's Prometheus client was a single
+process-wide `PROMETHEUS_URL`, so a `CascadePolicy` on the mesh that URL's
+Prometheus didn't scrape reconciled forever without ever seeing real
+data — is now closed too: `MetricsIstio`/`MetricsLinkerd` give each mesh
+its own client, and reaching `linkerd-viz`'s own Prometheus for real also
+needed mesh-injecting the operator itself and adding it as a second
+authorized caller on `linkerd-viz`'s deliberately locked-down Prometheus
+`AuthorizationPolicy` (confirmed live not to weaken anything else — this
+cluster's default inbound policy is already permissive, so meshing the
+operator doesn't newly restrict its other traffic). Live-verified end to
+end on both meshes at once: a real trip, mitigate, and full restore on
+each mesh's own demo policy, driven by that mesh's own real Prometheus.
+Every phase's exact scope and the reasoning behind each nontrivial
+decision are tracked live in [`PLAN.md`](PLAN.md)'s §5 checklist, which is
+the source of truth for what's built — this section won't try to keep a
+duplicate in sync. Every unit of work, including the reasoning behind
+decisions and the real bugs found and fixed along the way (there were a
+lot, and hiding them would defeat the point of a portfolio
 piece), has a dated entry in [`docs/worklog/`](docs/worklog/README.md).
 
 ## Repo layout

@@ -57,8 +57,17 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-09-03 — Per-mesh Prometheus client, and getting past linkerd-viz's own locked-down AuthorizationPolicy](2026-09-03-per-mesh-prometheus-client-and-linkerd-viz-authz.md)
 - [2026-09-03 — Operator deployed in-cluster for real, and its own metrics genuinely scraped](2026-09-03-operator-in-cluster-deploy-and-metrics-scrape.md)
 - [2026-09-01 — Documentation follow-up: docs/dev-linkerd.md, and a closer look at the operator-metrics gap](2026-09-01-docs-dev-linkerd-and-audit-followup.md)
+- [2026-09-01 — Phase 11 (slice 2, final): kernel-event corroboration wired into detection, live-verified end-to-end](2026-09-01-phase11-kernel-corroboration.md)
+- [2026-09-01 — Phase 11 (slice 1): real TCP-layer fault injection, live-verified against Tetragon](2026-09-01-phase11-tcp-reset-fault-injection.md)
+- [2026-09-01 — Phase 6.6 follow-up: wire Linkerd into CI's integration job](2026-09-01-phase6.6-ci-linkerd-integration.md)
+- [2026-09-01 — Phase 6.6 (slice 5, final): Linkerd integration test coverage, live-verified](2026-09-01-phase6.6-linkerd-integration-tests.md)
+- [2026-09-01 — Phase 6.6 (slice 4): hack/install-linkerd.sh, live-verified](2026-09-01-phase6.6-linkerd-install-script.md)
+- [2026-08-31 — Phase 6.6 (slice 3): spec.mesh reconciler dispatch, live-verified](2026-08-31-phase6.6-reconciler-mesh-dispatch.md)
+- [2026-08-31 — Phase 6.6 (slice 2): Linkerd Mitigator, live-verified against the real cluster](2026-08-31-phase6.6-linkerd-mitigator.md)
+- [2026-08-31 — Phase 6.6 (slice 1): Linkerd QueryBuilder, live-verified against a real Linkerd install](2026-08-31-phase6.6-linkerd-query-builder.md)
 - [2026-08-31 — Phase 6.5: retry storm migrated to mesh.Mitigator (last of three signatures)](2026-08-31-phase6.5-mitigator-retrystorm.md)
 - [2026-08-31 — Phase 6.4: latency/error-cascade migrated to mesh.Mitigator](2026-08-31-phase6.4-mitigator-latency-error.md)
 - [2026-08-31 — Phase 6.3: Mitigator interface + fan-out amplification migrated](2026-08-31-phase6.3-mitigator-fanout.md)

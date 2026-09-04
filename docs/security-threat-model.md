@@ -85,6 +85,25 @@ resource types.
    project's own live-verification work has done for local, out-of-cluster
    `go run` sessions against the dev Kind cluster — never for anything
    deployed.
+6. **The operator's own dev deployment holds a real Linkerd mTLS identity**
+   (`cascade-operator-controller-manager.cascade-operator-system.serviceaccount.identity.linkerd.cluster.local`,
+   `hack/deploy-operator.sh`'s Linkerd mesh-injection step), needed so it
+   can query `linkerd-viz`'s Prometheus at all — that Prometheus is locked
+   down by a deny-by-default `AuthorizationPolicy` on its query port,
+   confirmed live: an unmeshed caller gets a clean HTTP 403 regardless of
+   RBAC or query correctness. The operator is granted access via a
+   *second*, additive `AuthorizationPolicy`
+   (`linkerd-viz/prometheus-admin-cascade-operator`) targeting the same
+   `Server` as `linkerd-viz`'s own pre-existing `metrics-api` grant —
+   Linkerd's own policy validator webhook rejects more than one
+   ServiceAccount per `AuthorizationPolicy`, so this is deliberately a
+   second policy, not an edit to the existing one, and it grants exactly
+   one capability (read that one Prometheus's query API) to exactly one
+   identity. Meshing the operator was confirmed live not to newly restrict
+   its *other* inbound traffic before doing it: this cluster's
+   `defaultInboundPolicy` is `all-unauthenticated`, so istio-system's own
+   unmeshed Prometheus scraping the operator's `/metrics` (trust boundary 5
+   above) keeps working exactly as before.
 
 ## Known gaps (stated plainly, not hidden)
 
@@ -96,14 +115,17 @@ resource types.
   production-hardening step here; not done in this pass since it would
   need a real multi-namespace deployment story to validate against, and
   this project's dev cluster only ever uses one namespace.
-- **The admission webhook is not currently deployed to the persistent dev
-  Kind cluster** (PLAN.md §5 Phase 3's own follow-up — needs cert-manager
-  or a manually-issued cert there). Its actual TLS wiring has only been
-  verified through `envtest`'s real (if ephemeral) API server + auto-issued
-  test certs, not the production cert-manager path this repo's manifests
-  assume. This is the same honestly-stated gap Phase 3's worklog already
-  recorded — repeated here because a threat model that omits "the webhook
-  isn't actually running anywhere real yet" would be misleading.
+- **Resolved**: the admission webhook is now deployed to the persistent dev
+  Kind cluster (`hack/deploy-operator.sh`, cert-manager for real cert
+  issuance) — Phase 3's own follow-up, previously stated here as an open
+  gap since only `envtest`'s ephemeral test certs had exercised the TLS
+  wiring. Still worth naming what wasn't specifically re-verified in that
+  slice: the webhook's own rejection behavior (self-dependency, duplicate
+  `dependsOn`, malformed FQDNs) was proven correct via `envtest` and not
+  re-exercised against the cert-manager-issued cert path specifically —
+  the TLS *serving* path is now real, the validation *logic* re-check
+  against it is not a new test, just the same one running on real
+  infrastructure.
 - **No `NetworkPolicy` restricting the operator pod's egress.** It can, in
   principle, reach any address in the cluster (or beyond, if the cluster's
   network allows it) — including wherever `--prometheus-url` or

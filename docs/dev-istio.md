@@ -67,11 +67,12 @@ TLS, RBAC bound so a mesh's Prometheus can read `/metrics`, a static
 scrape job on that Prometheus) and is what this project's own dev cluster
 now runs — confirmed live by triggering a real trip and querying
 `cascade_signatures_detected_total` back out through Prometheus itself, not
-just curling the operator directly. One caveat that script's own header
-documents rather than silently works around: `PROMETHEUS_URL` is one URL
-for the whole operator process, so a `CascadePolicy` whose `spec.mesh`
-doesn't match that Prometheus's mesh reconciles forever without ever
-detecting anything real.
+just curling the operator directly. The operator also runs one Prometheus
+client per mesh (`--prometheus-url-istio`/`--prometheus-url-linkerd`, or
+their env-var equivalents), so a `CascadePolicy` on either mesh detects
+against that mesh's own real proxy metrics, not a single shared client that
+silently starves whichever mesh it doesn't point at (the earlier shape of
+this gap, fixed and live-verified against both meshes at once).
 
 ## Retries / `response_flags`
 

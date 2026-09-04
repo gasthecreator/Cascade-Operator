@@ -798,15 +798,41 @@ live-cluster claim before checking an item here.
   an easy-to-miss startup log line); once fixed, drove a real trip via the
   demo topology's fault-injection endpoints and confirmed
   `cascade_signatures_detected_total` came back through an actual PromQL
-  query against Prometheus, not just a direct curl of the operator. A new,
-  honestly-scoped limitation surfaced in the process: the operator's
-  Prometheus client is one process-wide URL, but `spec.mesh` can be Istio
-  or Linkerd — a policy on the mesh that URL's Prometheus doesn't scrape
-  reconciles forever without ever seeing real data, silently. Fixing that
-  needs a per-mesh `Querier`, a design change not attempted in this slice —
-  left open and documented (`CHANGELOG.md`'s Known gaps), not silently
-  papered over by picking one mesh and hoping nobody notices the other.
+  query against Prometheus, not just a direct curl of the operator.
   See `docs/worklog/2026-09-03-operator-in-cluster-deploy-and-metrics-scrape.md`.
+- [x] Follow-up to the follow-up — per-mesh Prometheus client: closed a
+  limitation surfaced live while verifying the item above — the
+  operator's Prometheus client was one process-wide URL, but `spec.mesh`
+  can be Istio or Linkerd, each scraped by a different mesh's own
+  Prometheus; a policy on the mesh the URL didn't point at reconciled
+  forever without ever seeing real data, silently. Fixed with
+  `CascadePolicyReconciler.MetricsIstio`/`MetricsLinkerd`
+  (`internal/controller/cascadepolicy_controller.go`'s `metricsQuerier()`)
+  and matching `--prometheus-url-istio`/`--prometheus-url-linkerd` flags —
+  falls back to the shared `Metrics` field when a mesh-specific one is
+  unset, so every existing test and single-mesh deployment needed no
+  change. New unit + Reconcile-level tests lock in the exact silent-failure
+  shape this fixes (`internal/controller/mesh_dispatch_test.go`). Live
+  verification surfaced a second, distinct blocker: `linkerd-viz`'s own
+  Prometheus is locked down by a deny-by-default `AuthorizationPolicy` on
+  its query port (only its own `metrics-api` ServiceAccount, via mTLS, is
+  let in) — an unmeshed operator pod got a clean HTTP 403 regardless of
+  RBAC or query correctness. Closed (with explicit sign-off on the
+  approach, given it's a real security-relevant infrastructure change) by
+  mesh-injecting the operator itself and adding it as a *second*,
+  additive `AuthorizationPolicy` on the same `Server` — Linkerd's own
+  policy validator webhook rejects more than one ServiceAccount per
+  `AuthorizationPolicy`, confirmed live, so this is a new policy beside
+  `metrics-api`'s existing one, not an edit to it. Confirmed this
+  cluster's `defaultInboundPolicy` is `all-unauthenticated` before doing
+  this, so meshing the operator does not newly restrict its other inbound
+  traffic (istio-system's own unmeshed Prometheus scrape of the operator's
+  `/metrics` keeps working). Live-verified end-to-end on both meshes at
+  once: a real trip, mitigate, and full restore on the Istio-mesh demo
+  policy, and a separate real trip, mitigate, and full restore on the
+  previously-broken Linkerd-mesh demo policy — both against their own
+  mesh's real Prometheus, both cleaned up afterward. All formalized into
+  `hack/deploy-operator.sh` (steps 6–7) for repeatability.
 
 **Sequencing note (revised 2026-08-31 — Cursor no longer available, Claude
 sole implementer for Phases 6–11):** re-sequenced to **10 → 9 → 7 → 8 → 6 →
