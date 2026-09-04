@@ -107,27 +107,30 @@ resource types.
 
 ## Known gaps (stated plainly, not hidden)
 
-- **Built, live-verification pending**: namespace-scoped RBAC. The
-  `ClusterRole` cluster-scoping this entry used to describe is still the
-  *default* (unchanged — every existing test/CI run assumes cluster-wide
-  watches), but this project's dev cluster no longer has the "only one
-  namespace" precondition the earlier version of this entry cited as the
-  reason not to build the alternative: it now runs `CascadePolicy`
-  objects in both `default` (Istio) and `linkerd-demo` (Linkerd), a real
-  multi-namespace story to validate against. `cmd/main.go`'s new
-  `--watch-namespaces`/`WATCH_NAMESPACES` flag restricts the manager's
-  cache to a named namespace set (`cache.Options.DefaultNamespaces`);
+- **Resolved and live-verified**: namespace-scoped RBAC. The `ClusterRole`
+  cluster-scoping this entry used to describe is still the *default*
+  (unchanged — every existing test/CI run assumes cluster-wide watches),
+  but this project's dev cluster no longer has the "only one namespace"
+  precondition the earlier version of this entry cited as the reason not
+  to build the alternative: it now runs `CascadePolicy` objects in both
+  `default` (Istio) and `linkerd-demo` (Linkerd), a real multi-namespace
+  story to validate against. `cmd/main.go`'s `--watch-namespaces`/
+  `WATCH_NAMESPACES` flag restricts the manager's cache to a named
+  namespace set (`cache.Options.DefaultNamespaces`);
   `config/rbac-namespaced/role.yaml.tmpl` + `hack/generate-namespaced-rbac.sh`
   emit a `Role`+`RoleBinding` pair per namespace with the exact same rules
-  `config/rbac/role.yaml`'s `ClusterRole` grants (confirmed by reading
-  that file directly); `hack/switch-to-namespaced-rbac.sh` (`make
-  switch-to-namespaced-rbac`) applies the namespaced RBAC, deletes the
-  cluster-wide `ClusterRoleBinding`, and sets `--watch-namespaces` in one
-  step. Written and passing `go build`/`go vet`/`go test ./... -race`/
-  `make lint`; not yet exercised against the live cluster — the attempt to
-  do so (2026-09-04) was derailed before reaching this specific test by
-  the cluster instability the egress-`NetworkPolicy` entry below describes
-  in full; this entry will be updated once it actually runs.
+  `config/rbac/role.yaml`'s `ClusterRole` grants; `hack/switch-to-namespaced-rbac.sh`
+  (`make switch-to-namespaced-rbac`) applies the namespaced RBAC, deletes
+  the cluster-wide `ClusterRoleBinding`, and sets `--watch-namespaces` in
+  one step. **Live-verified (2026-09-04)**: ran the switch script against
+  the real cluster, then confirmed with `kubectl auth can-i` — cluster-wide
+  `list cascadepolicies` correctly returned `no`, `-n default` and
+  `-n linkerd-demo` both correctly returned `yes`, and a namespace
+  deliberately *not* in the watch set (`istio-system`) correctly returned
+  `no`. The operator's own logs showed `Restricting CascadePolicy watches
+  to specific namespaces` at startup, and both demo `CascadePolicy`
+  objects kept reconciling cleanly afterward — the namespaced `Role`s
+  genuinely carry the same effective permissions the `ClusterRole` did.
 - **Resolved**: the admission webhook is now deployed to the persistent dev
   Kind cluster (`hack/deploy-operator.sh`, cert-manager for real cert
   issuance) — Phase 3's own follow-up, previously stated here as an open
@@ -178,17 +181,43 @@ resource types.
   real 503/timeout under the too-narrow policy). Fixed by adding that
   rule (see the manifest's own header for the exact ports/selectors).
 
-  What's still open: a full, deliberate pass/fail test (confirm the
-  allow-listed destinations succeed *and* an arbitrary non-allow-listed
-  destination genuinely times out, from a real pod matching the policy's
-  `podSelector`) was not completed — the dev cluster suffered a fourth
-  distinct wave of instability this same session (`kube-controller-manager`
-  crash-looping under the aggregate load of everything now installed:
-  Istio, Linkerd, cert-manager, Tetragon, Calico, two demo topologies, and
-  the operator, on an 8-core/8GB host), independent of the Calico bug
-  above and not resolved by fixing it. Stopped rather than pushing
-  further — this entry will be updated with the real pass/fail result once
-  that test actually completes.
+  **Live-verified end-to-end (2026-09-04, after the cluster recovered)**:
+  a deliberate allow/deny pass/fail test from a pod matching the policy's
+  own `podSelector` (with Linkerd's own namespace-level injection
+  explicitly disabled via a pod annotation, to isolate this Kubernetes
+  `NetworkPolicy` layer from Linkerd's own separate mesh-authorization
+  layer — the first attempt used a mesh-injected test pod and got
+  confounded 504s that could have come from either layer). Result: DNS,
+  Istio's Prometheus, and `linkerd-viz`'s Prometheus all succeeded with
+  real responses; external internet, `kube-dns` on a disallowed port
+  (same pod, wrong port), and `istio-system`'s Prometheus on a disallowed
+  port (same pod, wrong port) all genuinely timed out — confirming the
+  policy enforces at the *port* level, not just per-destination-pod.
+
+  Getting to a clean test also surfaced and fixed a second real bug,
+  distinct from the Calico one above: the original API-server rule used a
+  `podSelector` matching the real `kube-apiserver` pod at port 6443 — this
+  looked correct on paper but never actually matched real traffic, because
+  in-cluster clients dial the `kubernetes` Service's ClusterIP (port 443,
+  via the standard in-cluster kubeconfig), and this cluster's CNI (Calico)
+  evaluates egress against that pre-DNAT destination, not a podSelector
+  match on the post-DNAT real pod. Confirmed live: with the podSelector
+  version active, the operator's own leader election failed continuously
+  ("connection reset by peer" dialing `10.96.0.1:443`) while an unrelated
+  pod outside this policy's `podSelector` reached the identical address
+  instantly — proving the policy, not the API server, was the cause.
+  Fixed by switching to an `ipBlock` on the Service's own ClusterIP (see
+  the manifest's own header for the full reasoning and the portability
+  caveat this fix carries).
+
+  A third issue surfaced during the same debugging pass turned out *not*
+  to be this `NetworkPolicy` at all: deleting the policy entirely produced
+  the identical "connection reset by peer" failure, proving the real
+  cause was Linkerd's own sidecar intercepting the operator's API-server
+  traffic — a known operational pattern for any controller-runtime client
+  running inside a mesh, fixed separately (see
+  `config/manager/manager.yaml`'s `config.linkerd.io/skip-outbound-ports`
+  annotation, added the same session).
 - **Resolved**: the manager image is now published and signed.
   `.github/workflows/publish-image.yml` builds the image, pushes it to
   `ghcr.io/<owner>/cascade-operator`, and signs it keylessly with `cosign`
@@ -204,7 +233,15 @@ resource types.
   the same image, covering "provenance" in this gap's original title, not
   just the signature. Triggered by a `v*` tag push (a real release) or
   manually via `workflow_dispatch` (exercised this way here, since this
-  project has no tagged release yet).
+  project has no tagged release yet). **Live-verified (2026-09-04)**: the
+  first actual `workflow_dispatch` run failed at the build step —
+  `invalid tag "ghcr.io/gasthecreator/Cascade-Operator:<sha>": repository
+  name must be lowercase` — since `github.repository` preserves this
+  repo's real mixed-case name verbatim, and Docker image references
+  require lowercase. Fixed by lowercasing it (`${IMAGE_NAME,,}`) in both
+  the tag-computation and `cosign sign` steps. This is exactly the kind of
+  thing "written and passing local checks" can't catch — the workflow
+  itself was never run once before this.
 
 ## What's intentionally out of scope for this document
 

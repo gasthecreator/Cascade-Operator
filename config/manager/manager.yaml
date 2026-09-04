@@ -31,6 +31,22 @@ spec:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
+        # Harmless when this pod is never mesh-injected (Linkerd-specific
+        # annotations are simply ignored without a linkerd-proxy sidecar);
+        # required once it is (hack/deploy-operator.sh's mesh-injection
+        # step, needed for linkerd-viz's own locked-down Prometheus — see
+        # docs/security-threat-model.md's own trust-boundary entry).
+        # Confirmed live (2026-09-04) that without this, the manager's own
+        # leader-election/API-server calls to the `kubernetes` Service
+        # (ClusterIP:443) fail with repeated "connection reset by peer"
+        # once the pod has a linkerd-proxy sidecar — the sidecar
+        # intercepting and proxying that traffic breaks it, a known
+        # operational pattern for any controller-runtime-based client
+        # (client-go, kubectl) running inside a mesh. Excluding port 443
+        # from outbound interception lets that specific traffic bypass the
+        # proxy entirely, same as Linkerd's own docs recommend for
+        # anything talking directly to the API server.
+        config.linkerd.io/skip-outbound-ports: "443"
       labels:
         control-plane: controller-manager
         app.kubernetes.io/name: cascade-operator

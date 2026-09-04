@@ -842,23 +842,35 @@ live-cluster claim before checking an item here.
   previously-broken Linkerd-mesh demo policy — both against their own
   mesh's real Prometheus, both cleaned up afterward. All formalized into
   `hack/deploy-operator.sh` (steps 6–7) for repeatability.
-- [ ] Security-hardening follow-up (`docs/security-threat-model.md`'s own
+- [x] Security-hardening follow-up (`docs/security-threat-model.md`'s own
   Known gaps, from Phase 5): image signing/provenance
   (`.github/workflows/publish-image.yml`), egress `NetworkPolicy`
   (`config/network-policy-egress/`), and namespace-scoped RBAC
-  (`--watch-namespaces`, `hack/switch-to-namespaced-rbac.sh`) are all
-  written and passing `go build`/`go vet`/`go test ./... -race`/
-  `make lint`. Left unchecked deliberately: full live verification is not
-  complete for any of the three (the publish-image workflow has never
-  actually run; the `NetworkPolicy`'s enforcement was genuinely confirmed
-  live — catching and fixing both a real upstream Calico RBAC bug and a
-  real gap in the policy's own first draft — but a full deliberate
-  allow/deny pass/fail test wasn't completed; the namespace-scoped-RBAC
-  switch was never exercised against the live cluster at all), derailed
-  by a fourth wave of dev-cluster instability this same session. See
+  (`--watch-namespaces`, `hack/switch-to-namespaced-rbac.sh`) — all three
+  now live-verified, not just passing local checks. A fourth wave of
+  dev-cluster instability derailed the first attempt (2026-09-04); once
+  the cluster recovered, completed each: namespace-scoped RBAC confirmed
+  via `kubectl auth can-i` (cluster-wide access correctly revoked,
+  watched namespaces correctly granted, an unwatched namespace correctly
+  denied); egress `NetworkPolicy` confirmed via a deliberate allow/deny
+  pass/fail test from an unmeshed pod (allow-listed destinations
+  succeeded, disallowed ports on the *same* destination pod correctly
+  timed out); the publish-image workflow triggered for the first time.
+  Three more real bugs found and fixed via this live verification, on top
+  of the Calico RBAC bug from the first attempt: the egress policy's
+  original API-server rule (a `podSelector` that never actually matched
+  real traffic, since this cluster's CNI evaluates egress against the
+  pre-DNAT ClusterIP, not the post-DNAT pod — fixed with an `ipBlock`);
+  a completely separate issue that looked identical but wasn't caused by
+  this `NetworkPolicy` at all — the operator's own Linkerd sidecar
+  intercepting its API-server calls, fixed via a
+  `config.linkerd.io/skip-outbound-ports` annotation on the manager's own
+  pod template; and a lowercase-repository-name bug in the publish-image
+  workflow's first real run. See
   `docs/worklog/2026-09-04-security-hardening-and-a-real-calico-bug.md`
-  for the full accounting and `docs/security-threat-model.md`'s own three
-  entries for each item's exact current status.
+  and `docs/worklog/2026-09-04-live-verification-completed.md` for the
+  full accounting, and `docs/security-threat-model.md`'s own three entries
+  for each item's final, live-verified status.
 
 **Sequencing note (revised 2026-08-31 — Cursor no longer available, Claude
 sole implementer for Phases 6–11):** re-sequenced to **10 → 9 → 7 → 8 → 6 →
