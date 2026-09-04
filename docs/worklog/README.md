@@ -57,6 +57,8 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-09-03 — Operator deployed in-cluster for real, and its own metrics genuinely scraped](2026-09-03-operator-in-cluster-deploy-and-metrics-scrape.md)
+- [2026-09-01 — Documentation follow-up: docs/dev-linkerd.md, and a closer look at the operator-metrics gap](2026-09-01-docs-dev-linkerd-and-audit-followup.md)
 - [2026-08-31 — Phase 6.5: retry storm migrated to mesh.Mitigator (last of three signatures)](2026-08-31-phase6.5-mitigator-retrystorm.md)
 - [2026-08-31 — Phase 6.4: latency/error-cascade migrated to mesh.Mitigator](2026-08-31-phase6.4-mitigator-latency-error.md)
 - [2026-08-31 — Phase 6.3: Mitigator interface + fan-out amplification migrated](2026-08-31-phase6.3-mitigator-fanout.md)

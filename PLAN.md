@@ -495,9 +495,10 @@ live-cluster claim before checking an item here.
   *not* re-checking thresholds/non-empty fields already enforced by the CRD's
   own OpenAPI schema. Verified through the real admission path (envtest's
   wired webhook + TLS + `k8sClient.Create`), not just the Go function in
-  isolation. Not yet deployed to the persistent dev Kind cluster (would need
-  cert-manager or a manual cert there) — noted as a follow-up, not silently
-  assumed done.
+  isolation. Deployed to the persistent dev Kind cluster for real
+  (`hack/deploy-operator.sh`, cert-manager installed for the webhook's TLS)
+  as of the operator-metrics-scrape follow-up slice below — the earlier
+  "not yet deployed" note is resolved, not silently dropped.
 - [x] Phase 4 — Grafana dashboard (`config/observability/grafana-dashboard.json`,
   `make grafana-install`) visualizing the four existing `cascade_*` metrics
   plus controller-runtime reconcile health; `internal/notify` trip/restore
@@ -505,11 +506,14 @@ live-cluster claim before checking an item here.
   a reconcile). Verified live: real metrics confirmed on the operator's own
   `/metrics` endpoint during a k6-induced trip+restore, all 8 dashboard
   PromQL queries confirmed syntactically valid against Prometheus, Grafana
-  confirmed to accept and render the dashboard JSON. Prometheus does not
-  currently scrape a running operator in this dev cluster (pre-existing —
-  same gap noted for the original operator-metrics slice), so the full
-  scrape→Grafana pipeline with live cascade_* data is not yet demonstrated
-  end-to-end — noted honestly, not silently assumed.
+  confirmed to accept and render the dashboard JSON. The full scrape→
+  Grafana pipeline with live `cascade_*` data is now demonstrated
+  end-to-end too, as of the operator-metrics-scrape follow-up slice below
+  (`hack/deploy-operator.sh`): a real demo-topology trip produced genuine
+  `cascade_signatures_detected_total`/`cascade_mitigation_patches_applied_total`
+  series queryable through Prometheus itself, not just curled directly off
+  the operator — the dashboard's panels now have real data to render, not
+  only syntactically-valid-but-unproven queries.
 - [x] Phase 5 — Production hardening (all four sub-items complete):
   - [x] Fixed the known zero-value bug in retry storm's *restore-completion*
     path — but investigation found it was narrower and different in shape
@@ -781,6 +785,28 @@ live-cluster claim before checking an item here.
   unescaped `.` in a `kubectl jsonpath` expression silently returned
   empty) by actually running it, not assuming it correct. See
   `docs/worklog/2026-09-01-phase11-kernel-corroboration.md`.
+- [x] Post-Phase-11 follow-up — operator-metrics scrape gap closed: the
+  operator is deployed in-cluster for the first time in this project's
+  history (`hack/deploy-operator.sh`, `make deploy-operator`) — cert-manager
+  for the webhook's TLS (closing Phase 3's own long-standing follow-up),
+  RBAC bound so a mesh's Prometheus can read the operator's secured
+  `/metrics`, and a static scrape job on that Prometheus. Live-verified
+  end-to-end, not just deployed: found and fixed a real, previously-hidden
+  bug along the way — `PROMETHEUS_URL` was never set on the first deploy,
+  so `reconciler.Metrics` was `nil` and detection silently never ran
+  (`Normal` forever against real threshold-crossing traffic, no error, just
+  an easy-to-miss startup log line); once fixed, drove a real trip via the
+  demo topology's fault-injection endpoints and confirmed
+  `cascade_signatures_detected_total` came back through an actual PromQL
+  query against Prometheus, not just a direct curl of the operator. A new,
+  honestly-scoped limitation surfaced in the process: the operator's
+  Prometheus client is one process-wide URL, but `spec.mesh` can be Istio
+  or Linkerd — a policy on the mesh that URL's Prometheus doesn't scrape
+  reconciles forever without ever seeing real data, silently. Fixing that
+  needs a per-mesh `Querier`, a design change not attempted in this slice —
+  left open and documented (`CHANGELOG.md`'s Known gaps), not silently
+  papered over by picking one mesh and hoping nobody notices the other.
+  See `docs/worklog/2026-09-03-operator-in-cluster-deploy-and-metrics-scrape.md`.
 
 **Sequencing note (revised 2026-08-31 — Cursor no longer available, Claude
 sole implementer for Phases 6–11):** re-sequenced to **10 → 9 → 7 → 8 → 6 →

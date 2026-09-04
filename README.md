@@ -200,18 +200,24 @@ demoable:
 **All eleven planned phases are complete** — three signatures, two meshes,
 detect → mitigate → restore end to end, including cross-signature and
 cross-mesh-primitive handoffs, plus every deliverable in the section above.
-Every phase's exact scope, the reasoning behind each nontrivial decision,
-and the one remaining, deliberately-not-attempted loose end — an
-operator-metrics scrape config, which needs the operator actually
-deployed in-cluster first (itself needing cert-manager or a manual cert
-for the admission webhook, Phase 3's own follow-up) plus a static
-Prometheus job rather than the scaffolded `ServiceMonitor` (neither
-dev-cluster Prometheus runs the Prometheus Operator) — are tracked live in
-[`PLAN.md`](PLAN.md)'s §5 checklist, which is the source of truth for
-what's built — this section won't try to keep a duplicate in sync. Every unit of work, including the reasoning behind decisions and the
-real bugs found and fixed along the way (there were a lot, and hiding them
-would defeat the point of a portfolio piece), has a dated entry in
-[`docs/worklog/`](docs/worklog/README.md).
+The operator is now deployed in-cluster for real (`make deploy-operator`,
+`hack/deploy-operator.sh`) — cert-manager for the webhook's TLS, RBAC bound
+so a mesh's Prometheus can actually read `/metrics`, and a static scrape
+job on that Prometheus — closing the scrape-config gap earlier snapshots
+of this section described as open. One real limitation surfaced while
+closing it, deliberately not fixed here: the operator's Prometheus client
+is a single process-wide `PROMETHEUS_URL`, so a `CascadePolicy` whose
+`spec.mesh` doesn't match the mesh that URL's Prometheus scrapes reconciles
+forever without ever seeing real data — silently, not as an error. Fixing
+that for real (a per-mesh `Querier`) is a design change, not a config
+change, and is left as an open, explicitly-scoped item rather than papered
+over. Every phase's exact scope, the reasoning behind each nontrivial
+decision, and this new limitation are tracked live in [`PLAN.md`](PLAN.md)'s
+§5 checklist, which is the source of truth for what's built — this section
+won't try to keep a duplicate in sync. Every unit of work, including the
+reasoning behind decisions and the real bugs found and fixed along the way
+(there were a lot, and hiding them would defeat the point of a portfolio
+piece), has a dated entry in [`docs/worklog/`](docs/worklog/README.md).
 
 ## Repo layout
 
