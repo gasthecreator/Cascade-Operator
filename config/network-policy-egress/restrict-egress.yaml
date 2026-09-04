@@ -76,16 +76,29 @@ spec:
           protocol: TCP
     # The Kubernetes API server itself — reconcile, leader election, and
     # the webhook/metrics cert watchers all need this regardless of any
-    # CascadePolicy configuration.
+    # CascadePolicy configuration. Uses an ipBlock on the `kubernetes`
+    # Service's own ClusterIP, not a podSelector on the real
+    # kube-apiserver pod: confirmed live this slice that a podSelector
+    # here does NOT work on this cluster's CNI (Calico) — in-cluster
+    # clients dial the ClusterIP (the standard in-cluster kubeconfig's
+    # own KUBERNETES_SERVICE_HOST/PORT), and Calico evaluates egress
+    # against that pre-DNAT destination, not the post-DNAT real pod IP a
+    # podSelector match requires. Confirmed the failure mode directly:
+    # with the podSelector version applied, the operator's own leader
+    # election repeatedly failed ("connection reset by peer" dialing
+    # 10.96.0.1:443) while an unrelated pod outside this policy's
+    # podSelector reached the exact same address instantly — proving the
+    # policy itself, not the API server, was the cause. `10.96.0.1` is
+    # this cluster's actual `kubernetes` Service ClusterIP
+    # (`kubectl get svc kubernetes -o jsonpath='{.spec.clusterIP}'`), not
+    # guessed — a `kubeadm`/Kind convention (first address in the service
+    # CIDR), not a universal constant, so re-verify this on a different
+    # cluster rather than assuming it transfers unchanged.
     - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-          podSelector:
-            matchLabels:
-              component: kube-apiserver
+        - ipBlock:
+            cidr: 10.96.0.1/32
       ports:
-        - port: 6443
+        - port: 443
           protocol: TCP
     # Istio's own Prometheus — relevant when --prometheus-url-istio/
     # PROMETHEUS_URL_ISTIO points here (hack/deploy-operator.sh's default).

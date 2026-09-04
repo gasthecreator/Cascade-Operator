@@ -177,12 +177,18 @@ now — see
 [`docs/worklog/2026-09-01-phase11-tcp-reset-fault-injection.md`](../../docs/worklog/2026-09-01-phase11-tcp-reset-fault-injection.md)'s
 own "reasonable next step" note) drives the same load/induce/heal timeline
 as the other three scripts, but induces via `/control/reset` — a genuine
-TCP RST, not an HTTP error. With Tetragon installed (`make
-tetragon-install`) and its `TracingPolicy` watching
-`tcp_send_active_reset`, the same `LatencyErrorCascade` trip the other
-payments-service scenario produces should show `kernel_corroboration=true`
-in the operator's own reconcile logs, with confidence boosted toward 1.0 —
-confirm with:
+TCP RST, not an HTTP error. Live-verified (2026-09-04): this actually
+trips `FanOutAmplification`, not `LatencyErrorCascade` as originally
+predicted here — checkout's own connection failures against a resetting
+payments-service surface through its app-level retry loop (the same
+mechanism the fan-out signature already measures), not purely as a
+latency/error signal. With Tetragon installed (`make tetragon-install`)
+and its `TracingPolicy` watching `tcp_send_active_reset`, the trip should
+show `kernel_corroboration=true` in the operator's own reconcile logs,
+with confidence boosted toward 1.0 (real kernel events were independently
+confirmed live via `tetragon_events_total`, though the exact log line
+tying them to this specific trip wasn't captured that run — see
+`docs/worklog/2026-09-04-live-verification-completed.md`) — confirm with:
 
 ```bash
 hack/run-k6-demo.sh tetragon-reset
