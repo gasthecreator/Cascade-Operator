@@ -6,7 +6,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ISTIO_VERSION="${ISTIO_VERSION:-1.30.4}"
+ISTIO_VERSION="${ISTIO_VERSION:-1.31.0}"
 ISTIO_SAMPLES_BASE="https://raw.githubusercontent.com/istio/istio/${ISTIO_VERSION}"
 LOCAL_PORT="${GRAFANA_LOCAL_PORT:-13000}"
 DASHBOARD_JSON="${ROOT}/config/observability/grafana-dashboard.json"

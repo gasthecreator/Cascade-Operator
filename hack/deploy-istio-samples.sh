@@ -4,7 +4,7 @@
 # not the §2.7 checkout→{payments,inventory} demo topology.
 set -euo pipefail
 
-ISTIO_VERSION="${ISTIO_VERSION:-1.30.4}"
+ISTIO_VERSION="${ISTIO_VERSION:-1.31.0}"
 MESH_NS="${MESH_NS:-default}"
 ISTIO_SAMPLES_BASE="https://raw.githubusercontent.com/istio/istio/${ISTIO_VERSION}"
 

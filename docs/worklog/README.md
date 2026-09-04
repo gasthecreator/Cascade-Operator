@@ -57,6 +57,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-09-04 — Istio 1.30.4 → 1.31.0 upgrade: Go libraries and control-plane pin together, live-verified](2026-09-04-istio-1.31-upgrade.md)
 - [2026-09-04 — Live verification completed: namespace-scoped RBAC, egress NetworkPolicy, image signing — three more real bugs found along the way](2026-09-04-live-verification-completed.md)
 - [2026-09-04 — Three security-hardening items built; a real upstream Calico bug found and fixed along the way; full live verification incomplete](2026-09-04-security-hardening-and-a-real-calico-bug.md)
 - [2026-09-04 — Two genuinely deferred deliverables closed: Phase 7's Claude Artifact copy, and a Tetragon reset k6 scenario](2026-09-04-phase7-artifact-copy-and-tetragon-k6-scenario.md)

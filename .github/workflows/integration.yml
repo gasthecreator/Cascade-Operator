@@ -24,7 +24,7 @@ jobs:
   integration:
     permissions:
       contents: read
-    name: Kind + Istio 1.30.4 + Linkerd edge-26.6.3
+    name: Kind + Istio 1.31.0 + Linkerd edge-26.6.3
     runs-on: ubuntu-latest
     # Bumped from 30: a second mesh control plane (Gateway API CRDs +
     # Linkerd + linkerd-viz, on top of Istio + Prometheus) is real extra
@@ -32,7 +32,7 @@ jobs:
     timeout-minutes: 40
     env:
       INTEGRATION_CONTEXT: kind-cascade-operator
-      ISTIO_VERSION: "1.30.4"
+      ISTIO_VERSION: "1.31.0"
       LINKERD_VERSION: "edge-26.6.3"
     steps:
       - name: Clone the code
