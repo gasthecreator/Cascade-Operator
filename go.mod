@@ -7,8 +7,8 @@ require (
 	github.com/onsi/gomega v1.43.1
 	github.com/prometheus/client_golang v1.24.1
 	google.golang.org/protobuf v1.36.12
-	istio.io/api v1.31.0
-	istio.io/client-go v1.31.0
+	istio.io/api v1.31.1-0.20260915183457-d60a532be69a
+	istio.io/client-go v1.31.1
 	k8s.io/api v0.37.0
 	k8s.io/apimachinery v0.37.0
 	k8s.io/client-go v0.37.0
