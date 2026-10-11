@@ -243,6 +243,9 @@ record), has a dated entry in [`docs/history/worklog/`](docs/history/worklog/REA
 | [`docs/benchmark-results.md`](docs/benchmark-results.md) | Measured detect-only vs mitigate results per signature |
 | [`docs/dev-istio.md`](docs/dev-istio.md) | Local Kind + Istio environment |
 | [`docs/dev-linkerd.md`](docs/dev-linkerd.md) | Local Kind + Linkerd environment |
+| [`docs/runbooks/`](docs/runbooks/README.md) | Operational runbooks: not reconciling, Prometheus down, stuck phases, webhook, ineffective mitigation |
+| [`docs/slo.md`](docs/slo.md) | Proposed service level objectives for the operator and the metrics behind them |
+| [`docs/upgrade-policy.md`](docs/upgrade-policy.md) | API stability, how to upgrade, supported Kubernetes/Istio/Linkerd versions |
 | [`docs/demo-topology.md`](docs/demo-topology.md) | The checkout, payments, inventory demo and how faults are injected |
 | [`PLAN.md`](PLAN.md) | Roadmap, current architecture and the live checklist |
 | [`docs/history/`](docs/history/worklog/README.md) | Dated worklog of every unit of work, with reasoning |

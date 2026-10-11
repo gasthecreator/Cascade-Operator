@@ -1,0 +1,17 @@
+# Default owner for all paths.
+* @gasthecreator
+
+# Security-sensitive paths are listed explicitly so that, once a ruleset
+# requires code-owner review, they cannot be changed without the owner's
+# approval even if the default rule is ever relaxed.
+/.github/workflows/ @gasthecreator
+/.github/dependabot.yml @gasthecreator
+/config/rbac*/ @gasthecreator
+/config/network-policy*/ @gasthecreator
+/docs/security-threat-model.md @gasthecreator
+/SECURITY.md @gasthecreator
+
+# NOTE: every rule above names the same single owner, so code-owner review
+# cannot be an independent check yet. Add a second maintainer to these paths
+# (for example `@gasthecreator @second-maintainer`) before relying on it, and
+# to remove the single-maintainer risk generally.

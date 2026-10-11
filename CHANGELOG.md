@@ -104,6 +104,10 @@ reproduction and confirmation for each:
 
 ### Documentation
 
+- Architecture decision records (`docs/adr/`), operational runbooks
+  (`docs/runbooks/`), proposed operator SLOs (`docs/slo.md`) and an upgrade and
+  compatibility policy (`docs/upgrade-policy.md`). `SECURITY.md` now states
+  response timelines. The worklog moved to `docs/history/worklog/`.
 - `docs/dev-linkerd.md` — a Linkerd-equivalent of `docs/dev-istio.md`
   (install, verify sidecars, generate traffic and query linkerd-viz's
   Prometheus, the retry-storm `ServiceProfile` fixture, the Tetragon

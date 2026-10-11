@@ -251,3 +251,11 @@ cluster-admin, or supply-chain compromise of this project's own
 dependencies (`go.mod`/`go.sum`) — the latter is what `govulncheck` and
 Dependabot (PLAN.md §5 Phase 1) already continuously check for, not
 something a static document adds value restating.
+
+## Related operational documentation
+
+- [Runbooks](runbooks/README.md) for incident response (operator not reconciling,
+  webhook or certificate failure, ineffective mitigation, and more).
+- [SLOs](slo.md) for the proposed availability and correctness objectives.
+- [Upgrade policy](upgrade-policy.md) for CRD and operator upgrade procedure.
+- [SECURITY.md](../SECURITY.md) for reporting a vulnerability and response timelines.
