@@ -29,7 +29,30 @@ jobs:
       - name: Check generated files
         run: make verify-generate
 
-      - name: Running Tests
+      # GOFLAGS=-race makes `go test` (invoked by `make test`) run with the
+      # race detector; the coverage profile still lands in cover.out.
+      - name: Running Tests (race detector on)
+        env:
+          GOFLAGS: -race
         run: |
           go mod tidy
           make test
+
+      - name: Publish coverage summary
+        if: always()
+        run: |
+          if [ ! -f cover.out ]; then
+            echo "cover.out not found; tests did not produce a profile" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          {
+            echo "### Unit test coverage (race detector on)"
+            echo
+            echo "| Package | Statement coverage |"
+            echo "|---|---|"
+            awk 'NR > 1 { split($1, a, ":"); f = a[1]; sub(/\/[^\/]+$/, "", f);
+                          tot[f] += $2; if ($3 > 0) cov[f] += $2 }
+                 END { for (p in tot) printf "| `%s` | %.1f%% |\n", p, 100 * cov[p] / tot[p] }' cover.out | sort
+            echo
+            echo "**Total:** $(go tool cover -func=cover.out | tail -n 1 | awk '{print $NF}')"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,77 @@
+# Cuts a release when a version tag is pushed (vMAJOR.MINOR.PATCH, optionally
+# with a pre-release suffix such as -rc.1):
+#   1. builds the manager image once, pushes it to GHCR, signs it keylessly
+#      with cosign and attaches an SBOM and SLSA provenance (the reusable
+#      publish-image.yml workflow, so there is a single implementation);
+#   2. generates the consolidated installer manifest (`make build-installer`)
+#      pinned to that image's digest, plus its SHA-256 checksums;
+#   3. creates the GitHub Release, with notes taken from the matching
+#      CHANGELOG.md section, and attaches the installer and checksums.
+#
+# Verify a downloaded installer with: sha256sum -c checksums.txt
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions: {}
+
+jobs:
+  image:
+    name: Build, push, and sign image
+    permissions:
+      contents: read
+      packages: write
+      id-token: write # cosign keyless signing, inside the called workflow
+    uses: ./.github/workflows/publish-image.yml
+
+  release:
+    name: Create GitHub release
+    needs: image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release and upload assets
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Extract release notes from CHANGELOG.md
+        env:
+          TAG: ${{ github.ref_name }}
+        run: hack/release-notes.sh "${TAG}" > release-notes.md
+
+      - name: Build the installer manifest, pinned to the signed image
+        env:
+          IMAGE: ${{ needs.image.outputs.image }}
+          DIGEST: ${{ needs.image.outputs.digest }}
+        run: |
+          make build-installer IMG="${IMAGE}@${DIGEST}"
+          cd dist
+          sha256sum install.yaml > checksums.txt
+          cat checksums.txt
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          flags=()
+          if [[ "${TAG}" == *-* ]]; then
+            flags+=(--prerelease)
+          fi
+          gh release create "${TAG}" \
+            --title "${TAG}" \
+            --notes-file release-notes.md \
+            --verify-tag \
+            "${flags[@]}" \
+            dist/install.yaml \
+            dist/checksums.txt

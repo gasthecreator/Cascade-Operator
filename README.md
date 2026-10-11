@@ -1,5 +1,12 @@
 # Cascade Operator
 
+[![Tests](https://github.com/gasthecreator/Cascade-Operator/actions/workflows/test.yml/badge.svg)](https://github.com/gasthecreator/Cascade-Operator/actions/workflows/test.yml)
+[![Integration](https://github.com/gasthecreator/Cascade-Operator/actions/workflows/integration.yml/badge.svg)](https://github.com/gasthecreator/Cascade-Operator/actions/workflows/integration.yml)
+[![CodeQL](https://github.com/gasthecreator/Cascade-Operator/actions/workflows/codeql.yml/badge.svg)](https://github.com/gasthecreator/Cascade-Operator/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/gasthecreator/Cascade-Operator/badge)](https://scorecard.dev/viewer/?uri=github.com/gasthecreator/Cascade-Operator)
+[![License](https://img.shields.io/github/license/gasthecreator/Cascade-Operator)](LICENSE)
+[![Go version](https://img.shields.io/github/go-mod/go-version/gasthecreator/Cascade-Operator)](go.mod)
+
 A Kubernetes operator that watches Prometheus for **cascade failure
 signatures** across a microservice mesh — a latency/error spike spreading
 downstream, a retry storm amplifying load on an already-degraded dependency,

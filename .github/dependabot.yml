@@ -5,6 +5,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    cooldown:
+      # Wait three days after a release before proposing it, so a yanked or
+      # broken release is usually withdrawn before it reaches a PR.
+      default-days: 3
     ignore:
       # This project pins Istio at a specific stable control-plane version
       # everywhere (hack/install-istio.sh, .github/workflows/integration.yml's
@@ -31,3 +35,8 @@ updates:
       codeql-action:
         patterns:
           - "github/codeql-action/*"
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
