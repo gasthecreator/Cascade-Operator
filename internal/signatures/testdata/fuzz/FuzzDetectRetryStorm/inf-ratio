@@ -1,0 +1,5 @@
+go test fuzz v1
+string("inventory")
+float64(+Inf)
+float64(3)
+float64(1)
