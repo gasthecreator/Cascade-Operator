@@ -11,10 +11,10 @@
 // (net.TCPConn.SetLinger(0) + Close, via http.Hijacker) instead of writing
 // an HTTP response — every other mode here (fail, slow) only ever returns
 // a 500 or sleeps, which Phase 11's own spike found never produces a real
-// kernel-level TCP disruption (see docs/worklog/2026-08-31-phase11-tetragon-spike.md's
+// kernel-level TCP disruption (see docs/history/worklog/2026-08-31-phase11-tetragon-spike.md's
 // "honest gap"). A raw RST is a genuine, real kernel event
 // (tcp_send_active_reset, confirmed live against this exact kernel — see
-// docs/worklog for the exact kallsyms check), independent of and
+// docs/history/worklog for the exact kallsyms check), independent of and
 // corroborating the HTTP-layer signals every other signature already
 // detects, without reaching for tc/iptables/netem or any privileged
 // network manipulation.
@@ -107,7 +107,7 @@ func NewMux(name string) *http.ServeMux {
 // of a clean FIN — the caller sees a connection reset, not an HTTP
 // response, and the kernel emits a genuine tcp_send_active_reset event
 // (confirmed live against this project's own dev kernel — see
-// docs/worklog/2026-08-31-phase11-tetragon-spike.md and its Phase 11
+// docs/history/worklog/2026-08-31-phase11-tetragon-spike.md and its Phase 11
 // follow-up). No response is written at all: writing anything first would
 // mean the client observes a truncated-but-otherwise-normal HTTP exchange,
 // not a reset.

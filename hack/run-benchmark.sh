@@ -71,7 +71,7 @@ echo "== starting operator (go run ./cmd/main.go --prometheus-url=http://127.0.0
 # on this dev cluster, and the manager only ever tries to load a webhook
 # TLS cert if something actually registers a webhook handler on it — so
 # skipping registration here is sufficient, not just a workaround (see
-# docs/worklog/2026-08-31-phase9-resilience-benchmark.md for the full
+# docs/history/worklog/2026-08-31-phase9-resilience-benchmark.md for the full
 # account of chasing this down).
 (cd "${ROOT}" && ENABLE_WEBHOOKS=false go run ./cmd/main.go --prometheus-url="http://127.0.0.1:${PROM_PORT}" --health-probe-bind-address=:18091) \
   >/tmp/cascade-bench-operator.log 2>&1 &

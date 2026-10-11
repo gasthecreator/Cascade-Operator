@@ -225,7 +225,20 @@ the source of truth for what's built — this section won't try to keep a
 duplicate in sync. Every unit of work, including the reasoning behind
 decisions and the real bugs found and fixed along the way (there were a
 lot, and hiding them would defeat the point of an honest engineering
-record), has a dated entry in [`docs/worklog/`](docs/worklog/README.md).
+record), has a dated entry in [`docs/history/worklog/`](docs/history/worklog/README.md).
+
+## Documentation map
+
+| Document | What it covers |
+|---|---|
+| [`docs/adr/`](docs/adr/README.md) | Architecture decision records: what was decided, the alternatives, the evidence |
+| [`docs/security-threat-model.md`](docs/security-threat-model.md) | What the operator can read and write, trust boundaries, known gaps |
+| [`docs/benchmark-results.md`](docs/benchmark-results.md) | Measured detect-only vs mitigate results per signature |
+| [`docs/dev-istio.md`](docs/dev-istio.md) | Local Kind + Istio environment |
+| [`docs/dev-linkerd.md`](docs/dev-linkerd.md) | Local Kind + Linkerd environment |
+| [`docs/demo-topology.md`](docs/demo-topology.md) | The checkout, payments, inventory demo and how faults are injected |
+| [`PLAN.md`](PLAN.md) | Roadmap, current architecture and the live checklist |
+| [`docs/history/`](docs/history/worklog/README.md) | Dated worklog of every unit of work, with reasoning |
 
 ## Repo layout
 
@@ -246,7 +259,8 @@ demo/k8s-linkerd/        Linkerd-injected copy of the demo topology
 demo/replay/             Self-contained visual cascade-replay page + captured traces
 demo/tetragon/           TracingPolicies watching TCP retransmits/resets
 docs/                    Dev-env setup, demo-topology notes, benchmark results, security threat model
-docs/worklog/            Dated history of what was built, why, and how (80+ entries)
+docs/adr/                Architecture decision records
+docs/history/            Dated worklog: what was built, why, and how (80+ entries)
 hack/                    Local dev scripts (install Istio/Linkerd/Tetragon, deploy demo, run k6/benchmarks)
 test/integration/        Kind-based integration tests: real apiserver, raw-JSON wire-format assertions
 PLAN.md                  Goal, architecture decisions, and the live checklist

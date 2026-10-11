@@ -65,5 +65,5 @@ boosted to 1.0.
 
 ## More Information
 
-PLAN.md §5 Phase 11; `docs/worklog/2026-08-31-phase11-tetragon-spike.md`,
-`docs/worklog/2026-09-01-phase11-kernel-corroboration.md`.
+PLAN.md §5 Phase 11; `docs/history/worklog/2026-08-31-phase11-tetragon-spike.md`,
+`docs/history/worklog/2026-09-01-phase11-kernel-corroboration.md`.

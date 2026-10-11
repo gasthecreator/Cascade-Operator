@@ -10,7 +10,7 @@
 #
 # Every step below was live-verified working, in this exact order, against
 # the dev Kind cluster during PLAN.md §5 Phase 6.6's own spike — see
-# docs/worklog/2026-08-31-phase6.6-linkerd-query-builder.md for the full
+# docs/history/worklog/2026-08-31-phase6.6-linkerd-query-builder.md for the full
 # accounting, including two real mistakes this script's ordering exists to
 # avoid repeating:
 #   - Linkerd 2.16+ requires the Gateway API CRDs to already exist before

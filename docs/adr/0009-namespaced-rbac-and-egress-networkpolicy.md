@@ -68,5 +68,5 @@ only in watched namespaces; allow/deny test from an unmeshed pod.
 ## More Information
 
 `docs/security-threat-model.md` (Known gaps);
-`docs/worklog/2026-09-04-security-hardening-and-a-real-calico-bug.md`,
-`docs/worklog/2026-09-04-live-verification-completed.md`.
+`docs/history/worklog/2026-09-04-security-hardening-and-a-real-calico-bug.md`,
+`docs/history/worklog/2026-09-04-live-verification-completed.md`.

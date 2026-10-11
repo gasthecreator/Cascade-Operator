@@ -7,7 +7,7 @@
 # detection must work identically with Tetragon absent.
 #
 # This is the resolution of the gap the original spike
-# (tcp-retransmit-policy.yaml, docs/worklog/2026-08-31-phase11-tetragon-spike.md)
+# (tcp-retransmit-policy.yaml, docs/history/worklog/2026-08-31-phase11-tetragon-spike.md)
 # found and stated plainly rather than working around: tcp_retransmit_skb
 # is a real, valid signal for actual packet loss, but this project's demo
 # topology had no fault-injection mechanism that ever produced a real

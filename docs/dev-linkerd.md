@@ -70,7 +70,7 @@ PROM_NAMESPACE=linkerd-viz PROM_SERVICE=prometheus hack/query-prom.sh \
 
 Linkerd's own metric names/labels are genuinely different from Istio's —
 confirmed live, not assumed, during PLAN.md §5 Phase 6.6's own spike (see
-`docs/worklog/2026-08-31-phase6.6-linkerd-query-builder.md` for the full
+`docs/history/worklog/2026-08-31-phase6.6-linkerd-query-builder.md` for the full
 accounting): `request_total`/`response_total` (not
 `istio_requests_total`), `response_latency_ms_bucket` (not
 `istio_request_duration_milliseconds_bucket`), `authority`/`direction`/
@@ -108,7 +108,7 @@ kubectl -n linkerd-demo run curl-reset --image=curlimages/curl --restart=Never -
 ```
 
 There is no standalone Tetragon dev-environment doc yet — `hack/install-
-tetragon.sh`'s own header comment and `docs/worklog/2026-09-01-phase11-*.md`
+tetragon.sh`'s own header comment and `docs/history/worklog/2026-09-01-phase11-*.md`
 cover installing it and confirming it actually captures this as a real
 `tcp_send_active_reset` event.
 

@@ -2,7 +2,7 @@
 
 Pin **Istio 1.31.0** (current stable as of 2026-09-04; matches
 `istio.io/client-go` in go.mod — bumped from 1.30.4, see
-`docs/worklog/2026-09-04-istio-1.31-upgrade.md` for what was checked before
+`docs/history/worklog/2026-09-04-istio-1.31-upgrade.md` for what was checked before
 moving the pin). The demo profile plus the sample Prometheus addon is
 enough to scrape real Envoy metrics. This is **not** the §2.7
 `checkout → {payments, inventory}` graph — that is a later checklist item.

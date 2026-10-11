@@ -23,7 +23,7 @@
 # (Prometheus-format, at :2112/metrics) reflects them once scraped, and
 # that a real Reconcile() call against a real Prometheus scraping both
 # Linkerd and Tetragon produces a corroborated Verdict end-to-end — see
-# docs/worklog/2026-09-01-phase11-kernel-corroboration.md.
+# docs/history/worklog/2026-09-01-phase11-kernel-corroboration.md.
 #
 # tcp_retransmit_skb remains genuinely unexercised (no current
 # fault-injection mode produces real packet loss) — its policy is still

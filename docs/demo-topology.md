@@ -3,7 +3,7 @@
 The §2.7-locked fan-out demo graph, under `demo/`. Three minimal Go
 services — `checkout` calls both `payments` and `inventory` per inbound
 request. This is the fan-out signature's evidence-gathering workload (see
-`docs/worklog/2026-08-30-fanout-demo-evidence.md`), and it is not the
+`docs/history/worklog/2026-08-30-fanout-demo-evidence.md`), and it is not the
 `sleep`/`httpbin` validation pair from the Kind+Istio dev-env slice (that
 pair still exists, unrelated, still useful for the other two signatures'
 PromQL history).

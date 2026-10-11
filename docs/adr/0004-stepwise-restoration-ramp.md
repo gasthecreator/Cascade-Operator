@@ -58,4 +58,4 @@ state machine are covered by unit tests and by the rapid property tests
 
 ## More Information
 
-PLAN.md §2.6; `docs/worklog/2026-08-29-restoration-ramp.md`.
+PLAN.md §2.6; `docs/history/worklog/2026-08-29-restoration-ramp.md`.

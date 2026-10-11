@@ -75,13 +75,13 @@ func TestErrorRateQuery(t *testing.T) {
 // TestErrorRateQueryVectorMatchingRequiresSum locks in *why* both sides need
 // sum(): without it, Prometheus's default one-to-one vector matching pairs
 // series by their full label set (response_code included), which — verified
-// live against the dev cluster (docs/worklog/2026-08-31-error-rate-query-sum-fix.md)
+// live against the dev cluster (docs/history/worklog/2026-08-31-error-rate-query-sum-fix.md)
 // — produces NaN or a spurious flat 1.0 depending on live traffic
 // composition, never the true error fraction. This regression-locks the
 // query shape a fake/stub PromQL client cannot catch, since a stub that
 // returns a canned scalar for any query text masks label-cardinality bugs
 // entirely (the same class of gap the retry-storm restore bug thread
-// documented — see docs/worklog/2026-08-31-phase5-retry-storm-restore-zero-value.md).
+// documented — see docs/history/worklog/2026-08-31-phase5-retry-storm-restore-zero-value.md).
 func TestErrorRateQueryVectorMatchingRequiresSum(t *testing.T) {
 	t.Parallel()
 	got := QueryBuilder{}.ErrorRateQuery("payments-service.default.svc.cluster.local", 30)

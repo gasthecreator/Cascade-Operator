@@ -59,7 +59,7 @@ Claude reviews them and updates this file if approved. See that file's
 protocol section for the full process.
 
 Every unit of implementation work gets a dated entry in
-[`docs/worklog/`](docs/worklog/README.md) — what was built, why, and how.
+[`docs/history/worklog/`](docs/history/worklog/README.md) — what was built, why, and how.
 This file (PLAN.md) tracks current state; the worklog tracks history.
 
 ---
@@ -209,7 +209,7 @@ regardless of `errorRateThreshold`) — never the true error fraction either
 way. A live `sum()`-wrapped query against the same traffic returned the
 correct aggregate (~0.47). Fixed by wrapping both sides in `sum()`, same as
 the p99 query's `sum by (le)`. See
-`docs/worklog/2026-08-31-error-rate-query-sum-fix.md`.
+`docs/history/worklog/2026-08-31-error-rate-query-sum-fix.md`.
 
 ### 2.5 Detection engine: decoupled from the reconciler
 
@@ -287,7 +287,7 @@ partial-edge restoration; those are real decisions, not a restatement of
 one already made. This section is now under Claude's authorship following
 review (2026-08-30) — the content is unchanged because it's correct on the
 merits, not because the original judgment call to skip review was valid.
-See `docs/worklog/2026-08-30-review-latency-error-timeout-secondary.md` for
+See `docs/history/worklog/2026-08-30-review-latency-error-timeout-secondary.md` for
 the full reasoning on both the design and the process point.
 
 **Signature handoff on a shared object (locked 2026-08-30):** latency/error
@@ -312,7 +312,7 @@ retry storm's primary (`retries.attempts → 0`) and secondary
 (`connectionPool.http.maxRetries → 0`) are both plain `int32` proto fields
 with `omitempty`, so an explicit trip value of `0` was stripped by JSON
 marshaling before the operator's typed `Update()` call ever reached the API
-server (`docs/worklog/2026-08-30-retry-storm-zero-value-serialization-bug.md`).
+server (`docs/history/worklog/2026-08-30-retry-storm-zero-value-serialization-bug.md`).
 Fixed by switching both writes to patches built from `map[string]any` — a
 JSON Patch for the primary's `VirtualService` (`spec.http` is an array, so
 merge patch would replace the whole list) and a JSON merge patch for the
@@ -320,8 +320,8 @@ secondary's `DestinationRule` (nested objects merge correctly, leaving
 fan-out's fields, outlierDetection, and TLS untouched) — instead of the
 typed struct's `Update()`. Confirmed live, independently, down to the raw
 stored object: both fields now store an explicit `0`
-(`docs/worklog/2026-08-30-retry-storm-zero-value-patch.md`,
-`docs/worklog/2026-08-30-review-retry-storm-zero-value-patch.md`). The
+(`docs/history/worklog/2026-08-30-retry-storm-zero-value-patch.md`,
+`docs/history/worklog/2026-08-30-review-retry-storm-zero-value-patch.md`). The
 mitigation *strategy* did not change, only how the zero value is
 transmitted.
 
@@ -668,7 +668,7 @@ live-cluster claim before checking an item here.
   The real signal is `route_request_total`/`route_actual_request_total` (a
   ServiceProfile-route-scoped pair), confirmed live at ~4.3x for the same
   failing traffic. See
-  `docs/worklog/2026-08-31-phase6.6-linkerd-query-builder.md` for the full
+  `docs/history/worklog/2026-08-31-phase6.6-linkerd-query-builder.md` for the full
   live-query accounting.
   **Slice 2 done**: `internal/mesh/linkerd.Mitigator` — failure-accrual
   Service annotations for latency/error-cascade, `ServiceProfile.spec.
@@ -691,7 +691,7 @@ live-cluster claim before checking an item here.
   Live-verified against the real cluster with a real typed client (not
   only the fake-client unit tests): full trip → restore cycles for both
   patched signatures, confirmed byte-exact original values restored. See
-  `docs/worklog/2026-08-31-phase6.6-linkerd-mitigator.md` for the full
+  `docs/history/worklog/2026-08-31-phase6.6-linkerd-mitigator.md` for the full
   accounting, including a real mistake caught and fixed before it shipped
   (an early version would have made `make manifests` generate and try to
   install this project's own partial copy of Linkerd's ServiceProfile CRD
@@ -707,7 +707,7 @@ live-cluster claim before checking an item here.
   `retryBudget` to fully-suppressed values, confirming the dispatch works
   end-to-end through the actual reconcile path the deployed operator
   binary uses, not only fake-client unit tests. See
-  `docs/worklog/2026-08-31-phase6.6-reconciler-mesh-dispatch.md`.
+  `docs/history/worklog/2026-08-31-phase6.6-reconciler-mesh-dispatch.md`.
   **Slice 4 done**: `hack/install-linkerd.sh` + `make linkerd-install`,
   mirroring `hack/install-istio.sh`'s shape. Live-run twice against the
   dev cluster: the first run caught a real bug (`linkerd install` refuses
@@ -716,7 +716,7 @@ live-cluster claim before checking an item here.
   existing install and using `linkerd upgrade`/`upgrade --crds` instead.
   The second run completed end-to-end, leaving the control plane and
   linkerd-viz's Prometheus fully rolled out and healthy. See
-  `docs/worklog/2026-09-01-phase6.6-linkerd-install-script.md`.
+  `docs/history/worklog/2026-09-01-phase6.6-linkerd-install-script.md`.
   **Slice 5 (final) done**: integration test coverage —
   `test/integration/linkerd_*.go`, the same raw-apiserver-JSON
   wire-format discipline as Istio's three existing integration tests,
@@ -726,7 +726,7 @@ live-cluster claim before checking an item here.
   unmodified. Live-verified individually and as part of the full
   `make test-integration` run (all six tests, both meshes, together, no
   cross-fixture interference). See
-  `docs/worklog/2026-09-01-phase6.6-linkerd-integration-tests.md`.
+  `docs/history/worklog/2026-09-01-phase6.6-linkerd-integration-tests.md`.
   **Phase 6.6 is now complete**, including the one item deferred across
   all five slices: `.github/workflows/integration.yml` now installs
   Linkerd alongside Istio (`make linkerd-install`, right after
@@ -740,7 +740,7 @@ live-cluster claim before checking an item here.
   the dev machine's own Kind node repeatedly across this phase's slices,
   and GitHub's standard runners have less headroom — not preemptively
   worked around, since doing so without a confirmed real failure would be
-  scope creep; see `docs/worklog/2026-09-01-phase6.6-ci-linkerd-integration.md`
+  scope creep; see `docs/history/worklog/2026-09-01-phase6.6-ci-linkerd-integration.md`
   for the plan if it does turn out flaky.
 - [x] Phase 11 — eBPF-level kernel-signal corroboration: **complete —
   spike passed, the fault-injection gap closed, detection-pipeline
@@ -766,7 +766,7 @@ live-cluster claim before checking an item here.
   aggressively, so two client requests produced well over a hundred real
   reset events, not two — left as-is (a real system behaving correctly
   under a real disruption, not a bug to paper over). See
-  `docs/worklog/2026-09-01-phase11-tcp-reset-fault-injection.md`.
+  `docs/history/worklog/2026-09-01-phase11-tcp-reset-fault-injection.md`.
   **Slice 2 (final) done**: wired the signal into detection. The real
   design question — how to *query* Tetragon at all — turned out to have
   a much simpler answer than a bespoke log-tailing component: confirmed
@@ -796,7 +796,7 @@ live-cluster claim before checking an item here.
   caught and fixed a real bug in the install script itself (an
   unescaped `.` in a `kubectl jsonpath` expression silently returned
   empty) by actually running it, not assuming it correct. See
-  `docs/worklog/2026-09-01-phase11-kernel-corroboration.md`.
+  `docs/history/worklog/2026-09-01-phase11-kernel-corroboration.md`.
 - [x] Post-Phase-11 follow-up — operator-metrics scrape gap closed: the
   operator is deployed in-cluster for the first time in this project's
   history (`hack/deploy-operator.sh`, `make deploy-operator`) — cert-manager
@@ -811,7 +811,7 @@ live-cluster claim before checking an item here.
   demo topology's fault-injection endpoints and confirmed
   `cascade_signatures_detected_total` came back through an actual PromQL
   query against Prometheus, not just a direct curl of the operator.
-  See `docs/worklog/2026-09-03-operator-in-cluster-deploy-and-metrics-scrape.md`.
+  See `docs/history/worklog/2026-09-03-operator-in-cluster-deploy-and-metrics-scrape.md`.
 - [x] Follow-up to the follow-up — per-mesh Prometheus client: closed a
   limitation surfaced live while verifying the item above — the
   operator's Prometheus client was one process-wide URL, but `spec.mesh`
@@ -870,8 +870,8 @@ live-cluster claim before checking an item here.
   `config.linkerd.io/skip-outbound-ports` annotation on the manager's own
   pod template; and a lowercase-repository-name bug in the publish-image
   workflow's first real run. See
-  `docs/worklog/2026-09-04-security-hardening-and-a-real-calico-bug.md`
-  and `docs/worklog/2026-09-04-live-verification-completed.md` for the
+  `docs/history/worklog/2026-09-04-security-hardening-and-a-real-calico-bug.md`
+  and `docs/history/worklog/2026-09-04-live-verification-completed.md` for the
   full accounting, and `docs/security-threat-model.md`'s own three entries
   for each item's final, live-verified status.
 
