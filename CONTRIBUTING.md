@@ -76,6 +76,15 @@ implementation.
   worklog is where reviewers learn *why*.
 - Index new entries in `docs/worklog/README.md`.
 
+### `docs/adr/` — architecture decision records
+
+- Write an ADR for any significant or hard-to-reverse decision (CRD shape,
+  mesh adapter interfaces, security posture, anything costly to undo). Copy
+  [`docs/adr/0000-template.md`](docs/adr/0000-template.md), take the next
+  number, and add it to the index in [`docs/adr/README.md`](docs/adr/README.md).
+- ADRs are immutable once accepted; to change one, add a new ADR that
+  supersedes it.
+
 ### Typical flow
 
 1. **Architecture change?** → `PROPOSALS.md` entry → review → update `PLAN.md`
