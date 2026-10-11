@@ -22,7 +22,7 @@ injection, no mocked verification. See [`PLAN.md`](PLAN.md)'s §1 for the
 full goal statement and the engineering standard behind every tradeoff in
 here.
 
-**License:** [Apache 2.0](LICENSE) · **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md) · **Security:** [SECURITY.md](SECURITY.md)
+**License:** [Apache 2.0](LICENSE) · **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md) · **Security:** [SECURITY.md](SECURITY.md) · **Architecture decisions:** [docs/adr/](docs/adr/README.md)
 
 ## Architecture at a glance
 
