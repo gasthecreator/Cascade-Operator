@@ -16,6 +16,11 @@ bugs found along the way for every item below live in
 
 ### Added
 
+- **Releases**: `release.yml` builds, signs and attaches an SBOM and
+  provenance to the image on a `vX.Y.Z` tag, builds the installer manifest
+  pinned to that image digest with SHA-256 checksums, and creates the GitHub
+  Release with notes from the matching CHANGELOG section
+  (`hack/release-notes.sh`).
 - **Repo hygiene** (Phase 0): LICENSE, CONTRIBUTING, CODE_OF_CONDUCT,
   SECURITY, CODEOWNERS, CHANGELOG, `.editorconfig`, GitHub issue/PR
   templates, Dependabot.
@@ -87,6 +92,15 @@ reproduction and confirmation for each:
 - An unescaped `.` in a `kubectl jsonpath` expression
   (`hack/install-tetragon.sh`) silently returned empty instead of
   erroring, breaking the Prometheus scrape-config patch.
+
+### Changed
+
+- CI: unit tests run with the race detector and publish a per-package
+  coverage summary to the job summary; OpenSSF Scorecard runs weekly and on
+  pushes to `main`; Dependabot covers the `Dockerfile` and waits three days
+  before proposing new Go module releases.
+- `publish-image.yml` is now also a reusable workflow (`workflow_call`); the
+  tag trigger moved to the new `release.yml`.
 
 ### Documentation
 

@@ -231,7 +231,8 @@ resource types.
   controls. `docker/build-push-action`'s own `provenance`/`sbom` inputs
   attach a SLSA provenance attestation and software bill of materials to
   the same image, covering "provenance" in this gap's original title, not
-  just the signature. Triggered by a `v*` tag push (a real release) or
+  just the signature. Run by `release.yml` on a version tag (it calls this
+  workflow, so a release builds and signs the image once) or
   manually via `workflow_dispatch` (exercised this way here, since this
   project has no tagged release yet). **Live-verified (2026-09-04)**: the
   first actual `workflow_dispatch` run failed at the build step —

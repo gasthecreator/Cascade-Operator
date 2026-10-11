@@ -5,18 +5,26 @@
 # support, so "provenance" in that gap's title is covered too, not just
 # the signature.
 #
-# workflow_dispatch exists specifically so this can be exercised and
-# verified on demand (this project has no tagged release yet) — the tag
-# trigger is what a real release would use. Manual runs publish to
-# ghcr.io/<owner>/cascade-operator:<short-sha>; tag pushes additionally
-# publish :<tag> and :latest.
+# Two entry points, one implementation:
+#   - workflow_dispatch: exercise and verify the pipeline on demand. Publishes
+#     ghcr.io/<owner>/cascade-operator:<short-sha> only.
+#   - workflow_call: used by release.yml on a version tag, so a release builds
+#     and signs the image exactly once. Tag runs additionally publish :<tag>
+#     and :latest.
+# The tag trigger that used to live here moved to release.yml; keeping both
+# would build and sign every tag twice.
 name: Publish image
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
+  workflow_call:
+    outputs:
+      image:
+        description: Lower-case image repository, without tag or digest
+        value: ${{ jobs.publish.outputs.image }}
+      digest:
+        description: Digest of the published image (sha256:...)
+        value: ${{ jobs.publish.outputs.digest }}
 
 permissions: {}
 
@@ -32,6 +40,9 @@ jobs:
       id-token: write # required for cosign's keyless OIDC signing
     name: Build, push, and sign
     runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.tags.outputs.image }}
+      digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Clone the code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -63,6 +74,7 @@ jobs:
             TAGS="${TAGS},${IMAGE}:${REF_TAG},${IMAGE}:latest"
           fi
           echo "tags=${TAGS}" >>"${GITHUB_OUTPUT}"
+          echo "image=${IMAGE}" >>"${GITHUB_OUTPUT}"
         env:
           REGISTRY: ${{ env.REGISTRY }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
