@@ -13,6 +13,11 @@ This is **not** the same as:
   worklog entry causes a PLAN.md checklist item to flip from unchecked to
   checked, update the checklist too — but the reasoning lives here, not there.
 
+> **Note on paths:** this directory was moved from `docs/worklog/` to
+> `docs/history/worklog/` on 2026-10-10. Entries written before that date
+> refer to their siblings, and to each other, by the old path. Entries are
+> otherwise unchanged.
+
 ## Convention
 
 - One file per unit of work: a feature, a bugfix, a refactor, a test suite, an

@@ -67,6 +67,6 @@ locks in per-policy dispatch.
 ## More Information
 
 PLAN.md §5 Phase 6 (6.1-6.6);
-`docs/worklog/2026-08-31-phase6-mesh-query-builder.md`,
-`docs/worklog/2026-08-31-phase6.3-mitigator-fanout.md`,
-`docs/worklog/2026-08-31-phase6.6-reconciler-mesh-dispatch.md`.
+`docs/history/worklog/2026-08-31-phase6-mesh-query-builder.md`,
+`docs/history/worklog/2026-08-31-phase6.3-mitigator-fanout.md`,
+`docs/history/worklog/2026-08-31-phase6.6-reconciler-mesh-dispatch.md`.

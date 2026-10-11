@@ -42,39 +42,28 @@ also run against the dev Kind cluster:
 make test-integration   # requires kind-cascade-operator context; see README
 ```
 
-## How this repository is governed (read this)
+## How decisions and history are recorded
 
-This project uses an unusual but deliberate documentation protocol. It keeps
-architecture decisions stable while still moving fast with AI-assisted
-implementation.
+This repository keeps architecture decisions stable and records the reasoning
+behind changes. Four documents have distinct jobs:
 
-### `PLAN.md` — current truth
+### `PLAN.md` — current state and roadmap
 
-- Reflects **what is decided and built now**: architecture, patch matrix,
+- Reflects what is decided and built now: architecture, patch matrix,
   checklist status.
-- **Do not edit** `PLAN.md`'s **Architecture Decisions** (§2) or **Open
-  Questions** (§4) directly in a feature PR. Those sections change only after
-  review.
-- Checklist items in §3 and §5 *may* be flipped to `[x]` when the corresponding
-  work is actually done — often by the implementer, always with a worklog entry
-  backing it up.
+- Do not edit **Architecture Decisions** (§2) or **Open Questions** (§4)
+  directly in a feature PR; those sections change only after a proposal is
+  reviewed.
+- Checklist items in §3 and §5 may be flipped to `[x]` when the work is done,
+  backed by a history entry.
 
 ### `PROPOSALS.md` — proposed changes to decided architecture
 
-- File a proposal when you want to change something already locked in
-  `PLAN.md` (CRD shape, patch matrix, CI policy, multi-mesh direction, etc.).
-- Proposals are reviewed **before** implementation. Approved proposals get
-  merged into `PLAN.md`; rejected ones stay documented for context.
-- Small, non-architectural bug fixes and tests do not need a proposal.
-
-### `docs/worklog/` — history and reasoning
-
-- Every meaningful slice of work gets an append-only worklog entry
-  (`YYYY-MM-DD-short-slug.md`) explaining **what**, **why**, **how**, and
-  **what was tested**.
-- Reasoning lives here, not in `PLAN.md`. If a checklist item flips, the
-  worklog is where reviewers learn *why*.
-- Index new entries in `docs/worklog/README.md`.
+- File a proposal to change something already decided in `PLAN.md` (CRD shape,
+  patch matrix, CI policy, multi-mesh direction, and so on).
+- Proposals are reviewed before implementation. Approved proposals are merged
+  into `PLAN.md`; rejected ones stay documented for context.
+- Small bug fixes and tests do not need a proposal.
 
 ### `docs/adr/` — architecture decision records
 
@@ -85,20 +74,25 @@ implementation.
 - ADRs are immutable once accepted; to change one, add a new ADR that
   supersedes it.
 
+### `docs/history/worklog/` — history and reasoning
+
+- Each meaningful piece of work gets an append-only entry
+  (`YYYY-MM-DD-short-slug.md`) explaining what, why, how, and what was tested.
+- Index new entries in `docs/history/worklog/README.md`.
+
 ### Typical flow
 
-1. **Architecture change?** → `PROPOSALS.md` entry → review → update `PLAN.md`
-   → implement → worklog.
-2. **Implementation within existing architecture?** → branch → code → worklog →
-   PR (use the PR template checklist).
-3. **Independent review** (human or designated reviewer) rebuilds, runs tests,
-   and re-verifies any live-cluster claims before merge.
+1. **Architecture change?** Proposal, review, update `PLAN.md`, ADR if the
+   decision is significant, implement, history entry.
+2. **Implementation within existing architecture?** Branch, code, history
+   entry, PR (use the PR template checklist).
+3. **Review** rebuilds, runs the tests, and re-verifies any live-cluster
+   claims before merge.
 
 ### `AGENTS.md`
 
-- Cursor and other agents read [AGENTS.md](AGENTS.md) for kubebuilder
-  conventions, test commands, and scaffold rules. Humans can ignore it unless
-  you're editing agent instructions.
+[AGENTS.md](AGENTS.md) is a short guide to the repository layout, make
+targets and generated files, for anyone (or any tool) working in the code.
 
 ## Pull requests
 

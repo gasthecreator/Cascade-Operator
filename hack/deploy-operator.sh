@@ -5,7 +5,7 @@
 # so its own `/metrics` endpoint is genuinely scraped by a mesh Prometheus,
 # not just curlable directly. This closes the "operator metrics not
 # scraped" gap CHANGELOG.md's [Unreleased] "Known gaps" section previously
-# described (docs/worklog/2026-09-01-docs-dev-linkerd-and-audit-followup.md
+# described (docs/history/worklog/2026-09-01-docs-dev-linkerd-and-audit-followup.md
 # scoped it: needs cert-manager for the webhook's TLS *and* a scrape-config
 # addition, not just the latter).
 #
@@ -47,7 +47,7 @@
 #      Istio-mesh and a Linkerd-mesh CascadePolicy from one operator
 #      process at once — each mesh's proxies are only scraped by that
 #      mesh's own Prometheus (see internal/controller/cascadepolicy_controller.go's
-#      metricsQuerier(), and docs/worklog/2026-09-03-operator-in-cluster-deploy-and-metrics-scrape.md
+#      metricsQuerier(), and docs/history/worklog/2026-09-03-operator-in-cluster-deploy-and-metrics-scrape.md
 #      for the live reproduction of the bug this fixes).
 #   8. Add a static scrape job for the operator's `/metrics` (bearer token
 #      from the Prometheus pod's own mounted ServiceAccount, scheme https,

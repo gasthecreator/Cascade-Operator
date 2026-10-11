@@ -16,9 +16,9 @@
 // Run alongside `kubectl get cascadepolicy -w` to watch status transition.
 // Mitigation is confirmed working as of 2026-08-30 (webhook rejection fix,
 // zero-value patch path, maxRetries trip value 1) — see demo/k6/README.md
-// and docs/worklog/2026-08-30-retry-storm-mitigation-webhook-fix.md,
-// docs/worklog/2026-08-30-retry-storm-zero-value-patch.md,
-// docs/worklog/2026-08-30-retry-storm-maxretries-one.md. Wire-format
+// and docs/history/worklog/2026-08-30-retry-storm-mitigation-webhook-fix.md,
+// docs/history/worklog/2026-08-30-retry-storm-zero-value-patch.md,
+// docs/history/worklog/2026-08-30-retry-storm-maxretries-one.md. Wire-format
 // assertions also live in test/integration (make test-integration).
 import http from 'k6/http';
 import { check } from 'k6';

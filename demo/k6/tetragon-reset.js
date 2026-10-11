@@ -1,6 +1,6 @@
 // Tetragon kernel-signal corroboration demo (PLAN.md §5 Phase 11's own
 // stated follow-up, flagged in
-// docs/worklog/2026-09-01-phase11-tcp-reset-fault-injection.md as "a
+// docs/history/worklog/2026-09-01-phase11-tcp-reset-fault-injection.md as "a
 // reasonable next step" and left unbuilt until now). Drives the same
 // steady load through checkout-service's /checkout endpoint as the other
 // three scripts, then flips payments-service into "resetting" mode

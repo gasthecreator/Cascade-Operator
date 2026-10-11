@@ -154,14 +154,14 @@ now apply end-to-end on this fixture. Three bugs were fixed in sequence:
 
 1. **Webhook rejection** — trip must clear `retryOn`/`perTryTimeout`/`backoff`
    alongside `attempts: 0`. See
-   [`docs/worklog/2026-08-30-retry-storm-mitigation-webhook-fix.md`](../../docs/worklog/2026-08-30-retry-storm-mitigation-webhook-fix.md).
+   [`docs/history/worklog/2026-08-30-retry-storm-mitigation-webhook-fix.md`](../../docs/history/worklog/2026-08-30-retry-storm-mitigation-webhook-fix.md).
 2. **Zero-value serialization** — `attempts: 0` / `maxRetries: 0` must use
    patch-based writes so `omitempty` does not strip them from stored JSON.
    See
-   [`docs/worklog/2026-08-30-retry-storm-zero-value-patch.md`](../../docs/worklog/2026-08-30-retry-storm-zero-value-patch.md).
+   [`docs/history/worklog/2026-08-30-retry-storm-zero-value-patch.md`](../../docs/history/worklog/2026-08-30-retry-storm-zero-value-patch.md).
 3. **Istio Pilot translation** — explicit `maxRetries: 0` never reaches Envoy;
    trip value is now `1`. See
-   [`docs/worklog/2026-08-30-retry-storm-maxretries-one.md`](../../docs/worklog/2026-08-30-retry-storm-maxretries-one.md).
+   [`docs/history/worklog/2026-08-30-retry-storm-maxretries-one.md`](../../docs/history/worklog/2026-08-30-retry-storm-maxretries-one.md).
 
 Automated wire-format checks (raw apiserver JSON for `"attempts":0` and
 `"maxRetries":1`, plus full restore) live in `test/integration/` — run
@@ -174,7 +174,7 @@ fail to fire while patches look correct in isolation).
 
 `tetragon-reset.js` (PLAN.md §5 Phase 11's own follow-up, unbuilt until
 now — see
-[`docs/worklog/2026-09-01-phase11-tcp-reset-fault-injection.md`](../../docs/worklog/2026-09-01-phase11-tcp-reset-fault-injection.md)'s
+[`docs/history/worklog/2026-09-01-phase11-tcp-reset-fault-injection.md`](../../docs/history/worklog/2026-09-01-phase11-tcp-reset-fault-injection.md)'s
 own "reasonable next step" note) drives the same load/induce/heal timeline
 as the other three scripts, but induces via `/control/reset` — a genuine
 TCP RST, not an HTTP error. Live-verified (2026-09-04): this actually
@@ -188,7 +188,7 @@ show `kernel_corroboration=true` in the operator's own reconcile logs,
 with confidence boosted toward 1.0 (real kernel events were independently
 confirmed live via `tetragon_events_total`, though the exact log line
 tying them to this specific trip wasn't captured that run — see
-`docs/worklog/2026-09-04-live-verification-completed.md`) — confirm with:
+`docs/history/worklog/2026-09-04-live-verification-completed.md`) — confirm with:
 
 ```bash
 hack/run-k6-demo.sh tetragon-reset

@@ -64,4 +64,4 @@ lowercasing, which no local check could have caught.
 ## More Information
 
 `docs/security-threat-model.md` (Known gaps);
-`docs/worklog/2026-09-04-live-verification-completed.md`.
+`docs/history/worklog/2026-09-04-live-verification-completed.md`.

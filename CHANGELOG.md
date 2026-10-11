@@ -11,7 +11,7 @@ once tagged releases begin. Until then, `[Unreleased]` tracks `main`.
 Everything in PLAN.md §5's Production-Readiness & Multi-Mesh Initiative
 (Phases 0–11) — full reasoning, live-verification evidence, and the real
 bugs found along the way for every item below live in
-[`docs/worklog/`](docs/worklog/README.md) and are tracked to completion in
+[`docs/history/worklog/`](docs/history/worklog/README.md) and are tracked to completion in
 [`PLAN.md`](PLAN.md)'s own checklist, the source of truth for scope.
 
 ### Added
@@ -197,8 +197,8 @@ reproduction and confirmation for each:
     revoked, both watched namespaces correctly granted, an unwatched
     namespace correctly denied, reconciliation unaffected.
 
-  See `docs/worklog/2026-09-04-security-hardening-and-a-real-calico-bug.md`
-  and `docs/worklog/2026-09-04-live-verification-completed.md` for the
+  See `docs/history/worklog/2026-09-04-security-hardening-and-a-real-calico-bug.md`
+  and `docs/history/worklog/2026-09-04-live-verification-completed.md` for the
   full accounting of all four bugs found and fixed via live testing.
 - **Istio 1.30.4 → 1.31.0**: `istio.io/api`/`istio.io/client-go` and the
   pinned control-plane version bumped together (this project keeps them
@@ -214,7 +214,7 @@ reproduction and confirmation for each:
   producing `metadata.resourceVersion: Invalid value: 0` on any later
   apply. Fixed by stripping the stale annotation; all 6 integration tests
   (Istio + Linkerd) pass clean against the upgraded control plane. See
-  `docs/worklog/2026-09-04-istio-1.31-upgrade.md`.
+  `docs/history/worklog/2026-09-04-istio-1.31-upgrade.md`.
 
 ## [0.1.0] - 2026-08-31
 

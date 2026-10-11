@@ -58,4 +58,4 @@ documented as a limitation, not a silent skip.
 
 ## More Information
 
-PLAN.md §5 Phase 6.6; `docs/worklog/2026-08-31-phase6.6-linkerd-mitigator.md`.
+PLAN.md §5 Phase 6.6; `docs/history/worklog/2026-08-31-phase6.6-linkerd-mitigator.md`.

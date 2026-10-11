@@ -183,7 +183,7 @@ func TestLinkerdModeRetryStormFullTripAndRestoreCycleViaReconcile(t *testing.T) 
 }
 
 // Tests below prove metricsQuerier()'s own dispatch: a real, previously-
-// hidden bug (2026-09-03, docs/worklog/2026-09-03-operator-in-cluster-deploy-and-metrics-scrape.md)
+// hidden bug (2026-09-03, docs/history/worklog/2026-09-03-operator-in-cluster-deploy-and-metrics-scrape.md)
 // found this session live — a single process-wide Metrics querier silently
 // starves whichever mesh it doesn't scrape, since a CascadePolicy on that
 // mesh reconciles forever without ever seeing real data. MetricsIstio/

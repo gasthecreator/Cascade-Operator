@@ -24,7 +24,7 @@ limitations under the License.
 // a Linkerd implementation is a second, equally first-class package
 // alongside it.
 //
-// Status as of Phase 6.3 (see docs/worklog for the exact dated accounting):
+// Status as of Phase 6.3 (see docs/history/worklog for the exact dated accounting):
 // QueryBuilder is fully wired through the reconciler. Mitigator is defined
 // and implemented for Istio's fan-out-amplification signature only —
 // latency/error-cascade and retry storm (both of which manage a secondary

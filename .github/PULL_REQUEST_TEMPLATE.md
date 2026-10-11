@@ -22,5 +22,5 @@
 ## Process checklist
 
 - [ ] No direct edits to `PLAN.md` Architecture Decisions or Open Questions (use `PROPOSALS.md` for changes there)
-- [ ] Worklog entry added under `docs/worklog/` (and indexed in `docs/worklog/README.md` if new)
+- [ ] Worklog entry added under `docs/history/worklog/` (and indexed in `docs/history/worklog/README.md` if new)
 - [ ] `CHANGELOG.md` updated for user-visible changes (if applicable)

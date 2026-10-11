@@ -51,7 +51,7 @@ func (QueryBuilder) LatencyP99Query(host string, windowSeconds int32) string {
 // side, divided directly — relied on Prometheus's default one-to-one
 // vector matching, which pairs numerator and denominator series only when
 // their full label sets (including response_code) are identical. Verified
-// live against the dev cluster's real traffic (docs/worklog): depending on
+// live against the dev cluster's real traffic (docs/history/worklog): depending on
 // which/how many response_code series exist at query time, that produced
 // either NaN (mismatched label sets on every pair — no match found,
 // division on the unmatched leftovers yields NaN) or, when synthetic
