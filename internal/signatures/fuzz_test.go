@@ -106,8 +106,8 @@ func FuzzDetectRetryStorm(f *testing.F) {
 			t.Fatalf("non-deterministic: %+v vs %+v", v, again)
 		}
 		// A NaN multiplier is outside the detector's contract (it cannot be
-		// expressed in the CRD's JSON); see docs/history/worklog for the
-		// finding. Everything else must satisfy the shape and monotonicity
+		// expressed in the CRD's JSON); see
+		// docs/history/worklog/2026-10-10-repo-standards.md for the finding. Everything else must satisfy the shape and monotonicity
 		// properties.
 		if math.IsNaN(mult) {
 			return

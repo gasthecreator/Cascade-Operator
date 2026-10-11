@@ -62,6 +62,7 @@ Anything deliberately deferred, and why.
 
 ## Index (newest first)
 
+- [2026-10-10 — Repo standards: ADRs, history cleanup, CI hardening, fuzz tests, runbooks](2026-10-10-repo-standards.md)
 - [2026-09-21 — Bump google.golang.org/grpc to v1.83.1 (GO-2026-6348)](2026-09-21-grpc-govulncheck-fix.md)
 - [2026-09-04 — Istio 1.30.4 → 1.31.0 upgrade: Go libraries and control-plane pin together, live-verified](2026-09-04-istio-1.31-upgrade.md)
 - [2026-09-04 — Live verification completed: namespace-scoped RBAC, egress NetworkPolicy, image signing — three more real bugs found along the way](2026-09-04-live-verification-completed.md)
