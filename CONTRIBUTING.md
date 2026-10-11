@@ -42,6 +42,47 @@ also run against the dev Kind cluster:
 make test-integration   # requires kind-cascade-operator context; see README
 ```
 
+## Testing strategy
+
+Tests are layered so most failures are caught by the cheapest layer that can
+see them. Prefer the lowest layer that exercises the behavior.
+
+| Layer | What it proves | Where | How to run |
+|---|---|---|---|
+| Unit | Pure logic: detectors, patch builders, restore math, query builders | `internal/signatures`, `internal/mitigation`, `internal/mesh/*` | `make test` |
+| Failure-path | Behavior when the API server errors, conflicts or fails halfway (fault injection with controller-runtime's `interceptor` client) | `internal/mesh/istio/mitigator_failure_test.go`, `internal/controller/reconcile_api_failure_test.go` | `make test` |
+| Property-based | State-machine and wire-format invariants over random sequences (`pgregory.net/rapid`) | `internal/controller/statemachine_rapid_test.go`, `internal/mitigation/retries_rapid_test.go` | `make test` |
+| envtest | The reconciler and admission webhook against a real API server and etcd | `internal/controller`, `internal/webhook` | `make test` (downloads envtest binaries) |
+| Fuzz | Detector input handling never panics, is deterministic, and is monotonic | `internal/signatures/fuzz_test.go` | see below |
+| Benchmarks | Cost of the detector hot path | `internal/signatures/bench_test.go` | see below |
+| Integration | Real mitigation against a real mesh: trip, patch wire format, restore, on Istio and Linkerd | `test/integration` | `make test-integration` (needs the Kind dev cluster) |
+| End-to-end | The deployed manager and its metrics endpoint in an isolated cluster | `test/e2e` | `make test-e2e` (creates and deletes its own Kind cluster) |
+
+CI runs the unit, failure-path, property and envtest layers with the race
+detector on every push and publishes a per-package coverage summary; the
+integration job installs Istio and Linkerd on a fresh Kind cluster. Use
+coverage to find untested code, not as a score to maximize.
+
+```bash
+# Fuzzing: without -fuzz, `go test` only replays the committed seed corpus
+# (testdata/fuzz/), so the targets also act as regression tests.
+go test -fuzz=FuzzDetectLatencyError -fuzztime=30s ./internal/signatures
+go test -fuzz=FuzzDetectRetryStorm -fuzztime=30s ./internal/signatures
+go test -fuzz=FuzzDetectFanOut -fuzztime=30s ./internal/signatures
+go test -fuzz=FuzzApplyKernelCorroboration -fuzztime=30s ./internal/signatures
+
+# Benchmarks
+go test -run='^$' -bench=. -benchmem ./internal/signatures
+```
+
+When the fuzzer finds a failure it writes the input to
+`testdata/fuzz/<Target>/`; commit that file with the fix so it stays a
+regression test.
+
+Changes to mitigation or restore behavior need a failure-path test (what
+happens if the write fails halfway?) as well as the happy path, and a live
+check against the Kind cluster when they change what lands on the API server.
+
 ## How decisions and history are recorded
 
 This repository keeps architecture decisions stable and records the reasoning

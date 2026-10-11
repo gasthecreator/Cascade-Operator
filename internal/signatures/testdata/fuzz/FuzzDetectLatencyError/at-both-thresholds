@@ -1,0 +1,8 @@
+go test fuzz v1
+string("payments")
+float64(500)
+float64(0.05)
+float64(500)
+float64(0.05)
+float64(0)
+float64(0)
